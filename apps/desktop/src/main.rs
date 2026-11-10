@@ -56,9 +56,17 @@ fn rpc(
     method: &str,
     params: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
+    rpc_with_timeout(connection, method, params, Duration::from_secs(5))
+}
+fn rpc_with_timeout(
+    connection: &Connection,
+    method: &str,
+    params: serde_json::Value,
+    timeout: Duration,
+) -> Result<serde_json::Value, String> {
     let client = reqwest::blocking::Client::builder()
         .no_proxy()
-        .timeout(Duration::from_secs(5))
+        .timeout(timeout)
         .build()
         .map_err(|e| e.to_string())?;
     let result: serde_json::Value = client
@@ -90,15 +98,25 @@ fn read_connection(root: &Path) -> Option<Connection> {
         None
     }
 }
-fn launch(app: &tauri::AppHandle) -> Result<Runtime, String> {
-    let data = std::env::var_os("ECHO_DATA_DIR")
+fn data_directory() -> PathBuf {
+    std::env::var_os("ECHO_DATA_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
             std::env::var_os("LOCALAPPDATA")
                 .map(PathBuf::from)
                 .unwrap_or(std::env::temp_dir())
                 .join("Echo")
-        });
+        })
+}
+fn instance_identifier(directory: &Path) -> String {
+    let canonical = directory.canonicalize().unwrap_or_else(|_| directory.to_path_buf());
+    let normalized = canonical.to_string_lossy().replace('\\', "/").to_lowercase();
+    let normalized = normalized.trim_start_matches("//?/").trim_end_matches('/');
+    let hash = normalized.bytes().fold(0xcbf29ce484222325u64, |hash, byte| (hash ^ byte as u64).wrapping_mul(0x100000001b3));
+    format!("app.echo.workbench.d{hash:016x}")
+}
+fn launch(app: &tauri::AppHandle) -> Result<Runtime, String> {
+    let data = data_directory();
     std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
     if let Some(connection) = read_connection(&data) {
         return Ok(Runtime {
@@ -126,11 +144,17 @@ fn launch(app: &tauri::AppHandle) -> Result<Runtime, String> {
         project.join("echo-native.exe")
     };
     let mut command = Command::new(node);
+    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
     command
         .arg(project.join("dist/server.mjs"))
         .env("ECHO_DATA_DIR", &data)
         .env("ECHO_PROJECT_ROOT", &project)
         .env("ECHO_NATIVE_PATH", helper)
+        .env("ECHO_STORAGE_ANCHOR", &data)
+        .env("ECHO_INSTALL_DIR", executable.parent().ok_or("Missing install directory")?)
+        .env("ECHO_DESKTOP_EXE", &executable)
+        .env("ECHO_DESKTOP_PID", std::process::id().to_string())
+        .env("ECHO_DESKTOP_BUILD", env!("ECHO_BUILD_INFO"))
         .current_dir(&project)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -143,7 +167,8 @@ fn launch(app: &tauri::AppHandle) -> Result<Runtime, String> {
     let mut child = command
         .spawn()
         .map_err(|e| format!("无法启动 Echo 核心：{e}"))?;
-    for _ in 0..6000 {
+    let attempts = if std::env::var("ECHO_UPDATE_TOKEN").unwrap_or_default().is_empty() { 6000 } else { 300 };
+    for _ in 0..attempts {
         if let Some(connection) = read_connection(&data) {
             return Ok(Runtime {
                 connection,
@@ -157,6 +182,7 @@ fn launch(app: &tauri::AppHandle) -> Result<Runtime, String> {
         std::thread::sleep(Duration::from_millis(100));
     }
     let _ = child.kill();
+    let _ = child.wait();
     Err("等待 Echo 核心启动超时".into())
 }
 fn show_main(app: &tauri::AppHandle) -> Result<(), String> {
@@ -206,6 +232,33 @@ fn connection(state: State<Runtime>) -> Connection {
     state.connection.clone()
 }
 #[tauri::command]
+fn desktop_info() -> Result<serde_json::Value, String> {
+    serde_json::from_str(env!("ECHO_BUILD_INFO")).map_err(|e| e.to_string())
+}
+#[tauri::command]
+async fn desktop_ready(state: State<'_, Runtime>, frontend: serde_json::Value) -> Result<(), String> {
+    let desktop = desktop_info()?;
+    if frontend["buildId"] != desktop["buildId"] || frontend["edition"] != desktop["edition"] {
+        return Err("Desktop and frontend builds differ".into());
+    }
+    let connection = state.connection.clone();
+    tauri::async_runtime::spawn_blocking(move || rpc(&connection, "updates.confirm", serde_json::json!({"desktop": desktop})))
+        .await.map_err(|e| e.to_string())??;
+    Ok(())
+}
+#[tauri::command]
+async fn install_update(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    if app.state::<Runtime>().child.lock().map_err(|e| e.to_string())?.is_none() {
+        return Err("请完整退出现有 Echo 后重新打开，再执行更新。".into());
+    }
+    let connection = app.state::<Runtime>().connection.clone();
+    tauri::async_runtime::spawn_blocking(move || rpc_with_timeout(&connection, "updates.handoff", serde_json::json!({"id": id}), Duration::from_secs(120)))
+        .await.map_err(|e| e.to_string())??;
+    app.state::<Runtime>().quitting.store(true, Ordering::SeqCst);
+    app.exit(0);
+    Ok(())
+}
+#[tauri::command]
 fn open_workbench(app: tauri::AppHandle) -> Result<(), String> {
     show_main(&app)
 }
@@ -243,12 +296,19 @@ fn valid_extension_identifier(value: &str) -> bool {
 }
 #[cfg(test)]
 mod frontend_tests {
-    use super::valid_extension_identifier;
+    use super::{valid_extension_identifier, instance_identifier};
     #[test]
     fn page_identifiers_allow_namespaces_without_script_or_url_characters() {
         for value in ["plugins", "demo.settings", "role-one_2"] { assert!(valid_extension_identifier(value)); }
         for value in ["", "../page", "page?token=1", "x');alert(1)//"] { assert!(!valid_extension_identifier(value)); }
         assert!(!valid_extension_identifier(&"x".repeat(161)));
+    }
+    #[test]
+    fn separate_data_directories_have_separate_desktop_instance_locks() {
+        let a = std::env::temp_dir().join("echo-instance-a");
+        let b = std::env::temp_dir().join("echo-instance-b");
+        assert_eq!(instance_identifier(&a), instance_identifier(&a));
+        assert_ne!(instance_identifier(&a), instance_identifier(&b));
     }
 }
 #[tauri::command]
@@ -308,6 +368,12 @@ fn quit_echo(app: tauri::AppHandle) {
     app.exit(0);
 }
 fn main() {
+    let mut context = tauri::generate_context!();
+    let data = data_directory();
+    std::fs::create_dir_all(&data).expect("Echo data directory unavailable");
+    // The SQLite instance lock protects the same data. Keep unrelated installations
+    // and isolated acceptance fixtures from activating each other's desktop window.
+    context.config_mut().identifier = instance_identifier(&data);
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             let app = app.clone();
@@ -318,6 +384,9 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             connection,
+            desktop_info,
+            desktop_ready,
+            install_update,
             open_settings,
             open_extension_window,
             open_workbench,
@@ -387,7 +456,7 @@ fn main() {
             show_main(app.handle()).map_err(std::io::Error::other)?;
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("Echo desktop initialization failed");
     app.run(|handle, event| match event {
         tauri::RunEvent::ExitRequested { api, .. } => {

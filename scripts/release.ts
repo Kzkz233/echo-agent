@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { auditReleaseTree } from './release-privacy.ts';
+import { createUpdatePackage } from './update-package.ts';
 
 const root = resolve(import.meta.dirname, '..');
 const policyPath = resolve(process.env.ECHO_RELEASE_POLICY ?? join(homedir(), '.echo', 'echo-release-policy.local.json'));
@@ -14,10 +15,10 @@ const version = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).v
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw Error('Unexpected release version');
 function run(command: string, args: string[]) {
   const result = spawnSync(command, args, { cwd: root, windowsHide: true, stdio: 'inherit',
-    shell: command === 'pnpm' && process.platform === 'win32' });
+    shell: command === 'pnpm' && process.platform === 'win32', env: { ...process.env, ECHO_EDITION: 'private' } });
   if (result.error || result.status !== 0) throw Error('Private packaging failed: ' + (result.error?.message ?? command));
 }
-const parent = join(root, 'dist', 'release', 'private');
+const parent = resolve(process.env.ECHO_RELEASE_DIR ?? join(root, 'dist', 'release', 'private'));
 const output = join(parent, version);
 if (await access(output).then(() => true, () => false)) throw Error('Private release output already exists for this version');
 run('pnpm', ['run', 'desktop:build']);
@@ -34,6 +35,7 @@ try {
   for (const name of ['README.md', 'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md'])
     await cp(join(root, name), join(portable, name));
   await auditReleaseTree(portable);
+  await createUpdatePackage(portable, join(files, 'Echo-' + version + '-private-win-x64.echo-update'));
   const archive = join(files, 'Echo-' + version + '-private-win-x64.zip');
   const quote = (value: string) => "'" + value.replaceAll("'", "''") + "'";
   run('powershell.exe', ['-NoProfile', '-Command',

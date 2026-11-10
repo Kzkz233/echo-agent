@@ -4,6 +4,7 @@ import { inferenceTasks } from '../../../packages/contracts/inference.ts';
 import { CharacterLibrary } from './character-library.tsx';
 import { ReviewResume } from './review-resume.tsx';
 import { StorageSettings, PluginPackageInstaller } from './core-settings.tsx';
+import { UpdatesView, confirmDesktopReady } from './updates-view.tsx';
 import { type ObservationConfig } from '../../../packages/contracts/index.ts';
 import { statusText } from './i18n.ts';
 import { locale } from './i18n.ts';
@@ -584,6 +585,7 @@ function App() {
         changeConnection(c);
         return refresh().then(() => setConnected(true));
       })
+      .then(() => confirmDesktopReady())
       .then(() =>
         events((event) => {
           if (event.type === 'connection.ready') setConnected(true);
@@ -1206,6 +1208,8 @@ function App() {
                   <Backends />
                 ) : page === 'plugins' ? (
                   <ExtensionSettings />
+                ) : page === 'updates' ? (
+                  <UpdatesView />
                 ) : page === 'observation' ? (
                   <Observation />
                 ) : page === 'knowledge' ? (

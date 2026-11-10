@@ -1,0 +1,95 @@
+.updates-page {
+  max-width: 1020px;
+  margin: 0 auto;
+}
+.version-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.version-card {
+  padding: 24px 28px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--surface, white);
+}
+.version-card > strong {
+  font-size: 30px;
+  color: var(--text);
+  line-height: 1.3;
+}
+.version-card time,
+.version-card code {
+  font-size: 13px;
+  color: var(--muted);
+}
+.version-card code {
+  margin-top: 8px;
+  align-self: flex-start;
+}
+.update-actions {
+  margin-bottom: 24px;
+}
+.update-actions .field {
+  margin-top: 24px;
+}
+.update-ready {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-top: 20px;
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.update-ready p {
+  margin: 6px 0 0;
+}
+.update-progress {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 0;
+}
+.update-progress progress {
+  flex: 1;
+  accent-color: var(--accent);
+}
+.update-release {
+  margin: 20px 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.update-release details {
+  margin: 12px 0 20px;
+}
+.update-release p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.update-history {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+  margin-top: 24px;
+}
+.update-history p {
+  flex-basis: 100%;
+}
+@media (max-width: 700px) {
+  .version-cards {
+    grid-template-columns: 1fr;
+  }
+  .update-ready {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

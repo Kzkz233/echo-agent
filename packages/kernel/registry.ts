@@ -32,6 +32,13 @@ type OwnerScope = {
   active: boolean;
 };
 export class Registry {
+  private maintenance = false;
+  beginUpdate() {
+    invariant([...this.calls.values()].reduce((sum, calls) => sum + calls.size, 0) <= 1,
+      'update_busy', '仍有操作正在执行，请完成后再更新。');
+    this.maintenance = true;
+  }
+  resumeAfterUpdateFailure() { this.maintenance = false; }
   private entries = new Map<string, Operation>();
   private owners = new Map<string, OwnerScope>();
   private calls = new Map<string, Set<Promise<unknown>>>();
@@ -180,6 +187,8 @@ export class Registry {
     caller: Caller,
     signal: AbortSignal = new AbortController().signal,
   ): Promise<any> {
+    invariant(!this.maintenance || ['system.shutdown', 'system.status', 'updates.status', 'updates.confirm'].includes(name),
+      'updating', 'Echo 正在重启更新，请稍后操作。');
     const op = this.entries.get(name);
     invariant(op, 'not_found', '未找到操作：' + name);
     invariant(

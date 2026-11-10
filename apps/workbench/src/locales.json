@@ -9796,6 +9796,146 @@
     "DeepSeek Web Search"
   ],
   [
+    "版本与更新",
+    "Version & updates"
+  ],
+  [
+    "公开版",
+    "Public"
+  ],
+  [
+    "自用版",
+    "Personal"
+  ],
+  [
+    "开发版",
+    "Development"
+  ],
+  [
+    "浏览器连接",
+    "Browser connection"
+  ],
+  [
+    "重启并回滚？",
+    "Restart and roll back?"
+  ],
+  [
+    "重启并更新？",
+    "Restart and update?"
+  ],
+  [
+    "Echo 将退出并保存上一版程序。启动验收失败时自动恢复，已有任务在正常启动后继续。",
+    "Echo will quit and keep the previous application. If startup verification fails, it will restore that version. Existing tasks resume after a normal startup."
+  ],
+  [
+    "确认重启",
+    "Confirm restart"
+  ],
+  [
+    "桌面程序",
+    "Desktop"
+  ],
+  [
+    "后端服务",
+    "Backend"
+  ],
+  [
+    "桌面与后端构建不一致，请完整退出 Echo 后重新打开。",
+    "Desktop and backend builds differ. Quit Echo completely, then reopen it."
+  ],
+  [
+    "应用更新",
+    "Application updates"
+  ],
+  [
+    "从 Echo Agent 的 GitHub Releases 获取公开版更新。",
+    "Get public updates from Echo Agent releases on GitHub."
+  ],
+  [
+    "导入自用版更新包，保留自用插件。",
+    "Import a personal update package with your personal plugins."
+  ],
+  [
+    "请在已打包的 Windows 桌面版中更新。",
+    "Updates are available in packaged Windows desktop builds."
+  ],
+  [
+    "检查更新",
+    "Check for updates"
+  ],
+  [
+    "发现新版本",
+    "New version available"
+  ],
+  [
+    "当前已是最新版本",
+    "You are up to date"
+  ],
+  [
+    "更新说明",
+    "Release notes"
+  ],
+  [
+    "下载并校验",
+    "Download & verify"
+  ],
+  [
+    "本地更新包（.echo-update）",
+    "Local update package (.echo-update)"
+  ],
+  [
+    "检查更新包",
+    "Verify package"
+  ],
+  [
+    "正在下载",
+    "Downloading"
+  ],
+  [
+    "正在校验和准备更新",
+    "Verifying and preparing update"
+  ],
+  [
+    "已准备就绪",
+    "Ready to install"
+  ],
+  [
+    "重启并回滚",
+    "Restart & roll back"
+  ],
+  [
+    "重启并更新",
+    "Restart & update"
+  ],
+  [
+    "回滚与恢复",
+    "Rollback & recovery"
+  ],
+  [
+    "可回滚版本",
+    "Available rollback version"
+  ],
+  [
+    "准备回滚",
+    "Prepare rollback"
+  ],
+  [
+    "首次通过应用更新后，将保留一个可回滚版本。",
+    "Your first in-app update will keep a version available for rollback."
+  ],
+  [
+    "最近一次更新",
+    "Last update"
+  ],
+  [
+    "已自动回滚",
+    "Rolled back automatically"
+  ],
+  [
+    "回滚恢复程序版本。角色、会话和资料保留当前数据，更新前数据库快照单独保存。",
+    "Rollback restores the application version. Characters, conversations and documents keep their current data. A separate database snapshot is saved before updating."
+  ],
+  [
     "在此日期新增 ",
     "Add entry on "
   ],

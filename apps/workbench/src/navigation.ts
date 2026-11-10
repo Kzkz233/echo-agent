@@ -105,11 +105,12 @@ export const sections: Section[] = [
     group: '配置与维护',
     views: [
       { id: 'diagnostics', text: '运行诊断' },
+      { id: 'updates', text: '版本与更新' },
       { id: 'backup', text: '备份与恢复' },
     ],
   },
 ];
-export const coreViews = new Set(['chat', 'character-session', 'automation', 'backends', 'plugins', 'diagnostics']);
+export const coreViews = new Set(['chat', 'character-session', 'automation', 'backends', 'plugins', 'diagnostics', 'updates']);
 export function navigationSections(pages: FrontendPageEntry[] = []): Section[] {
   const result = sections.map((section) => ({ ...section, views: [...section.views] }));
   for (const page of pages) {

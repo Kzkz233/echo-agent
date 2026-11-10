@@ -14,6 +14,7 @@ const project =
 const anchor =
   process.env.ECHO_DATA_DIR ??
   join(process.env.LOCALAPPDATA ?? join(homedir(), '.local', 'share'), 'Echo');
+process.env.ECHO_STORAGE_ANCHOR = anchor;
 await mkdir(anchor, { recursive: true });
 let runtime = await storageLocation(anchor);
 await mkdir(runtime, { recursive: true });
@@ -64,6 +65,20 @@ async function close() {
   lock.release();
   process.exit(0);
 }
+app.registry.register({
+  name: 'updates.abortTrial',
+  description: '结束未通过验收的更新试运行',
+  owner: 'launcher',
+  permission: 'system.write',
+  mcp: false,
+  input: z.object({ id: z.string().uuid() }),
+  output: z.object({ accepted: z.boolean() }),
+  run: ({ id }) => {
+    const accepted = id === process.env.ECHO_UPDATE_TOKEN;
+    if (accepted) setTimeout(() => void close(), 20);
+    return { accepted };
+  },
+});
 app.registry.register({
   name: 'system.shutdown',
   description: '关闭此 Echo 核心',

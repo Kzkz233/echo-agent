@@ -6,6 +6,9 @@ import { homedir } from 'node:os';
 import { isAbsolute, join, resolve, sep } from 'node:path';
 import { z } from 'zod';
 import { auditReleaseTree, privateReference } from './release-privacy.ts';
+import { createUpdatePackage } from './update-package.ts';
+import { fileInventory } from '../packages/kernel/update-files.ts';
+import { availableSpace } from '../packages/kernel/update-transaction.ts';
 
 const root = resolve(import.meta.dirname, '..');
 const publicPlugins = new Set([
@@ -40,7 +43,7 @@ function run(command: string, args: string[], inherit = false) {
     cwd: root, encoding: 'utf8', windowsHide: true, maxBuffer: 20_000_000,
     stdio: inherit ? 'inherit' : 'pipe',
     shell: command === 'pnpm' && process.platform === 'win32',
-    env: { ...process.env, GH_PROMPT_DISABLED: '1', GIT_TERMINAL_PROMPT: '0' },
+    env: { ...process.env, ECHO_EDITION: 'public', GH_PROMPT_DISABLED: '1', GIT_TERMINAL_PROMPT: '0' },
   });
   if (result.error || result.status !== 0) throw Error(command + ' failed: ' + (result.error?.message ?? result.stderr ?? ''));
   return result.stdout?.trim() ?? '';
@@ -81,8 +84,9 @@ if (!/^\d+\.\d+\.\d+$/.test(version)) throw Error('Invalid release version');
 const tag = 'v' + version;
 const source = 'Echo-' + version + '-source.zip';
 const installer = 'Echo-Agent_' + version + '_x64-setup.exe';
-const names = [source, installer];
-const parent = join(root, 'dist', 'release', 'public');
+const update = 'Echo-' + version + '-public-win-x64.echo-update';
+const names = [source, installer, update];
+const parent = resolve(process.env.ECHO_RELEASE_DIR ?? join(root, 'dist', 'release', 'public'));
 const destination = join(parent, version);
 const hashing = async (path: string) => {
   const hash = createHash('sha256');
@@ -143,11 +147,20 @@ try {
     if (await access(destination).then(() => true, () => false)) throw Error('Release output already exists for this version');
     run('pnpm', ['run', 'desktop:build'], true);
     requireClean();
+    const runtimeBytes = (await fileInventory(join(root, 'dist/runtime'))).reduce((sum, file) => sum + file.bytes, 0);
+    await availableSpace(parent, runtimeBytes * 4);
     const files = join(staging, 'files');
     await mkdir(files);
     await cp(freshArchive, join(files, source));
     await cp(join(root, 'apps/desktop/target/release/bundle/nsis', 'Echo Agent_' + version + '_x64-setup.exe'), join(files, installer));
     await auditInstaller(join(files, installer), join(staging, 'installer'));
+    const portable = join(staging, 'portable');
+    await mkdir(portable);
+    await cp(join(root, 'apps/desktop/target/release/echo-desktop.exe'), join(portable, 'Echo.exe'));
+    await cp(join(root, 'dist/runtime'), join(portable, 'runtime'), { recursive: true, dereference: true });
+    await cp(join(root, 'dist/echo-agent.cmd'), join(portable, 'echo-agent.cmd'));
+    await auditReleaseTree(portable, reference, rules);
+    await createUpdatePackage(portable, join(files, update));
     const hashes = Object.fromEntries(await Promise.all(names.map(async name => [name, await hashing(join(files, name))])));
     await writeFile(join(files, shaFile), sums(hashes));
     await writeFile(join(files, 'verified.local.json'), JSON.stringify({ commit, hashes }, null, 2));
@@ -163,6 +176,15 @@ try {
         await readFile(join(destination, shaFile), 'utf8') !== sums(verified.hashes))
       throw Error('Source archive or checksums do not match the audited commit');
     await auditInstaller(join(destination, installer), join(staging, 'installer'));
+    const checked = join(staging, 'update');
+    const { extractArchive } = await import('../packages/kernel/updates.ts');
+    const { readUpdateManifest, verifyApp } = await import('../packages/kernel/update-files.ts');
+    const { buildSchema } = await import('../packages/contracts/build.ts');
+    await extractArchive(join(destination, update), checked, join(root, 'resources/update-archive.ps1'));
+    const installed = buildSchema.parse(JSON.parse(await readFile(join(checked, 'app/runtime/dist/build-info.json'), 'utf8')));
+    if (installed.edition !== 'public' || installed.version !== version) throw Error('Update package has the wrong channel or version');
+    await verifyApp(join(checked, 'app'), await readUpdateManifest(checked, installed));
+    await auditReleaseTree(checked, reference, rules);
     requireClean();
     const gh = (...args: string[]) => run(policy.githubCli, args);
     if (remoteHead() !== base) throw Error('Public main changed during verification');

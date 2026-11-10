@@ -5,9 +5,13 @@ export class Clock {
   private timer?: NodeJS.Timeout;
   private work = new Set<Promise<unknown>>();
   private closed = false;
+  private paused = false;
+  pause() { this.paused = true; this.arm(); }
+  resume() { this.paused = false; this.arm(); }
   get pending() {
     return this.alarms.size;
   }
+  get active() { return this.work.size; }
   at(key: string, at: number, run: Alarm['run']) {
     if (this.closed) return () => {};
     this.alarms.set(key, { at, run });
@@ -27,7 +31,7 @@ export class Clock {
   private arm() {
     clearTimeout(this.timer);
     this.timer = undefined;
-    if (!this.alarms.size || this.closed) return;
+    if (!this.alarms.size || this.closed || this.paused) return;
     const at = Math.min(...[...this.alarms.values()].map((a) => a.at));
     this.timer = setTimeout(() => this.fire(), Math.max(0, Math.min(2147483647, at - Date.now())));
     this.timer.unref();

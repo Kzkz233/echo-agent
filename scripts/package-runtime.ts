@@ -77,6 +77,8 @@ for (const name of [
   'backup-worker.mjs',
   'restore-worker.mjs',
   'build-info.json',
+  'update-helper.mjs',
+  'update-archive.ps1',
 ])
   await cp(join(root, 'dist', name), join(stage, 'dist', name));
 const node = await vendorNode(root);

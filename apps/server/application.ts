@@ -18,6 +18,7 @@ import { Channels } from '../../plugins/channels/index.ts';
 import { defineReplyImages } from '../../packages/kernel/reply-images.ts';
 import { QQ } from '../../plugins/qq/index.ts';
 import { version } from '../../packages/contracts/version.ts';
+import { Updates } from '../../packages/kernel/updates.ts';
 import { attachmentInput } from '../../packages/contracts/execution.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
@@ -128,6 +129,7 @@ export class Application {
   readonly approvals: Approvals;
   readonly channels: Channels;
   readonly qq: QQ;
+  readonly updates: Updates;
   private closing = false;
   private harnessMcp?: (principal: { conversationId: string; personaId: string }) => HarnessMcp;
   private constructor(
@@ -136,7 +138,19 @@ export class Application {
     nativePath: string,
   ) {
     this.store = new Store(join(runtime, 'echo.sqlite'));
+    this.updates = new Updates(project, runtime);
     this.router = new Router(this.store, this.events, this.capabilities);
+    this.updates.register(this.registry, () => {
+      invariant(!this.clock.active && !this.store.documents<any>('channel-outbound').some(row => row.state === 'sending'),
+        'update_busy', '后台任务或消息投递仍在执行，请完成后再更新。');
+      this.registry.beginUpdate();
+      this.router.pauseForUpdate();
+      this.clock.pause();
+    }, () => {
+      this.registry.resumeAfterUpdateFailure();
+      this.router.resumeAfterUpdateFailure();
+      this.clock.resume();
+    });
     this.secrets = new Secrets(join(runtime, 'credentials'));
     this.api = new ApiBackend((ref) => this.secrets.get(ref));
     this.router.backends.set('api', this.api);

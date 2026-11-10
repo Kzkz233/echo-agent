@@ -85,6 +85,14 @@ export class Router {
   private tasks = new Set<Promise<Run>>();
   private draining = new Set<string>();
   private closing = false;
+  private updating = false;
+  private inferenceCalls = 0;
+  pauseForUpdate() {
+    invariant(!this.tasks.size && !this.running.size && !this.locks.size && !this.inferenceCalls,
+      'update_busy', '会话或推理任务仍在执行，请完成后再更新。');
+    this.updating = true;
+  }
+  resumeAfterUpdateFailure() { this.updating = false; }
   private characterControllers = new Map<string,AbortController>();
   characterSignal(personaId:string) {
     if(!characterActive(this.store,personaId))return AbortSignal.abort(new EchoError('character_disabled','角色已停用。'));
@@ -348,6 +356,7 @@ export class Router {
     return this.profile(selected);
   }
   enqueue(input: Submission) {
+    invariant(!this.updating, 'updating', 'Echo 正在重启更新，请稍后发送。');
     const personaId=this.store.conversation(input.conversationId)?.personaId;
     invariant(!personaId||characterActive(this.store,personaId),'character_disabled','角色已停用，请先启用角色。');
     if (input.attachmentIds?.length)
@@ -682,6 +691,15 @@ export class Router {
     profileId?: string,
     limits?: { maxOutputTokens?: number },
   ): Promise<GenerateResult> {
+    invariant(!this.updating, 'updating', 'Echo 正在重启更新，请稍后执行。');
+    this.inferenceCalls++;
+    try { return await this.inferTask(task, messages, signal, override, personaId, profileId, limits); }
+    finally { this.inferenceCalls--; }
+  }
+  private async inferTask(
+    task: Task, messages: ModelInput[], signal: AbortSignal, override?: Reasoning,
+    personaId?: string, profileId?: string, limits?: { maxOutputTokens?: number },
+  ): Promise<GenerateResult> {
     if(personaId)signal=AbortSignal.any([signal,this.characterSignal(personaId)]);
     await this.inference.refresh();
     signal.throwIfAborted();
@@ -881,6 +899,7 @@ export class Router {
     }
   }
   send(input: Submission, signal?: AbortSignal): Promise<Run> {
+    if (this.updating) return Promise.reject(new EchoError('updating', 'Echo 正在重启更新，请稍后执行。'));
     const task = this.execute(input, signal);
     this.tasks.add(task);
     void task.finally(() => this.tasks.delete(task)).catch(() => {});
