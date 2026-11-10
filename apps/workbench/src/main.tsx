@@ -42,6 +42,7 @@ import { CharacterHome, GroupView } from './character-workspace.tsx';
 import { TaskWorkspace } from './task-workspace.tsx';
 import { ModelChoice } from './model-choice.tsx';
 import { PluginInferenceRoutes } from './plugin-inference-routes.tsx';
+import { ExternalMcpView } from './external-mcp-view.tsx';
 import './character-style.css';
 import { Appearance } from './appearance.tsx';
 import {
@@ -604,6 +605,7 @@ function App() {
               'plugins.changed',
               'inference.changed',
               'frontend.changed',
+              'externalMcp.changed',
               'connections.changed',
               'models.changed',
               'routes.changed',
@@ -987,7 +989,7 @@ function App() {
                 </button>
               </div>
             </header>
-            {roleSection && page !== 'personas' && page !== 'character' && role && (
+            {roleSection && !['personas', 'character', 'character-session'].includes(page) && role && (
               <div className="role-heading">
                 <button className="text-button" onClick={() => goPage('personas')}>
                   {t('所有角色')}
@@ -999,7 +1001,8 @@ function App() {
             {!extensionWindow && !settingsWindow && roleSection && role && (
               <div className="page-sheets" role="tablist" aria-label={t('角色能力')}>
                 {[
-                  { id: 'character', text: '主会话', owner: 'persona' },
+                  { id: 'character', text: '聊天', owner: 'persona' },
+                  { id: 'character-session', text: '后台工作会话', owner: 'persona' },
                   { id: 'memory', text: '角色资料', owner: 'persona' },
                   { id: 'automation', text: '任务', owner: 'persona' },
                   ...pages
@@ -1096,9 +1099,9 @@ function App() {
             <div
               id={'view-' + page}
               className={
-                'page-content ' + (['chat', 'character'].includes(page) ? 'chat-page' : '')
+                'page-content ' + (['chat', 'character', 'character-session'].includes(page) ? 'chat-page' : '')
               }
-              key={(roleSection ? page + ':' + (role?.id ?? '') : page) + ':' + taskRevision}
+              key={(roleSection ? (page === 'character-session' ? 'character' : page) + ':' + (role?.id ?? '') : page) + ':' + taskRevision}
             >
               {error && (
                 <div className="error" role="alert">
@@ -1144,13 +1147,14 @@ function App() {
                       setPage('character');
                     }}
                   />
-                ) : page === 'character' ? (
+                ) : page === 'character' || page === 'character-session' ? (
                   role ? (
                     <CharacterHome
                       key={role.id}
                       {...{ role, data, act, openTask }}
                       edit={editRole}
                       setPage={goPage}
+                      backstage={page === 'character-session'}
                     />
                   ) : (
                     <Button onClick={() => editRole()}>{t('创建角色')}</Button>
@@ -1201,7 +1205,7 @@ function App() {
                 ) : page === 'backends' ? (
                   <Backends />
                 ) : page === 'plugins' ? (
-                  <Plugins />
+                  <ExtensionSettings />
                 ) : page === 'observation' ? (
                   <Observation />
                 ) : page === 'knowledge' ? (
@@ -1559,6 +1563,25 @@ function Backends() {
     </Suspense>
   );
 }
+function ExtensionSettings() {
+  const { data, act } = useApp();
+  const [section, setSection] = useState<'plugins' | 'mcp'>('plugins');
+  useEffect(() => {
+    const selectPlugin = () => setSection('plugins');
+    window.addEventListener('echo:selection', selectPlugin);
+    return () => window.removeEventListener('echo:selection', selectPlugin);
+  }, []);
+  return <>
+    <Title title={t('扩展')} />
+    <div className="inference-tabs" role="tablist" aria-label={t('扩展')}>
+      <button type="button" role="tab" aria-selected={section === 'plugins'} className={section === 'plugins' ? 'active' : ''}
+        onClick={() => requestNavigation(() => setSection('plugins'))}>{t('组件与插件')}</button>
+      <button type="button" role="tab" aria-selected={section === 'mcp'} className={section === 'mcp' ? 'active' : ''}
+        onClick={() => requestNavigation(() => setSection('mcp'))}>{t('外部 MCP')}</button>
+    </div>
+    {section === 'plugins' ? <Plugins /> : <ExternalMcpView servers={data.externalMcpServers ?? []} act={act} />}
+  </>;
+}
 function Plugins() {
   const { data, act } = useApp();
   const confirmAction = useConfirm();
@@ -1602,7 +1625,6 @@ function Plugins() {
     });
   return (
     <>
-      <Title title={t('扩展')} />
       <div className="plugin-layout">
         <div>
           <div className="plugin-list-tools">
@@ -2203,9 +2225,6 @@ function Diagnostics() {
   const [status, setStatus] = useState<any>(),
     [runs, setRuns] = useState<any[]>([]),
     [permissions, setPermissions] = useState<string[]>(data.mcpPermissions);
-  const permissionInfo = new Map<string, any>(
-    (data.mcpPermissionCatalog ?? []).map((entry: any) => [entry.permission, entry]),
-  );
   const load = async () => {
     setStatus(await rpc('system.status'));
     setRuns(await rpc('runs.list'));
@@ -2256,9 +2275,10 @@ function Diagnostics() {
       </div>
       <div className="card">
         <h2>{t('MCP 对外能力')}</h2>
-        <p>{t('设置外部 MCP 客户端可以调用的工具。角色工具在角色配置中授权。')}</p>
+        <p>{t('本机其他应用可通过 MCP 调用勾选的读取工具。由角色委派的子任务按任务单独授权。')}</p>
         <div className="row wrap mcp-permission-options">
           {[...new Set<string>([...(data.mcpAvailablePermissions ?? []), ...permissions])]
+            .filter((permission) => permission.endsWith('.read'))
             .sort()
             .map((permission) => (
               <label className="inline-toggle" key={permission}>
@@ -2273,14 +2293,7 @@ function Diagnostics() {
                     )
                   }
                 />
-                <span>
-                  {permission}
-                  <small>
-                    {permissionInfo.get(permission)?.scope === 'character'
-                      ? t('角色级能力 · 在角色配置中单独授予')
-                      : t('应用级能力 · 此处设置全局上限')}
-                  </small>
-                </span>
+                <span>{permission}</span>
               </label>
             ))}
         </div>
@@ -2288,7 +2301,9 @@ function Diagnostics() {
           <Button
             secondary
             onClick={() =>
-              act(() => rpc('settings.save', { pluginId: 'mcp', value: { permissions } }))
+              act(() => rpc('settings.save', {
+                pluginId: 'mcp', value: { permissions: permissions.filter((permission) => permission.endsWith('.read')) },
+              }))
             }
           >
             {' '}

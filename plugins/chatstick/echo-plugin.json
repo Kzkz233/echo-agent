@@ -20,9 +20,10 @@
     "chatstick"
   ],
   "characterSettings": {
-    "section": "expression",
-    "title": "通道与表达",
-    "order": 20
+    "section": "chatstick",
+    "title": "聊天表情",
+    "order": 20,
+    "editor": "chatstick"
   },
   "category": "Communication",
   "optionalDependencies": []

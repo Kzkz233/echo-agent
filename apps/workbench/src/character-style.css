@@ -45,6 +45,22 @@
   font-size: 23px;
   margin: 0;
 }
+.character-dialogue-heading { padding-block: 12px; }
+.character-dialogue-heading h1 { font-size: 19px; }
+.sticker-channels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 8px;
+  padding: 12px;
+  margin: 16px 0 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.sticker-channels legend { padding-inline: 4px; color: var(--muted); }
+.sticker-channels .inline-toggle { margin: 0; min-width: 0; }
+.sticker-channels .inline-toggle > span { overflow-wrap: anywhere; }
+.sticker-channels .unavailable { color: var(--muted); }
+.sticker-channels small { white-space: nowrap; }
 .character-chat {
   grid-template-columns: minmax(0, 1fr) !important;
   flex: 1;

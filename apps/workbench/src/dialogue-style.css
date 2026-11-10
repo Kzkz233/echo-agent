@@ -1,0 +1,68 @@
+.dialogue-layout .messages,
+.dialogue-layout .chat-composer-area {
+  padding-inline: max(18px, calc((100% - 900px) / 2));
+}
+
+.dialogue-layout .messages { padding-block: 16px 12px; }
+.dialogue-time {
+  display: block;
+  margin: 20px 0 14px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+.dialogue-delivery {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 6px 0;
+  min-width: 0;
+}
+.dialogue-delivery.outgoing { align-items: flex-end; }
+.dialogue-bubble {
+  width: fit-content;
+  max-width: min(82%, 680px);
+  padding: 9px 14px;
+  border-radius: 18px 18px 18px 7px;
+  background: color-mix(in srgb, var(--border) 43%, var(--panel));
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.outgoing .dialogue-bubble {
+  border-radius: 18px 18px 7px 18px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.dialogue-bubble p { margin: 0; }
+.dialogue-bubble p + p { margin-top: 8px; }
+.dialogue-bubble pre { max-width: 100%; overflow: auto; }
+.dialogue-bubble .chatstick-image { margin-top: 6px; }
+.dialogue-title { display: block; margin-bottom: 4px; }
+.dialogue-error { color: var(--muted); max-width: 82%; }
+.dialogue-typing { min-width: 50px; padding-block: 12px; }
+
+.dialogue-layout .chat-composer-area { padding-block: 5px 18px; }
+.dialogue-layout .composer {
+  display: grid;
+  grid-template-areas: "chips chips chips" "attach message send";
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: end;
+  column-gap: 7px;
+  border-radius: 26px;
+  background: var(--panel);
+  padding: 7px 9px;
+}
+.dialogue-layout .composer-footer { display: contents; }
+.dialogue-layout .composer-controls { grid-area: attach; }
+.dialogue-layout .composer-submit-actions { grid-area: send; }
+.dialogue-layout .composer .attachment-chips { grid-area: chips; margin: 4px 6px 5px; }
+.dialogue-layout .composer textarea {
+  grid-area: message;
+  min-height: 32px;
+  max-height: 144px;
+  padding-block: 5px;
+  color: var(--text);
+}

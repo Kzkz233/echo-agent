@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { replySubmission } from '../contracts/delivery.ts';
 import {
   EchoError,
   type Backend,
@@ -138,7 +139,7 @@ export class PiBackend implements Backend {
       name: op.name.replaceAll('.', '_'),
       label: op.description,
       description: op.description,
-      parameters: z.toJSONSchema(op.input),
+      parameters: op.toolInputSchema ?? z.toJSONSchema(op.input),
       execute: async (_id: string, args: unknown, signal: AbortSignal) => ({
         content: [
           {
@@ -148,6 +149,24 @@ export class PiBackend implements Backend {
         ],
       }),
     }));
+    const finalTargets = new Set<string>();
+    if (request.respond && request.toolPolicy !== 'none')
+      tools.push({
+        name: 'echo_respond', label: '提交回复',
+        description: '向本轮授权的一个目标提交进展或最终答复。messages 每项是一条独立消息。',
+        parameters: z.toJSONSchema(request.replyTargets?.length
+          ? replySubmission.extend({ targetId: z.enum(request.replyTargets) })
+          : replySubmission),
+        execute: async (_id: string, args: unknown) => {
+          const input = replySubmission.parse(args);
+          const receipt = request.respond!(input);
+          if (input.phase === 'final') finalTargets.add(input.targetId);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(receipt) }],
+            terminate: input.phase === 'final' && Boolean(request.replyTargets?.every((id) => finalTargets.has(id))),
+          };
+        },
+      });
     const native = this.dataRoot
       ? await nativePiTools(request, this.dataRoot)
       : { tools: [], validate: async (_name: string, _args: any) => {} };
@@ -386,7 +405,7 @@ export class PiBackend implements Backend {
         .filter((c: any) => c.type === 'text')
         .map((c: any) => c.text)
         .join('');
-      if (result.stopReason === 'length' || !text.trim()) {
+      if (result.stopReason === 'length' || (!text.trim() && !finalTargets.size)) {
         const truncated = result.stopReason === 'length';
         const thinkingChars = result.content
           .filter((c: any) => c.type === 'thinking')

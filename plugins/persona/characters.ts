@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { dirname } from 'node:path';
-import { projectRoot } from '../../packages/backends/project-root.ts';
+import { ensureCharacterWorkspace, projectRoot } from '../../packages/backends/project-root.ts';
 import { z } from 'zod';
 import { id, invariant, personaSchema, type Persona } from '../../packages/contracts/index.ts';
 import { characterPoint } from '../../packages/kernel/characters.ts';
@@ -702,6 +702,16 @@ export class Characters {
       });
     op('character.catalog', '读取角色创建与编辑能力', z.object({}), () => this.catalog());
     op('character.read', '读取角色完整配置', z.object({ id }), (v) => this.read(v.id));
+    op(
+      'character.workspace',
+      '校验工作目录或创建角色的默认工作目录',
+      z.object({ id, path: z.string().min(1).max(4096).optional() }),
+      async (v) => ({
+        path: v.path
+          ? projectRoot(v.path, dirname(this.store.path))
+          : await ensureCharacterWorkspace(dirname(this.store.path), v.id),
+      }),
+    );
     op('character.draft', '保存角色创建草稿', characterDraft, (v) => this.saveDraft(v));
     op('character.drafts', '读取角色创建草稿', z.object({}), () =>
       this.store.documents('character-drafts'),

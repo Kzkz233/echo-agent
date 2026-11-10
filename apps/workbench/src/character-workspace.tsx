@@ -5,10 +5,10 @@ import { Button, EmptyState, useConfirm, PathInput } from './ui.tsx';
 import { ModelChoice } from './model-choice.tsx';
 import { ReasoningSelect } from './reasoning-select.tsx';
 import { ChatView } from './chat-view.tsx';
-import { ConversationInteractions } from './host-interactions.tsx';
+import { ConversationInteractions, subtaskApprovalLabel } from './host-interactions.tsx';
 const RunTrace = lazy(() => import('./run-trace.tsx'));
 
-export function CharacterHome({ role, data, act, edit, openTask, setPage }: any) {
+export function CharacterHome({ role, data, act, edit, openTask, setPage, backstage = false }: any) {
   const confirm = useConfirm();
   const [character, setCharacter] = useState<any>();
   const activity = data.characterActivities?.[role.id] ?? { enabled: true, revision: 0 };
@@ -87,14 +87,14 @@ export function CharacterHome({ role, data, act, edit, openTask, setPage }: any)
     }, '');
   return (
     <div className="character-home">
-      <header className="character-home-heading">
+      <header className={'character-home-heading' + (backstage ? '' : ' character-dialogue-heading')}>
         <div>
           <h1>{role.name}</h1>
           {!activity.enabled && <span className="state-pill">{t('角色已停用')}</span>}
           <span>{character?.state === 'needs-attention' ? character.issue : ''}</span>
         </div>
         <div className="row">
-          <Button
+          {(backstage || !activity.enabled) && <Button
             secondary
             onClick={() =>
               act(() =>
@@ -107,8 +107,8 @@ export function CharacterHome({ role, data, act, edit, openTask, setPage }: any)
             }
           >
             {t(activity.enabled ? '停用角色' : '启用角色')}
-          </Button>
-          {character?.features.includes('avatar') &&
+          </Button>}
+          {backstage && character?.features.includes('avatar') &&
             data.plugins.some((plugin: any) => plugin.id === 'avatar' && plugin.enabled) && (
               <Button
                 secondary
@@ -125,9 +125,9 @@ export function CharacterHome({ role, data, act, edit, openTask, setPage }: any)
                 {t(data.avatarProfiles?.[role.id]?.enabled ? '隐藏桌宠' : '显示桌宠')}
               </Button>
             )}
-          <Button secondary onClick={exportRole}>
+          {backstage && <Button secondary onClick={exportRole}>
             {t('导出角色包')}
-          </Button>
+          </Button>}
           <Button secondary onClick={() => edit(role)}>
             {t('配置角色')}
           </Button>
@@ -141,6 +141,8 @@ export function CharacterHome({ role, data, act, edit, openTask, setPage }: any)
           {...{ data, act, setPage, openTask }}
           editRole={edit}
           fixedConversationId={character.mainConversationId}
+          surface={backstage ? 'session' : 'dialogue'}
+          openSession={() => setPage('character-session')}
         />
       ) : (
         <EmptyState title={t(character ? '完成角色配置后开始交流' : '正在打开…')} />
@@ -148,6 +150,7 @@ export function CharacterHome({ role, data, act, edit, openTask, setPage }: any)
     </div>
   );
 }
+
 export function DelegationView({
   data,
   act,
@@ -304,7 +307,7 @@ export function DelegationView({
                 </label>
               )}
               <p className="muted">
-                {t('操作审批')} · {t(configuration?.approvals === 'deny' ? '不允许' : configuration?.approvalReviewer === 'main' ? '主会话代审' : '逐次确认')}
+                {t('子任务文件修改')} · {t(subtaskApprovalLabel(configuration))}
               </p>
               <fieldset className="automation-options">
                 <legend>{t('附加工作目录')}</legend>

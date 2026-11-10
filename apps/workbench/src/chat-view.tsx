@@ -2,7 +2,7 @@ import { CharacterPortrait } from './character-portrait.tsx';
 import { inferenceTasks } from '../../../packages/contracts/inference.ts';
 import { locale, statusText } from './i18n.ts';
 import { t } from './i18n.ts';
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   replyImageSchema,
   type Conversation,
@@ -17,13 +17,51 @@ import { ConversationInteractions } from './host-interactions.tsx';
 import { ReasoningSelect } from './reasoning-select.tsx';
 import { AttachmentControls, ReplyImageView, useChatAttachments } from './chat-attachments.tsx';
 import { contextCompaction } from '../../../packages/contracts/compaction.ts';
+import type { DeliveryPlan } from '../../../packages/contracts/delivery.ts';
 import { ConversationStatus } from './conversation-status.tsx';
+import { dialogueParts, useDialoguePacing } from './dialogue-pacing.ts';
 import './execution-style.css';
+import './dialogue-style.css';
 const RunTrace = lazy(() => import('./run-trace.tsx'));
 const Markdown = lazy(() => import('./chat-markdown.tsx'));
 function MessageImage({ raw }: { raw: unknown }) {
   const image = replyImageSchema.safeParse(raw);
   return image.success ? <ReplyImageView image={image.data} /> : null;
+}
+function DialogueMessages({ messages, name, failedRuns, partLimits }: {
+  messages: Message[]; name: string; failedRuns: Record<string, string>; partLimits: ReadonlyMap<string, number>;
+}) {
+  const today = new Date().toDateString();
+  return messages.map((message, index) => {
+    const date = new Date(message.createdAt);
+    const previous = index ? new Date(messages[index - 1].createdAt) : undefined;
+    const showTime = !previous || date.toDateString() !== previous.toDateString() || date.getTime() - previous.getTime() >= 5 * 60_000;
+    const user = message.role === 'user';
+    const parts = dialogueParts(message);
+    const limit = partLimits.get(message.id) ?? parts.length;
+    if (!limit) return null;
+    const title = typeof message.meta.replyTitle === 'string' ? message.meta.replyTitle : undefined;
+    return <Fragment key={message.id}>
+      {showTime && <time className="dialogue-time" dateTime={message.createdAt}>
+        {date.toLocaleString(locale(), { ...(date.toDateString() !== today ? { month: 'short', day: 'numeric' } : {}), hour: '2-digit', minute: '2-digit' })}
+      </time>}
+      <article className={'dialogue-delivery ' + (user ? 'outgoing' : 'incoming')} aria-label={user ? t('你') : name}>
+        {parts.slice(0, limit).map((part, partIndex) => <div className="dialogue-bubble" key={partIndex}>
+          {partIndex === 0 && <>
+            {((message.meta.attachments as { id: string; name: string }[]) ?? []).map((item) => (
+              <span className="attachment-chip" key={item.id}>{item.name}</span>
+            ))}
+            {title && <strong className="dialogue-title">{title}</strong>}
+          </>}
+          <Suspense fallback={<span>{part}</span>}><Markdown text={part} /></Suspense>
+          {message.role === 'assistant' && partIndex === parts.length - 1 && <MessageImage raw={message.meta.image} />}
+        </div>)}
+        {user && message.runId && failedRuns[message.runId] && <small className="dialogue-error" role="status">
+          {t('执行失败')} · {failedRuns[message.runId]}
+        </small>}
+      </article>
+    </Fragment>;
+  });
 }
 const cached = <T,>(key: string, fallback: T): T => {
   try {
@@ -33,7 +71,14 @@ const cached = <T,>(key: string, fallback: T): T => {
   }
 };
 const defaultContextLimit = contextCompaction.parse({}).triggerTokens;
-export function ChatView({ data, act, setPage, openTask, fixedConversationId, editRole }: any) {
+const localChat = (plan?: DeliveryPlan) => !plan?.targets || plan.targets.some((target) => target.id === 'core.chat');
+const streamsInChat = (run: Run) => {
+  const plan = run.meta.delivery as DeliveryPlan | undefined;
+  return localChat(plan) && (plan?.targets.length ?? 0) <= 1;
+};
+export function ChatView({ data, act, setPage, openTask, fixedConversationId, editRole, surface, openSession }: any) {
+  const dialogue = surface === 'dialogue';
+  const fullSession = surface === 'session';
   const openReference = (link: any) =>
     link.type && link.taskId ? openTask(link.page, link.type, link.taskId) : setPage(link.page);
   const confirm = useConfirm();
@@ -41,6 +86,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
       () => fixedConversationId ?? sessionStorage.getItem('echo.chat') ?? '',
     ),
     [messages, setMessages] = useState<Message[]>([]),
+    [loadedConversation, setLoadedConversation] = useState<string>(),
     [stream, setStream] = useState(''),
     [drafts, setDrafts] = useState<Record<string, string>>(() => cached('echo.drafts', {})),
     [query, setQuery] = useState(''),
@@ -58,7 +104,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
     [references, setReferences] = useState<any[]>(),
     [inspector, setInspector] = useState<any>(),
     [overrides, setOverrides] = useState<Record<string, Partial<Conversation>>>({});
-  const hiddenRuns=useRef(new Set<string>());
+  const hiddenRuns = useRef(new Set<string>());
   const current = useRef(selected),
     request = useRef(0),
     stick = useRef(true),
@@ -75,7 +121,18 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
   const managed =
     ['main', 'worker', 'group-member'].includes(conversation?.kind ?? '') ||
     data.characters?.some((role: any) => role.mainConversationId === selected);
-  const visibleMessages=messages.filter(message=>!(message.meta.delivery as any)?.targets||(message.meta.delivery as any).targets.some((target:any)=>target.id==='core.chat'));
+  const visibleMessages = useMemo(() => fullSession ? messages : messages.filter((message) =>
+    localChat(message.meta.delivery as DeliveryPlan | undefined) &&
+    (!dialogue || (!message.meta.workSession &&
+      (message.role === 'assistant' || message.role === 'user' || message.meta.presentationOnly === true))),
+  ), [messages, fullSession, dialogue]);
+  const { partLimits, reveals, revealAll, reset: resetPacing } = useDialoguePacing(
+    dialogue ? selected : undefined, selected === loadedConversation, visibleMessages,
+  );
+  const traceMessages = new Map<string, string>();
+  for (const message of visibleMessages) {
+    if (message.role === 'assistant' && message.runId) traceMessages.set(message.runId, message.id);
+  }
   const text = drafts[selected] ?? '';
   const attachments = useChatAttachments(selected);
   const bindingProblem = conversation?.binding && conversation.binding.state !== 'active';
@@ -86,6 +143,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
         (conversation?.kind === 'main' ? undefined : data.routes[inferenceTasks.chat])),
   );
   const hasDraft = Boolean(text.trim() || attachments.items.length);
+  const steering = !dialogue && busy && sendMode === 'steer';
   const toolMode = conversation?.permissions?.pi?.tools ?? 'read';
   const modelWindow = backend?.modelOptions?.contextWindowTokens;
   const contextLimit = Math.min(
@@ -98,9 +156,10 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
     const element = input.current;
     if (!element) return;
     element.style.height = 'auto';
-    element.style.height = Math.min(220, Math.max(64, element.scrollHeight)) + 'px';
-    element.style.overflowY = element.scrollHeight > 220 ? 'auto' : 'hidden';
-  }, [text, selected]);
+    const limit = dialogue ? 144 : 220;
+    element.style.height = Math.min(limit, Math.max(dialogue ? 32 : 64, element.scrollHeight)) + 'px';
+    element.style.overflowY = element.scrollHeight > limit ? 'auto' : 'hidden';
+  }, [text, selected, dialogue]);
   const setText = (value: string, id = selected) => setDrafts((old) => ({ ...old, [id]: value }));
   useEffect(() => {
     sessionStorage.setItem('echo.drafts', JSON.stringify(drafts));
@@ -131,7 +190,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
       setOlder(combined.length > 0 && combined[0].seq > 1);
       return combined;
     });
-    for(const run of runs) if(run.meta?.delivery&&!run.meta.delivery.targets.some((target:any)=>target.id==='core.chat')) hiddenRuns.current.add(run.id);
+    for (const run of runs as Run[]) if (!streamsInChat(run)) hiddenRuns.current.add(run.id);
     setBusy(response.busy || runs.some((run: any) => run.state === 'running'));
     setActiveRun(runs.find((run: any) => run.state === 'running')?.id);
     setLastRun((runs as Run[]).find((run) => run.state === 'succeeded'));
@@ -142,10 +201,12 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
     ));
     setInputs(response.inputs ?? []);
     setUnresolved(runs.some((run: any) => run.state === 'unknown'));
+    setLoadedConversation(selected);
     setLoading(false);
   }, [selected]);
   useEffect(() => {
     setMessages([]);
+    setLoadedConversation(undefined);
     setStream('');
     setReferences(undefined);
     setBusy(false);
@@ -159,19 +220,20 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
     const listener = (event: any) => {
       const e = event.detail;
       if (e.type === 'connection.ready') {
+        resetPacing();
         setStream('');
         void load().catch(() => {});
         return;
       }
       if ((e.data.conversationId ?? e.data.run?.conversationId) !== selected) return;
       if (e.type === 'run.started') {
-        if(e.data.run.meta?.delivery&&!e.data.run.meta.delivery.targets.some((target:any)=>target.id==='core.chat')) hiddenRuns.current.add(e.data.run.id);
+        if (!streamsInChat(e.data.run)) hiddenRuns.current.add(e.data.run.id);
         setBusy(true);
         setActiveRun(e.data.run.id);
       }
       if (e.type === 'input.changed') void load().catch(() => {});
       if (e.type === 'run.delta') {
-        if(hiddenRuns.current.has(e.data.runId))return;
+        if (!surface && hiddenRuns.current.has(e.data.runId)) return;
         setStream((s) => s + e.data.text);
         if (!stick.current) setNewMessages(true);
       }
@@ -183,13 +245,13 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
     };
     window.addEventListener('echo-event', listener);
     return () => window.removeEventListener('echo-event', listener);
-  }, [selected, load]);
+  }, [selected, load, surface, resetPacing]);
   useEffect(() => {
     if (stick.current && scroller.current) {
       scroller.current.scrollTop = scroller.current.scrollHeight;
       setNewMessages(false);
     }
-  }, [messages, stream, busy]);
+  }, [messages, stream, busy, reveals]);
   const create = async () => {
     if (creating.current) return;
     creating.current = true;
@@ -302,18 +364,20 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
     const value = text,
       target = selected;
     submitting.current = true;
+    if (dialogue) revealAll();
     setText('', target);
     setBusy(true);
     stick.current = true;
     const result = await act(async () => {
       const queued = await rpc(
-        busy && sendMode === 'steer' ? 'conversations.steer' : 'conversations.send',
+        steering ? 'conversations.steer' : 'conversations.send',
         {
           conversationId: target,
           text: value || t('请查看附件。'),
           requestId: crypto.randomUUID(),
           attachmentIds: attachments.items.map((item) => item.id),
-          ...(busy && sendMode === 'steer' ? { runId: activeRun } : {}),
+          ...(fullSession ? { workSession: true } : {}),
+          ...(steering ? { runId: activeRun } : {}),
         },
       );
       if (
@@ -344,7 +408,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
       (b.lastActiveAt ?? b.createdAt).localeCompare(a.lastActiveAt ?? a.createdAt),
     );
   return (
-    <div className={'chat-layout' + (fixedConversationId ? ' character-chat' : '')}>
+    <div className={'chat-layout' + (fixedConversationId ? ' character-chat' : '') + (dialogue ? ' dialogue-layout' : '')}>
       {!fixedConversationId && (
         <aside className="conversation-list">
           <div className="conversation-heading">
@@ -435,7 +499,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
           </div>
         ) : (
           <>
-            <div className="chat-toolbar">
+            {!dialogue && <div className="chat-toolbar">
               <div className="chat-title-row">
                 <CharacterPortrait className="chat-persona-avatar" persona={persona} />
                 <div className="chat-title-main">
@@ -512,8 +576,8 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                   <Icon name="trash" size={17} />
                 </button>
               </div>
-            </div>
-            {references?.length ? (
+            </div>}
+            {!dialogue && references?.length ? (
               <div className="chat-binding-notice">
                 <div>
                   <strong>{t('此会话仍有绑定')}</strong>
@@ -536,7 +600,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                 </div>
               </div>
             ) : null}
-            <dialog className="workspace-drawer conversation-inspector" ref={inspectDialog}>
+            {!dialogue && <dialog className="workspace-drawer conversation-inspector" ref={inspectDialog}>
               <div className="drawer-heading">
                 <h2>{t('会话状态与上下文')}</h2>
                 <button
@@ -659,7 +723,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                     </div>
                   ))}
               </details>
-            </dialog>
+            </dialog>}
             <div
               className="messages"
               ref={scroller}
@@ -681,6 +745,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                         height = el.scrollHeight,
                         top = el.scrollTop;
                       setLoadingOlder(true);
+                      revealAll();
                       stick.current = false;
                       try {
                         const response = await rpc('conversations.messages', {
@@ -721,7 +786,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                   </EmptyState>
                 )
               )}
-              {visibleMessages.map((message) =>
+              {dialogue ? <DialogueMessages messages={visibleMessages} name={persona?.name ?? 'Echo'} failedRuns={failedRuns} partLimits={partLimits} /> : visibleMessages.map((message) =>
                 message.role === 'system' || message.role === 'tool' ? (
                   <details
                     className={
@@ -797,13 +862,15 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                             {item.name}
                           </span>
                         ))}
-                        {message.role === 'assistant' &&
+                        {!dialogue && message.role === 'assistant' &&
                           message.runId &&
+                          traceMessages.get(message.runId) === message.id &&
                           backend?.sessionCapabilities?.events && (
                             <Suspense fallback={null}>
                               <RunTrace runId={message.runId} />
                             </Suspense>
                           )}
+                        {typeof message.meta.replyTitle === 'string' && <strong>{message.meta.replyTitle}</strong>}
                         <Suspense fallback={<pre>{message.text}</pre>}>
                           <Markdown text={message.text} />
                         </Suspense>
@@ -813,7 +880,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                             <p className="warning">
                               <strong>{t('执行失败')}</strong> · {failedRuns[message.runId]}
                             </p>
-                            {backend?.sessionCapabilities?.events && (
+                            {!dialogue && backend?.sessionCapabilities?.events && (
                               <Suspense fallback={null}>
                                 <RunTrace runId={message.runId} />
                               </Suspense>
@@ -825,20 +892,24 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                   </article>
                 ),
               )}
-              {busy && (
+              {busy && (dialogue ? (
+                <div className="dialogue-delivery incoming" role="status" aria-label={t('正在思考')}>
+                  <div className="dialogue-bubble dialogue-typing"><div className="typing-dots"><i /><i /><i /></div></div>
+                </div>
+              ) : (
                 <article className="message assistant streaming">
                   <CharacterPortrait className="message-avatar" persona={persona} />
                   <div className="message-content">
-                    {activeRun && backend?.sessionCapabilities?.events && (
+                    {!dialogue && activeRun && backend?.sessionCapabilities?.events && (
                       <Suspense fallback={null}>
                         <RunTrace runId={activeRun} active />
                       </Suspense>
                     )}
                     <div className="message-author">
                       <strong>{persona?.name ?? 'Echo'}</strong>
-                      <span>{stream ? t('正在回复') : t('正在思考')}</span>
+                      <span>{stream && !dialogue ? t('正在回复') : t('正在思考')}</span>
                     </div>
-                    {stream ? (
+                    {stream && !dialogue ? (
                       <div className="message-body stream-text">
                         {stream.replace(/(?:^|\n)\[ECHO_STICKER:[^\n]*$/g, '')}
                       </div>
@@ -851,7 +922,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                     )}
                   </div>
                 </article>
-              )}
+              ))}
             </div>
             {newMessages && (
               <button
@@ -869,7 +940,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
               </button>
             )}
             <div className="chat-composer-area">
-              <ConversationInteractions key={selected} id={selected} act={act} />
+              <ConversationInteractions key={selected} id={selected} act={act} openSession={dialogue ? openSession : undefined} />
               {!backend ? (
                 <div className="composer-warning">
                   {t('请在角色配置中选择语言模型。')}
@@ -885,7 +956,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
               ) : unresolved ? (
                 <div className="composer-warning">
                   {t('上次执行的结果尚未确认。')}
-                  <button className="text-button" onClick={() => setPage('diagnostics')}>
+                  <button className="text-button" onClick={() => dialogue ? openSession?.() : setPage('diagnostics')}>
                     {t('查看诊断')} <Icon name="arrow" size={13} />
                   </button>
                 </div>
@@ -911,7 +982,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                 </p>
               )}
               <div className="composer">
-                <div className="input-queue">
+                {!dialogue && <div className="input-queue">
                   {inputs
                     .filter(
                       (item) =>
@@ -968,7 +1039,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                         )}
                       </div>
                     ))}
-                </div>
+                </div>}
                 {attachments.items.length > 0 && (
                   <div className="attachment-chips">
                     {attachments.items.map((item) => (
@@ -1018,7 +1089,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                     }
                   }}
                   placeholder={inactive ? t('启用角色后继续交流') : t('对 {name} 说点什么…', { name: persona?.name ?? 'Echo' })}
-                  rows={2}
+                  rows={dialogue ? 1 : 2}
                 />
                 <span className="visually-hidden" id={'composer-help-' + selected}>
                   {t('Enter 发送')} · {t('Shift + Enter 换行')}
@@ -1028,9 +1099,9 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                     <AttachmentControls
                       attachments={attachments}
                       act={act}
-                      projectDirectory={conversation.permissions?.projectDirectory}
+                      projectDirectory={dialogue ? undefined : conversation.permissions?.projectDirectory}
                     />
-                    <ReasoningSelect
+                    {!dialogue && <ReasoningSelect
                       compact
                       label="本会话思考强度"
                       disabled={busy}
@@ -1042,8 +1113,8 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                           '',
                         )
                       }
-                    />
-                    {backend && ['api', 'pi'].includes(backend.kind) && (
+                    />}
+                    {!dialogue && backend && ['api', 'pi'].includes(backend.kind) && (
                       <span className="composer-permission" title={t('项目文件权限，应用工具另行授权')}>
                         <Icon name="approvals" size={13} />
                         {t(
@@ -1055,10 +1126,10 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                         )}
                       </span>
                     )}
-                    {conversation.kind === 'main' && backend && (
+                    {!dialogue && conversation.kind === 'main' && backend && (
                       <ConversationStatus key={selected} run={statusRun} limit={contextLimit} />
                     )}
-                    {busy && (
+                    {!dialogue && busy && (
                       <select
                         className="composer-send-mode"
                         aria-label={t('发送方式')}
@@ -1091,10 +1162,10 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                         type="button"
                         className="composer-send"
                         title={t(
-                          busy ? (sendMode === 'steer' ? '补充指令' : '排队发送') : '发送消息',
+                          busy ? (steering ? '补充指令' : '排队发送') : '发送消息',
                         )}
                         aria-label={t(
-                          busy ? (sendMode === 'steer' ? '补充指令' : '排队发送') : '发送消息',
+                          busy ? (steering ? '补充指令' : '排队发送') : '发送消息',
                         )}
                         disabled={
                           inactive ||

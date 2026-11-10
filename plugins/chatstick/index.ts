@@ -2,7 +2,7 @@ import manifest from './echo-plugin.json' with { type: 'json' };
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { id, invariant, type Persona, type ReplyImage } from '../../packages/contracts/index.ts';
-import { characterEnabled, characterFeature } from '../../packages/kernel/characters.ts';
+import { characterEnabled, characterFeature, characterSettings } from '../../packages/kernel/characters.ts';
 import { defineManifest, type Plugin } from '../../packages/kernel/registry.ts';
 import type { Router } from '../../packages/kernel/router.ts';
 import type { Store } from '../../packages/kernel/store.ts';
@@ -19,18 +19,22 @@ const catalog = z.object({
 type Entry = z.infer<typeof catalog> & { image: ReplyImage };
 const provider = 'chatstick.image';
 const marker = /(?:^|\n)[ \t]*\[ECHO_STICKER:([a-z][a-z0-9_-]{0,39})\][ \t]*$/;
+const markerLines = /^[ \t]*\[ECHO_STICKER:[^\r\n]*\][ \t]*\r?\n?/gm;
 const eligible = (source?: string) => !source || source === 'human' || source === 'care';
+const settings = z.object({ channels: z.record(id, z.boolean()).default({}) });
+const emptyContext = { 'chatstick.catalog': [], 'chatstick.targets': [] };
 
 export function chatStickPlugin(store: Store, files: Files, router: Router): Plugin {
   const rowId = (personaId: string, key: string) => personaId + ':' + key;
   const entries = (personaId: string) => store.documents<Entry>('chatstick')
     .filter((entry) => entry.personaId === personaId);
-  const latestImage = (conversationId: string) => store.db.prepare(
-    "SELECT json_extract(data,'$.meta.image.hash') hash FROM messages WHERE conversation_id=? AND json_extract(data,'$.role')='assistant' ORDER BY seq DESC LIMIT 1",
-  ).get(conversationId)?.hash;
+  const channels = (personaId: string) => settings.parse(characterSettings(store, personaId, 'chatstick', {})).channels;
+  const latestImage = (conversationId: string, targetId: string) => store.db.prepare(
+    "SELECT json_extract(data,'$.meta.image.hash') hash FROM messages WHERE conversation_id=? AND json_extract(data,'$.role')='assistant' AND EXISTS (SELECT 1 FROM json_each(data,'$.meta.delivery.targets') WHERE json_extract(value,'$.id')=?) ORDER BY seq DESC LIMIT 1",
+  ).get(conversationId, targetId)?.hash;
   return {
     manifest: defineManifest(manifest),
-    character: characterFeature(store, 'chatstick', z.object({}), []),
+    character: characterFeature(store, 'chatstick', settings, []),
     activate: (ctx) => {
       const op = operations(ctx, 'chatstick');
       op('list', '列出角色聊天表情', z.object({ personaId: id }), 'chatstick.read',
@@ -70,33 +74,42 @@ export function chatStickPlugin(store: Store, files: Files, router: Router): Plu
         (v) => { store.remove('chatstick', rowId(v.personaId, v.key)); return { removed: true }; }, false);
       router.context({
         id: 'chatstick',
-        blocks: [{ id: 'chatstick.catalog', layer: 'stable', after: ['persona.profile', 'memory.core', 'delegation.guide'] }],
-        prepare: ({ conversation, source }) => {
-          if (!eligible(source)) return { 'chatstick.catalog': [] };
+        blocks: [
+          { id: 'chatstick.catalog', layer: 'stable', after: ['persona.profile', 'memory.core', 'delegation.guide'] },
+          { id: 'chatstick.targets', layer: 'turn', after: ['core.presentation'] },
+        ],
+        prepare: ({ conversation, source, replyStyles }) => {
+          if (!eligible(source)) return emptyContext;
+          const policy = channels(conversation.personaId);
+          const allowed = replyStyles?.filter((target) => target.supportsImages && policy[target.id] !== false) ?? [];
+          if (!allowed.length) return emptyContext;
           const available = entries(conversation.personaId).filter((entry) => entry.enabled);
-          if (!available.length) return { 'chatstick.catalog': [] };
+          if (!available.length) return emptyContext;
           const preference = store.document<Persona>('personas', conversation.personaId)?.expression?.stickers;
           return { 'chatstick.catalog': [{ text: [
             '聊天表情可选。' + (preference ||
               '轻松交流时，贴合语境才选一张，避免连着重复；正式工作、审批和故障说明用文字。'),
             '最多从以下目录选一张，只在回复末尾另起一行写 [ECHO_STICKER:编号]，由应用呈现。',
             ...available.map(({ key, label, meaning }) => JSON.stringify({ key, label, meaning })),
-          ].join('\n') }] };
+          ].join('\n') }], 'chatstick.targets': [{
+            text: '本轮可使用聊天表情的投递目标只有 ' + allowed.map((target) => target.id).join('、') + '。',
+          }] };
         },
       }, ctx.capabilities);
-      ctx.dispose(router.registerReplyDecorator((run, text) => {
+      ctx.dispose(router.registerReplyDecorator((run, text, target) => {
         const match = marker.exec(text.trimEnd());
-        if (!match) return { text };
+        if (!match) return { text: text.replace(markerLines, '') };
         const body = text.slice(0, match.index).trimEnd();
         if (/^\s*\[ECHO_STICKER:[^\r\n]*\]\s*$/m.test(body))
-          return { text: body.replace(/^[ \t]*\[ECHO_STICKER:[^\r\n]*\][ \t]*\r?\n?/gm, '').trimEnd() };
+          return { text: body.replace(markerLines, '').trimEnd() };
         const personaId = store.conversation(run.conversationId)?.personaId;
-        if (!body || !personaId || !eligible(run.source) || !characterEnabled(store, personaId, 'chatstick'))
+        if (!body || !personaId || !target?.supportsImages || !eligible(run.source) ||
+            !characterEnabled(store, personaId, 'chatstick') || channels(personaId)[target.id] === false)
           return { text: body };
         const entry = store.document<Entry>('chatstick', rowId(personaId, match[1]));
         return {
           text: body,
-          ...(entry?.enabled && entry.image.hash !== latestImage(run.conversationId) ? { image: entry.image } : {}),
+          ...(entry?.enabled && entry.image.hash !== latestImage(run.conversationId, target.id) ? { image: entry.image } : {}),
         };
       }));
     },

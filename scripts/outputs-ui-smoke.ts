@@ -8,7 +8,7 @@ import { serve } from '../apps/server/http.ts';
 import { internal } from '../packages/kernel/registry.ts';
 import { profileSchema } from '../packages/contracts/index.ts';
 import { seedProfile } from './inference-fixture.ts';
-import { FakeBackend, until } from '../tests/helpers.ts';
+import { FakeBackend, until, submitFixtureReplies } from '../tests/helpers.ts';
 
 const project = resolve(import.meta.dirname, '..'),
   base = join(tmpdir(), 'EchoTests');
@@ -76,7 +76,7 @@ try {
   await page.getByRole('button', { name: '自动化任务', exact: true }).last().click();
   await page.locator('.task-tabs').getByRole('button', { name: '日常交流', exact: true }).click();
   const options = page.locator('.output-targets');
-  await options.getByRole('checkbox', { name: '主会话', exact: true }).uncheck();
+  await options.getByRole('checkbox', { name: '聊天', exact: true }).uncheck();
   await options.getByRole('checkbox', { name: /^桌宠气泡/ }).uncheck();
   await options.getByRole('checkbox', { name: /Example inbox/ }).check();
   await page.screenshot({ path: join(project, 'test-results/task-outputs.png') });
@@ -84,7 +84,7 @@ try {
   await page.getByRole('button', { name: '配置角色', exact: true }).waitFor();
   const saved = app.care.rules().find((rule) => rule.id === 'example-hina-care')!;
   assert.deepEqual(saved.outputTargets, ['channels.binding.fixture-binding']);
-  backend.responder = async () => ({ text: 'SYNTHETIC_EXTERNAL_RESULT' });
+  backend.responder = (request) => submitFixtureReplies(request, 'SYNTHETIC_EXTERNAL_RESULT');
   await app.triggerActions.dispatch(
     {
       action: 'conversation',

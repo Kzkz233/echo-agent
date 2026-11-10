@@ -1,4 +1,4 @@
-import { deliveryPoint } from '../../packages/contracts/delivery.ts';
+import { channelTextMode, deliveryPoint, replySubmission } from '../../packages/contracts/delivery.ts';
 import manifest from './echo-plugin.json' with { type: 'json' };
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -9,6 +9,7 @@ import { defineManifest, type Plugin, type PluginContext } from '../../packages/
 import { Store } from '../../packages/kernel/store.ts';
 import { Router } from '../../packages/kernel/router.ts';
 import { Events } from '../../packages/kernel/events.ts';
+import type { Deliveries } from '../../packages/kernel/delivery.ts';
 import { operations } from '../shared.ts';
 import { isAdditionalSignal, type TriggerActions } from '../../packages/kernel/trigger-actions.ts';
 const bindingSchema = z.object({
@@ -18,6 +19,7 @@ const bindingSchema = z.object({
   conversationId: id,
   enabled: z.boolean().default(true),
   alsoBubble: z.boolean().default(false),
+  textMode: channelTextMode.optional(),
   automaticSources: z.array(z.enum(['care', 'review', 'notification', 'trigger'])).default([]),
   automaticTriggerKinds: z.array(id).max(100).default([]),
 });
@@ -30,6 +32,8 @@ const deliveryInput = z.object({
   replyTo: z.string().optional(),
   idempotencyKey: z.string(),
   image: replyImageBase64.optional(),
+  textMode: channelTextMode.optional(),
+  parts: replySubmission.shape.messages.optional(),
 });
 const deliveryResult = z.object({
   state: z.enum(['delivered', 'queued', 'failed', 'unknown', 'skipped']),
@@ -43,6 +47,7 @@ export class Channels {
     readonly router: Router,
     readonly events: Events,
     readonly triggerActions: TriggerActions,
+    readonly deliveries: Deliveries,
   ) {}
   private track(work: Promise<unknown>) {
     this.work.add(work);
@@ -51,7 +56,7 @@ export class Channels {
   bindings() {
     return this.store.documents<Binding>('channel-bindings');
   }
-  receive(
+  async receive(
     input: { adapter: string; peer: string; remoteMessageId: string; text: string },
     owner?: string,
   ) {
@@ -96,6 +101,16 @@ export class Channels {
       this.store.put('channel-inbound', requestId, { id: requestId, bindingId: binding.id, state: 'ignored', reason: 'character_disabled' });
       return { accepted: false, reason: 'character_disabled', requestId };
     }
+    const delivery = await this.deliveries.plan(binding.conversationId, 'human', [
+      'channels.binding.' + binding.id,
+      ...(binding.alsoBubble ? ['avatar.bubble'] : []),
+    ], {}, this.ctx.signal);
+    if (input.remoteMessageId) delivery.replyTo = input.remoteMessageId;
+    const received = this.store.document<any>('channel-inbound', requestId);
+    if (received) return { accepted: received.state === 'accepted', requestId };
+    const current = this.store.document<Binding>('channel-bindings', binding.id);
+    if (!current?.enabled || current.peer !== binding.peer || current.adapter !== binding.adapter || current.conversationId !== binding.conversationId)
+      return { accepted: false, reason: 'binding_changed', requestId };
     const result = this.router.enqueue({
         conversationId: binding.conversationId,
         text: input.text,
@@ -103,6 +118,7 @@ export class Channels {
         source: 'human',
         bubble: binding.alsoBubble,
         origin: { bindingId: binding.id, remoteMessageId: input.remoteMessageId },
+        delivery,
       });
     this.store.put('channel-inbound', requestId, {
       id: requestId,
@@ -111,39 +127,6 @@ export class Channels {
       remoteMessageId: input.remoteMessageId,
     });
     return result;
-  }
-  private async deliver(binding: Binding, message: Message, replyTo?: string, retry = false) {
-    if (!this.ctx || !binding.enabled || !message.text.trim()) return;
-    const row = this.stage(binding, message, replyTo, retry);
-    return this.deliverPending(row.id);
-  }
-  private stage(binding: Binding, message: Message, replyTo?: string, retry = false) {
-    const key =
-        'channel-delivery.' +
-        createHash('sha256')
-          .update(JSON.stringify([binding.id, message.id]))
-          .digest('hex'),
-      old = this.store.document<any>('channel-outbound', key);
-    if (old && !(retry && old.state === 'failed')) return old;
-    const payload = {
-      conversationId: message.conversationId,
-      peer: binding.peer,
-      text: message.text,
-      messageId: message.id,
-      replyTo,
-      idempotencyKey: key,
-    };
-    const row = {
-      id: key,
-      bindingId: binding.id,
-      adapter: binding.adapter,
-      messageId: message.id,
-      payload,
-      state: 'pending',
-      createdAt: old?.createdAt ?? new Date().toISOString(),
-    };
-    this.store.put('channel-outbound', key, row);
-    return row;
   }
   private async deliverPending(key: string) {
     const ctx = this.ctx;
@@ -215,12 +198,6 @@ export class Channels {
       return (binding.automaticTriggerKinds ?? []).includes(run.meta.triggerKind);
     return binding.automaticSources.includes(run.source as any);
   }
-  private stageMessage(message: Message, run?: Run) {
-    const origin = run?.meta.origin as { remoteMessageId?: string } | undefined;
-    for (const binding of this.bindings())
-      if (this.permits(binding, message, run))
-        this.stage(binding, message, origin?.remoteMessageId);
-  }
   private flush() {
     if (!this.ctx) return;
     for (const row of this.store.db
@@ -257,9 +234,7 @@ export class Channels {
           }
           this.events.emit('channels.updated', {});
         }));
-        ctx.dispose(
-          this.router.registerDeliveryStage((message, run) => this.stageMessage(message, run)),
-        );
+        // Drain only records written before unified output delivery was introduced.
         for (const row of this.store.documents<any>('channel-outbound'))
           if (row.state === 'sending')
             this.store.put('channel-outbound', row.id, { ...row, state: 'unknown' });
@@ -293,7 +268,9 @@ export class Channels {
         ctx.capabilities.provide(deliveryPoint,'channels.outputs','会话通道',async (input,outputSignal)=>{
           if(input.action==='list')return{targets:this.bindings().filter(b=>b.enabled&&b.conversationId===input.conversationId).map(b=>({
             id:'channels.binding.'+b.id,label:(ctx.capabilities.list('channels.send@1').find(p=>p.id===b.adapter)?.label??b.adapter)+' · '+b.peer,
-            presentation:'external',revision:outputRevision(b),ready:ctx.capabilities.list('channels.send@1').some(p=>p.id===b.adapter&&p.state==='active'),
+            presentation:'external',style:b.adapter === 'qq.bot' ? 'external' : b.adapter,
+            supportsImages:ctx.capabilities.list('channels.image-adapters@1').some(p=>p.id===b.adapter&&p.state==='active'),
+            revision:outputRevision(b),ready:ctx.capabilities.list('channels.send@1').some(p=>p.id===b.adapter&&p.state==='active'),
             legacySources:[...b.automaticSources,...(b.automaticTriggerKinds??[]).map(kind=>'signal:'+kind),...(b.automaticSources.includes('notification')?['review']:[])],
           }))};
           const binding=this.bindings().find(b=>'channels.binding.'+b.id===input.targetId), envelope=input.envelope;
@@ -304,8 +281,12 @@ export class Channels {
           const signal=AbortSignal.any([outputSignal,ctx.signal,this.router.characterSignal(envelope.personaId)]);
           const image=message&&ctx.capabilities.list('channels.image-adapters@1').some(p=>p.id===binding.adapter&&p.state==='active')
             ? await readReplyImage(ctx.capabilities,message.meta.image,signal):undefined;
+          const parts = envelope.title && envelope.parts
+            ? [envelope.title + '\n' + envelope.parts[0], ...envelope.parts.slice(1)] : envelope.parts;
           const result=await ctx.capabilities.invoke(point,binding.adapter,{conversationId:envelope.conversationId,peer:binding.peer,
-            text:[envelope.title,envelope.text].filter(Boolean).join('\n'),messageId:envelope.messageId??envelope.id,idempotencyKey:input.idempotencyKey,image},signal);
+            text:[envelope.title,envelope.text].filter(Boolean).join('\n'),messageId:envelope.messageId??envelope.id,
+            replyTo:envelope.plan.replyTo,idempotencyKey:input.idempotencyKey,image,
+            textMode:parts ? binding.textMode : 'combined',parts},signal);
           return{result};
         });
         const op = operations(ctx, 'channels');
@@ -358,7 +339,9 @@ export class Channels {
               'channel_ambiguous',
               'This external peer already has an active binding',
             );
-            const row = { ...v, id: v.id ?? randomUUID() };
+            const previous = v.id ? this.store.document<Binding>('channel-bindings', v.id) : undefined;
+            const textMode = v.textMode ?? (previous && previous.adapter === v.adapter ? previous.textMode : undefined);
+            const row = { ...v, textMode, id: v.id ?? randomUUID() };
             this.store.put('channel-bindings', row.id, row);
             this.events.emit('channels.updated', {});
             return row;
@@ -433,7 +416,8 @@ export class Channels {
               'delivery_state',
               'Only a definite failure can be retried',
             );
-            return this.deliver(binding, message, row.payload.replyTo, true);
+            this.store.put('channel-outbound', row.id, { ...row, state: 'pending' });
+            return this.deliverPending(row.id);
           },
           false,
         );

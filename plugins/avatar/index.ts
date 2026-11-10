@@ -338,7 +338,9 @@ export function avatarPlugin(
                 label: '桌宠气泡',
                 revision: '1',
                 portable: true,
+                supportsImages: true,
                 presentation: 'bubble',
+                style: 'bubble',
                 ready: characterEnabled(store, input.personaId, 'avatar'),
                 issue: roleAvatar(store, input.personaId).enabled
                   ? undefined

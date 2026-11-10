@@ -81,6 +81,7 @@ export type DelegatedTask = {
   error?: string;
   checkpoint?: { text: string; artifacts: string[]; at: string };
   parentTaskId?: string;
+  originRunId?: string;
 };
 type ApprovalReview = { at: string; path: string; operation: 'edit' | 'write'; decision: 'allow' | 'deny' };
 export class Delegations {
@@ -333,6 +334,9 @@ export class Delegations {
       fingerprint,
       personaId: origin.personaId,
       conversationId: origin.id,
+      ...(caller.kind === 'mcp' || caller.pluginId ? {
+        originRunId: this.store.unresolved(origin.id).find((run) => run.state === 'running')?.id,
+      } : {}),
       workerConversationId: 'worker-' + taskId,
       goal: value.goal,
       acceptance: value.acceptance,

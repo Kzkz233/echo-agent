@@ -177,10 +177,16 @@ export class Store {
   assistantForRun(id: string): Message | undefined {
     const r = this.db
       .prepare(
-        "SELECT data FROM messages WHERE json_extract(data,'$.runId')=? AND json_extract(data,'$.role')='assistant' ORDER BY seq DESC LIMIT 1",
+        "SELECT data FROM messages WHERE json_extract(data,'$.runId')=? AND json_extract(data,'$.role')='assistant' AND COALESCE(json_extract(data,'$.meta.replyPhase'),'final')='final' ORDER BY seq DESC LIMIT 1",
       )
       .get(id) as any;
     return r ? JSON.parse(r.data) : undefined;
+  }
+  channelFinalsForRun(run: Pick<Run, 'id' | 'conversationId'>): Message[] {
+    const rows = this.db.prepare(
+      "SELECT data FROM messages WHERE conversation_id=? AND json_extract(data,'$.runId')=? AND json_extract(data,'$.meta.replyPhase')='final' ORDER BY seq",
+    ).all(run.conversationId, run.id) as { data: string }[];
+    return rows.map((row) => JSON.parse(row.data));
   }
   unresolved(conversationId?: string): Run[] {
     const sql = "SELECT data FROM runs WHERE json_extract(data,'$.state') IN ('running','unknown')";

@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+export const defaultEchoReadPermissions = [
+  'system.read', 'persona.read', 'memory.read', 'knowledge.read', 'observation.read', 'review.read',
+];
+
 export const conversationPermissions = z.object({
   echoTools: z.array(z.string().min(1).max(160)).max(200).optional(),
   projectDirectory: z.string().max(4096).default(''),

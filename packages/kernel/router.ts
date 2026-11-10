@@ -1,4 +1,4 @@
-import type { DeliveryPlan } from '../contracts/delivery.ts';
+import { replySubmission, type DeliveryPlan, type ReplySubmission } from '../contracts/delivery.ts';
 import { randomUUID, createHash } from 'node:crypto';
 import { Interactions } from './interactions.ts';
 import {
@@ -47,6 +47,7 @@ type Submission = {
   attachmentIds?: string[];
   triggerKind?: string;
   localOnly?: boolean;
+  workSession?: true;
   delivery?: DeliveryPlan;
 };
 export class Router {
@@ -104,7 +105,8 @@ export class Router {
   }
   private deleting = new Set<string>();
   private deliveryStages = new Set<(message: Message, run?: Run) => void>();
-  private replyDecorator?: (run: Run, text: string) => { text: string; image?: ReplyImage };
+  planLocalReply?: (id: string, bubble: boolean, signal: AbortSignal) => Promise<DeliveryPlan>;
+  private replyDecorator?: (run: Run, text: string, target?: DeliveryPlan['targets'][number]) => { text: string; image?: ReplyImage };
   constructor(
     readonly store: Store,
     readonly events: Events,
@@ -131,7 +133,16 @@ export class Router {
             after: ['memory.recall', 'reflections.current', 'delegation.turn'],
           },
         ],
-        prepare: ({ conversation, presentation }) => {
+        prepare: ({ conversation, presentation, replyStyles }) => {
+          if (replyStyles?.length) {
+            return { 'core.presentation': [{ text: [
+              presentation === 'external' ? '本轮通过消息渠道回复。' : presentation === 'bubble' ? '本轮显示在桌宠小气泡。' : '',
+              '发给渠道的内容必须用 echo_respond 提交。普通正文只属于执行过程。messages 的每项是一条独立消息，普通换行留在同一项内。progress 是可选的中途说明，final 是正式交付。',
+              '需要回复时，给每个已选目标分别提交 final，共用同一次工作的结果。',
+              ...(replyStyles.some((style) => style.id === 'core.chat') ? ['聊天中的闲聊省略 title；想分条说时，把每条分别写进 messages。'] : []),
+              ...replyStyles.map(({ id, label, text }) => `${id}（${label}）${text ? '：' + text : ''}`),
+            ].filter(Boolean).join('\n') }] };
+          }
           if (!presentation) return { 'core.presentation': [] };
           const expression = this.store.document<Persona>(
             'personas',
@@ -140,11 +151,9 @@ export class Router {
           const text =
             presentation === 'external'
               ? '本轮通过消息渠道回复。' +
-                (expression?.external ||
-                  '先说重点，分短段，复杂排版改成简洁的列表；需要详细说明时保留必要内容。')
+                (expression?.external ?? '')
               : '本轮显示在桌宠小气泡。' +
-                (expression?.bubble ||
-                  '口语化，先说重点，闲聊通常一两句；用短段落，避免表格和大段代码。');
+                (expression?.bubble ?? '');
           return { 'core.presentation': [{ text: '[Echo 本轮展示约定] ' + text }] };
         },
       },
@@ -417,6 +426,7 @@ export class Router {
     requestId: string;
     text: string;
     attachmentIds?: string[];
+    workSession?: true;
   }) {
     const roleSignal = this.characterSignal(this.store.conversation(input.conversationId)?.personaId ?? '');
     roleSignal.throwIfAborted();
@@ -472,7 +482,7 @@ export class Router {
           'human',
           input.text,
           run.id,
-          { steer: true, attachments },
+          { steer: true, attachments, ...(input.workSession ? { workSession: true } : {}) },
         );
         this.store.saveReceipt(key, { ...receipt, state: 'accepted' });
         return message;
@@ -556,7 +566,7 @@ export class Router {
   }
 
   registerReplyDecorator(
-    decorate: (run: Run, text: string) => { text: string; image?: ReplyImage },
+    decorate: (run: Run, text: string, target?: DeliveryPlan['targets'][number]) => { text: string; image?: ReplyImage },
   ) {
     invariant(!this.replyDecorator, 'reply_presentation', '回复呈现已注册。');
     this.replyDecorator = decorate;
@@ -889,11 +899,13 @@ export class Router {
           input.bubble ?? false,
           input.origin ?? null,
           input.attachmentIds ?? null,
-          ...((input.delivery ?? existing?.meta.delivery) ? [input.delivery ?? existing?.meta.delivery] : []),
+          ...((input.delivery ?? (!existing?.meta.implicitDelivery && existing?.meta.delivery))
+            ? [input.delivery ?? existing?.meta.delivery] : []),
           ...(input.triggerKind && (!existing || existing.meta.triggerKind)
             ? [input.triggerKind]
             : []),
           ...(input.localOnly || existing?.meta.localOnly ? [Boolean(input.localOnly)] : []),
+          ...(input.workSession || existing?.meta.workSession ? [Boolean(input.workSession)] : []),
         ]),
       )
       .digest('hex');
@@ -958,15 +970,28 @@ export class Router {
     const combined = AbortSignal.any([controller.signal,this.characterSignal(conversation.personaId),...(signal?[signal]:[])]);
     let run: Run | undefined;
     try {
+      const delivery = input.delivery ?? ((input.bubble || (conversation.kind === 'main' && source === 'human')) && !input.origin && !input.workSession
+        ? await this.planLocalReply?.(conversation.id, Boolean(input.bubble), combined)
+        : undefined);
+      const targets = delivery?.targets.filter((target) => target.ready) ?? [];
+      const expression = this.store.document<Persona>('personas', conversation.personaId)?.expression;
+      const replyStyles = targets.map((target) => {
+        const style = target.style ?? (target.presentation === 'bubble' ? 'bubble' : target.presentation === 'external' ? 'external' : 'chat');
+        const text = style === 'external' || style === 'bubble' || style === 'chat'
+          ? expression?.[style]
+          : expression?.channels?.[style] ?? (target.presentation === 'external' ? expression?.external : undefined);
+        return { id: target.id, label: target.label, text: text ?? '', supportsImages: target.supportsImages };
+      });
       const recent = this.store.recentMessages(conversation.id);
       const contextInput = {
         action: 'prepare',
         conversation,
         text: input.text,
         source,
-        outputTargets: input.delivery?.targets.map(target=>target.id),
+        outputTargets: delivery?.targets.map(target=>target.id),
+        replyStyles,
         presentation:
-          input.delivery ? input.delivery.targets.find(target=>target.presentation==='bubble')?.presentation ?? input.delivery.targets.find(target=>target.presentation==='external')?.presentation :
+          delivery ? targets.length === 1 ? targets[0].presentation : undefined :
           source === 'human' && input.origin
             ? 'external'
             : input.bubble && (source === 'human' || source === 'care')
@@ -1050,7 +1075,8 @@ export class Router {
         meta: {
           fingerprint,
           bubble: input.bubble ?? false,
-          ...(input.delivery ? { delivery: input.delivery } : {}),
+          ...(delivery ? { delivery, implicitDelivery: !input.delivery } : {}),
+          ...(input.workSession ? { workSession: true } : {}),
           origin: input.origin,
           triggerKind: input.triggerKind,
           ...(input.localOnly ? { localOnly: true } : {}),
@@ -1081,7 +1107,8 @@ export class Router {
           input.text,
           run!.id,
           {
-            ...(input.delivery ? { delivery: input.delivery } : {}),
+            ...(delivery ? { delivery } : {}),
+            ...(input.workSession ? { workSession: true } : {}),
             ...(input.origin ? { origin: input.origin } : {}),
             ...(input.triggerKind ? { triggerKind: input.triggerKind } : {}),
             ...(attachments.length ? { attachments } : {}),
@@ -1133,6 +1160,31 @@ export class Router {
         run.meta.contextInputTokens = contextInputTokens;
       }
       const interactionLife = new AbortController();
+      const submitted = new Map<string, Message>();
+      const respond = (value: ReplySubmission) => {
+        combined.throwIfAborted();
+        invariant(this.store.binding(conversation.id)?.epoch === run!.epoch, 'stale_epoch', '旧绑定结果不再投递。');
+        const reply = replySubmission.parse(value);
+        const target = targets.find(({ id }) => id === reply.targetId);
+        invariant(delivery && target, 'reply_target', '该目标不在本轮授权范围内。');
+        const key = reply.targetId + ':' + reply.phase;
+        const old = submitted.get(key);
+        if (old) {
+          invariant(old.meta.replyTitle === reply.title && JSON.stringify(old.meta.submittedParts) === JSON.stringify(reply.messages), 'reply_duplicate', '该目标已提交同阶段回复。');
+          return { accepted: true as const };
+        }
+        invariant(!submitted.has(reply.targetId + ':final'), 'reply_complete', '该目标已提交最终答复。');
+        invariant(reply.messages.every((part) => part !== observationSilence), 'reply_control', '跳过信号应直接作为本轮结果。');
+        const message = this.store.transaction(() => this.recordReply(run!, reply.messages.join('\n\n'), {
+          delivery: { ...delivery, targets: [target] },
+          replyPhase: reply.phase,
+          ...(reply.title ? { replyTitle: reply.title } : {}),
+          submittedParts: reply.messages,
+        }));
+        submitted.set(key, message);
+        this.events.emit('message.posted', { conversationId: conversation.id });
+        return { accepted: true as const };
+      };
       const result = await backend
         .generate({
           profile: await this.inference.prepare(
@@ -1150,6 +1202,7 @@ export class Router {
           },
           reasoning: input.reasoning ?? conversation.reasoning,
           signal: combined,
+          ...(targets.length ? { respond, replyTargets: targets.map(({ id }) => id) } : {}),
           ...(['human', 'delegation', 'group', 'handoff'].includes(source)
             ? {
                 permissions: conversation.permissions,
@@ -1186,7 +1239,8 @@ export class Router {
         'stale_epoch',
         '旧绑定结果不再投递。',
       );
-      return this.complete(run, result, binding);
+      const finals = [...submitted.values()].filter((message) => message.meta.replyPhase === 'final');
+      return this.complete(run, result, binding, finals);
     } catch (e) {
       if (run) {
         run = {
@@ -1214,8 +1268,36 @@ export class Router {
   cancel(conversationId: string) {
     this.running.get(conversationId)?.abort();
   }
-  private complete(run: Run, result: GenerateResult, binding: Binding) {
-    const decorated = this.replyDecorator?.(run, result.text) ?? { text: result.text };
+  private recordReply(run: Run, text: string, meta: Record<string, unknown> = {}, decorated?: { text: string; image?: ReplyImage }) {
+    const target = (meta.delivery as DeliveryPlan | undefined)?.targets[0];
+    const reply = decorated ?? this.replyDecorator?.(run, text, target) ?? { text };
+    invariant(reply.text.trim(), 'reply_empty', '回复正文为空。');
+    const submitted = meta.submittedParts as string[] | undefined;
+    const prefix = submitted && submitted.length > 1 ? submitted.slice(0, -1).join('\n\n') + '\n\n' : '';
+    const parts = submitted && (reply.text.startsWith(prefix)
+      ? [...submitted.slice(0, -1), reply.text.slice(prefix.length)].filter(Boolean)
+      : [reply.text]);
+    const message = this.store.append(run.conversationId, 'assistant', run.source === 'human' ? 'chat' : run.source, reply.text, run.id, {
+      ...(run.meta.delivery ? { delivery: run.meta.delivery } : {}),
+      ...(run.meta.workSession ? { workSession: true } : {}),
+      ...(run.meta.triggerKind ? { triggerKind: run.meta.triggerKind } : {}),
+      ...(reply.image ? { image: reply.image } : {}),
+      ...meta,
+      ...(parts?.length ? { replyParts: parts } : {}),
+    });
+    for (const stage of this.deliveryStages) stage(message, run);
+    return message;
+  }
+  private complete(run: Run, result: GenerateResult, binding: Binding, finals: Message[] = []) {
+    const targets = (run.meta.delivery as DeliveryPlan | undefined)?.targets.filter((target) => target.ready) ?? [];
+    const text = result.text.trim();
+    const silent = ['observation', 'care'].includes(run.source) && (!text || text === observationSilence);
+    if (targets.length && (finals.length || !silent)) {
+      const finished = new Set(finals.map((message) => (message.meta.delivery as DeliveryPlan).targets[0]?.id));
+      invariant(targets.every(({ id }) => finished.has(id)), 'reply_incomplete', '模型未通过 echo_respond 完成所有渠道的回复。');
+    }
+    const final = finals.find((message) => (message.meta.delivery as DeliveryPlan).targets[0]?.id === 'core.chat') ?? finals.at(-1);
+    const decorated = final ? { text: final.text } : this.replyDecorator?.(run, result.text) ?? { text: result.text };
     const answer = decorated.text.trim();
     const observationOutcome =
       run.source === 'observation'
@@ -1227,7 +1309,6 @@ export class Router {
         : undefined;
     const careSilence = run.source === 'care' && answer === observationSilence;
     const reply = observationOutcome === 'skip' || careSilence ? '' : decorated.text;
-    const image = decorated.image;
     const completed: Run = {
       ...run,
       state: 'succeeded',
@@ -1245,28 +1326,7 @@ export class Router {
     };
     this.store.transaction(() => {
       if (reply.trim() && !this.store.assistantForRun(run.id)) {
-        const message = this.store.append(
-          run.conversationId,
-          'assistant',
-          run.source === 'human' ? 'chat' : run.source,
-          reply,
-          run.id,
-          {
-            ...(run.meta.delivery ? { delivery: run.meta.delivery } : {}),
-            ...(run.meta.triggerKind ? { triggerKind: run.meta.triggerKind } : {}),
-            ...(image ? { image } : {}),
-          },
-        );
-        if (run.meta.bubble && !run.meta.delivery)
-          this.store.saveReceipt(`bubble-${message.id}`, {
-            kind: 'bubble',
-            state: 'pending',
-            conversationId: run.conversationId,
-            messageId: message.id,
-            text: message.text,
-            createdAt: new Date().toISOString(),
-          });
-        for (const stage of this.deliveryStages) stage(message, completed);
+        this.recordReply(completed, reply, {}, decorated);
       }
       this.store.updateRun(completed);
       if (run.state === 'unknown') this.settleInputReceipt(completed);
@@ -1344,8 +1404,14 @@ export class Router {
       signal.throwIfAborted();
       const result = await backend.inspect(profile, binding.sessionId, run.nativeRunId);
       signal.throwIfAborted();
-      if (result.state === 'succeeded')
-        return this.complete(run, { text: result.text ?? '' }, binding);
+      if (result.state === 'succeeded') {
+        try {
+          return this.complete(run, { text: result.text ?? '' }, binding, this.store.channelFinalsForRun(run));
+        } catch (error) {
+          if (error instanceof EchoError && error.code === 'reply_incomplete') return this.finishUnknown(run, error.message);
+          throw error;
+        }
+      }
       if (result.state === 'failed')
         return this.finishUnknown(run, result.error || '后端确认失败。');
       return run;

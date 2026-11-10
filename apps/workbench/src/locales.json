@@ -9276,6 +9276,526 @@
     "Subtask approvals handled by"
   ],
   [
+    "项目规划",
+    "Agenda Planning"
+  ],
+  [
+    "网格素材目录（留空使用演示素材）",
+    "Mesh directory (mesh.json + atlas.png; empty uses bundled demonstration)"
+  ],
+  [
+    "桌宠骨骼动画增强",
+    "Avatar Skeletal Animation"
+  ],
+  [
+    "需重新解析",
+    "Needs reprocessing"
+  ],
+  [
+    "已从原库移除",
+    "Removed from the source library"
+  ],
+  [
+    "清除选择",
+    "Clear selection"
+  ],
+  [
+    "选择文献",
+    "Select reference"
+  ],
+  [
+    "解析选中文献（{count}）",
+    "Process selected references ({count})"
+  ],
+  [
+    "已提交选中的文献",
+    "Selected references submitted"
+  ],
+  [
+    "部分文献未提交",
+    "Some references could not be submitted"
+  ],
+  [
+    "来源已变化，旧全文已退出检索。",
+    "The source changed. The previous full text was removed from search."
+  ],
+  [
+    "与 {name} 内容重复",
+    "Duplicate of {name}"
+  ],
+  [
+    "主附件",
+    "Primary attachment"
+  ],
+  [
+    "当前文献暂无可索引正文",
+    "No current text available for indexing"
+  ],
+  [
+    "向量索引暂不可用",
+    "Vector indexing is unavailable"
+  ],
+  [
+    "正在读取索引状态",
+    "Loading index status"
+  ],
+  [
+    "已索引 {indexed} / {total} 个片段",
+    "{indexed} of {total} passages indexed"
+  ],
+  [
+    "为本篇文献建立向量索引？",
+    "Index this reference?"
+  ],
+  [
+    "文献库目录",
+    "Library folder"
+  ],
+  [
+    "查找文献库",
+    "Find libraries"
+  ],
+  [
+    "同步分组",
+    "Sync groups"
+  ],
+  [
+    "文献分组已同步",
+    "Reference groups synced"
+  ],
+  [
+    "文献分组",
+    "Reference groups"
+  ],
+  [
+    "全文检索",
+    "Full-text search"
+  ],
+  [
+    "返回文献列表",
+    "Back to references"
+  ],
+  [
+    "选择 .enl 文件，即可浏览文献、附件及关联知识。",
+    "Choose an .enl file to browse references, attachments and linked knowledge."
+  ],
+  [
+    "项目 规划",
+    "Project planning"
+  ],
+  [
+    "帧动画支持全部互动功能；启用桌宠骨骼动画增强后，可切换骨骼动画素材。",
+    "Frame animation supports all interactions. Enable Avatar Skeletal Animation to use skeletal assets."
+  ],
+  [
+    "骨骼动画",
+    "2D skeletal mesh (native)"
+  ],
+  [
+    "骨骼素材预览",
+    "Skeletal asset preview"
+  ],
+  [
+    "正在读取骨骼素材",
+    "Loading skeletal asset"
+  ],
+  [
+    "骨骼素材",
+    "Skeletal asset"
+  ],
+  [
+    "Cute Girl · 内置骨骼示例",
+    "Cute Girl · Bundled skeletal example"
+  ],
+  [
+    "根骨骼",
+    "bones"
+  ],
+  [
+    "导入骨骼素材",
+    "Import skeletal asset"
+  ],
+  [
+    "选择包含 mesh.json 与 atlas.png 的目录或 ZIP。DragonBones、Spine、Live2D 需先转换。",
+    "Choose a folder or ZIP with mesh.json and atlas.png. Convert DragonBones, Spine, or Live2D first."
+  ],
+  [
+    "表情投递渠道",
+    "Sticker channels"
+  ],
+  [
+    "不支持图片",
+    "Images unsupported"
+  ],
+  [
+    "标题写明事件或结果。正文简述发生了什么，并注明关键结果、截止时间或待确认事项。",
+    "Use a title that names the event or result. Briefly state what happened and include the key result, deadline, or action needed."
+  ],
+  [
+    "留空沿用记忆整理的应用默认值或模型策略。思考可能计入此额度。",
+    "Use the application review default or model policy when blank. Thinking may count toward this limit."
+  ],
+  [
+    "应用和角色的工具授权仍然生效。工具自身的审批由该工具处理。",
+    "Application and character grants still apply. Tools retain their own approval flow."
+  ],
+  [
+    "仅适用于内置执行器。由主会话逐个任务选择，执行仍以当前系统账户权限为准。",
+    "Available with the built-in executor. The main conversation chooses per task, using the current system account."
+  ],
+  [
+    "主会话可代审已授权目录内的文件修改。终端和业务审批交给用户。",
+    "The main conversation can review edits in authorized directories. Terminal and business actions are reviewed by the user."
+  ],
+  [
+    "任务专用筛选",
+    "Task-specific filters"
+  ],
+  [
+    "沿用应用提醒规则",
+    "Use shared reminder rules"
+  ],
+  [
+    "为此任务单独筛选",
+    "Use independent filters for this task"
+  ],
+  [
+    "展开任务专用筛选可填写发件人和主题条件。",
+    "Expand task-specific filters to enter sender and subject conditions."
+  ],
+  [
+    "保留升级前的筛选",
+    "Keep pre-upgrade filters"
+  ],
+  [
+    "关闭后，请为这个任务填写新的提醒规则。",
+    "Turn this off to set new reminder rules for this task."
+  ],
+  [
+    "命中任一规则就提醒。每行填写一个匹配词。",
+    "Notify when any rule matches. Enter one term per line."
+  ],
+  [
+    "使用读写工具",
+    "Enable file read and write tools"
+  ],
+  [
+    "文件修改确认",
+    "File change confirmation"
+  ],
+  [
+    "授权目录内直接写入",
+    "Write directly within authorized folders"
+  ],
+  [
+    "本机完全访问时，文件修改始终需要确认。",
+    "Full device access always requires confirmation for file changes."
+  ],
+  [
+    "先将主会话的工作目录设为读写。",
+    "Set a main conversation workspace to read and write first."
+  ],
+  [
+    "Echo 工具调用",
+    "Echo tool calls"
+  ],
+  [
+    "沿用文件工具模式（旧配置）",
+    "Inherit file tool mode (legacy)"
+  ],
+  [
+    "禁用 Echo 工具",
+    "Disable Echo tools"
+  ],
+  [
+    "仅开放已授权的查询工具",
+    "Allow granted query tools only"
+  ],
+  [
+    "已授权的变更操作逐次确认",
+    "Confirm each granted change"
+  ],
+  [
+    "按角色授权直接调用",
+    "Run tools granted to this character"
+  ],
+  [
+    "调用范围由角色的工具授权决定。核心记忆等业务审批仍由对应工具处理。",
+    "The character tool grants set the scope. Tools still handle their own approvals, such as core memory changes."
+  ],
+  [
+    "允许写入项目目录",
+    "Allow writes to the project folder"
+  ],
+  [
+    "该工作目录已添加。",
+    "This workspace has already been added."
+  ],
+  [
+    "编辑目录",
+    "Edit workspace"
+  ],
+  [
+    "保存目录",
+    "Save workspace"
+  ],
+  [
+    "使用默认工作目录",
+    "Use default workspace"
+  ],
+  [
+    "主会话和子任务的目录授权会随路径修改。",
+    "Main and worker grants move with the workspace path."
+  ],
+  [
+    "默认目录独立于应用数据，使用时只为主会话添加只读权限。移除目录只撤销授权。",
+    "The default workspace is separate from app data. It grants read access to the main chat. Removing a workspace revokes its grant."
+  ],
+  [
+    "主会话文件访问范围",
+    "Main conversation file access"
+  ],
+  [
+    "主会话可读取当前系统账户可访问的文件。修改文件仍需逐次确认。",
+    "The main conversation can read files accessible to this system account. File changes still require confirmation."
+  ],
+  [
+    "仅限授权目录",
+    "Authorized folders only"
+  ],
+  [
+    "主会话文件操作",
+    "Main conversation file operations"
+  ],
+  [
+    "终端命令逐次确认，并以当前系统账户权限运行。",
+    "Terminal commands require confirmation and run with the current system account permissions."
+  ],
+  [
+    "主会话 Echo 工具调用",
+    "Main conversation Echo tools"
+  ],
+  [
+    "主会话与子任务各自勾选工具。对外 MCP 在应用设置中单独管理。",
+    "Choose tools separately for the main conversation and its workers. External MCP access is managed in application settings."
+  ],
+  [
+    "可委派是子任务的工具授权上限。未指定本次工具时，只带入已勾选的读取权限。",
+    "Delegable grants set the worker tool ceiling. When a task does not specify tools, it receives only the selected read permissions."
+  ],
+  [
+    "工作目录与文件权限",
+    "Workspaces and file permissions"
+  ],
+  [
+    "角色功能",
+    "Character features"
+  ],
+  [
+    "应用工具权限",
+    "App tool permissions"
+  ],
+  [
+    "主会话工具模式",
+    "Main chat tool mode"
+  ],
+  [
+    "禁用",
+    "Disabled"
+  ],
+  [
+    "仅查询",
+    "Queries only"
+  ],
+  [
+    "变更前确认",
+    "Confirm changes"
+  ],
+  [
+    "直接调用",
+    "Run without confirmation"
+  ],
+  [
+    "仅适用于已授权的 Echo 工具。文件权限及工具自身的审批单独生效。",
+    "Applies to granted Echo tools. File permissions and tool-specific approvals are separate."
+  ],
+  [
+    "子任务最多可获得勾选的工具。未指定工具时，仅授予其中的查询工具。",
+    "Subtasks can receive the selected tools. Only read tools are granted by default."
+  ],
+  [
+    "子任务权限",
+    "Subtask permissions"
+  ],
+  [
+    "子任务文件修改",
+    "Subtask file changes"
+  ],
+  [
+    "禁止修改",
+    "Disallow changes"
+  ],
+  [
+    "由你审批",
+    "Ask you to approve"
+  ],
+  [
+    "主会话只代审授权目录内的文件修改。终端命令仍由你审批。",
+    "The main chat reviews file changes in authorized folders. You still approve terminal commands."
+  ],
+  [
+    "选择此角色使用的功能。插件安装与启停在应用设置中管理。",
+    "Choose features for this character. Manage plugins in app settings."
+  ],
+  [
+    "自动分条",
+    "Split automatically"
+  ],
+  [
+    "合并发送",
+    "Send together"
+  ],
+  [
+    "应用对话风格",
+    "In-app reply style"
+  ],
+  [
+    "自然清楚地交流。闲聊简短，复杂问题先用一句话说明准备怎么处理，再继续工作。",
+    "Speak naturally and clearly. Keep small talk brief. For a complex request, describe your approach in one sentence before continuing."
+  ],
+  [
+    "按即时消息的语气写。闲聊可以分成几条发送。汇报保留完整正文，先说结论。",
+    "Write in a messaging style. Casual replies may span a few messages. Keep reports together and lead with the conclusion."
+  ],
+  [
+    "口语化，先说重点。一般一两句，适合在桌宠气泡中阅读。",
+    "Use a conversational tone and lead with the point. Keep the desktop bubble to one or two sentences."
+  ],
+  [
+    "留空沿用角色人设",
+    "Leave blank to use the character’s own style"
+  ],
+  [
+    "{channel} 回复风格",
+    "{channel} reply style"
+  ],
+  [
+    "后台工作会话",
+    "Work session"
+  ],
+  [
+    "有操作待确认",
+    "Action awaiting approval"
+  ],
+  [
+    "本机其他应用可通过 MCP 调用勾选的读取工具。由角色委派的子任务按任务单独授权。",
+    "Other local apps can use the selected read tools through MCP. Delegated workers get their own per-task grants."
+  ],
+  [
+    "待配置",
+    "Needs setup"
+  ],
+  [
+    "外部 MCP",
+    "External MCP"
+  ],
+  [
+    "环境变量请按名称=值填写，每行一项。",
+    "Enter one NAME=value environment variable per line."
+  ],
+  [
+    "添加 MCP 服务器",
+    "Add MCP server"
+  ],
+  [
+    "搜索模板",
+    "Search template"
+  ],
+  [
+    "启用连接",
+    "Enable connection"
+  ],
+  [
+    "使用 DeepSeek 官方 Search 和 Fetch API。调用计入你的 DeepSeek 账户，工具在角色权限中单独授权。",
+    "Uses the official DeepSeek Search and Fetch APIs. Calls are billed to your DeepSeek account. Grant tools separately in character settings."
+  ],
+  [
+    "传输方式",
+    "Transport"
+  ],
+  [
+    "本机命令（stdio）",
+    "Local command (stdio)"
+  ],
+  [
+    "服务器地址",
+    "Server URL"
+  ],
+  [
+    "可执行命令",
+    "Executable"
+  ],
+  [
+    "参数（每行一个）",
+    "Arguments (one per line)"
+  ],
+  [
+    "工作目录（可选）",
+    "Working directory (optional)"
+  ],
+  [
+    "环境变量（可选）",
+    "Environment variables (optional)"
+  ],
+  [
+    "我信任该命令，允许它以我的账户运行。",
+    "I trust this command to run under my account."
+  ],
+  [
+    "访问令牌（可选）",
+    "Access token (optional)"
+  ],
+  [
+    "已读取工具列表",
+    "Tool list loaded"
+  ],
+  [
+    "连接并读取工具",
+    "Connect and discover tools"
+  ],
+  [
+    "移除 MCP 服务器？",
+    "Remove MCP server?"
+  ],
+  [
+    "该服务器的工具将从角色的可用工具中移除。",
+    "This server’s tools will no longer be available to characters."
+  ],
+  [
+    "已移除",
+    "Removed"
+  ],
+  [
+    "已发现的工具",
+    "Discovered tools"
+  ],
+  [
+    "读取工具列表不验证 API Key，也不发起搜索。",
+    "Discovering tools does not verify the API key or perform a search."
+  ],
+  [
+    "请在角色的应用工具权限中授权。外部服务器的工具可能执行写入操作。",
+    "Grant these tools in the character’s app tool permissions. External servers may perform write operations."
+  ],
+  [
+    "组件与插件",
+    "Components and plugins"
+  ],
+  [
+    "DeepSeek 网页搜索",
+    "DeepSeek Web Search"
+  ],
+  [
     "在此日期新增 ",
     "Add entry on "
   ],

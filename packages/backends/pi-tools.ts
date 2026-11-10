@@ -16,7 +16,9 @@ export const piNativeTools = [
 
 export function availablePiTools(permissions: GenerateRequest['permissions'], interactive = true) {
   const mode = permissions?.pi.tools ?? 'read';
-  if (permissions?.pi.fullAccess) return piNativeTools.filter((tool) => tool.access === 'read' || interactive);
+  if (permissions?.pi.fullAccess)
+    return piNativeTools.filter((tool) => tool.access === 'read' ||
+      (interactive && (tool.access !== 'terminal' || permissions.pi.terminal)));
   if (mode === 'none' || !permissions?.projectDirectory) return [];
   return piNativeTools.filter((tool) => tool.access === 'read' ||
     (interactive && mode === 'ask' && permissions.pi.projectWrite &&

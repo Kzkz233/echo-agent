@@ -28,10 +28,15 @@ export function PermissionSettings({
   const [directory, setDirectory] = useState(permissions.projectDirectory);
   useEffect(() => setDirectory(permissions.projectDirectory), [permissions.projectDirectory]);
   const kind = backend?.kind === 'api' ? 'pi' : backend?.kind;
+  const scopedFileWrite =
+    !permissions.pi.fullAccess &&
+    permissions.pi.tools === 'ask' &&
+    permissions.pi.projectWrite &&
+    Boolean(permissions.projectDirectory && (!permissions.primaryReadOnly || permissions.writeRoots?.length));
   if (!kind) return null;
   return (
     <fieldset className="conversation-permissions" disabled={disabled}>
-      <legend>{t('会话工具权限')}</legend>
+      <legend>{t(managedWorkspace ? '主会话文件操作' : '会话工具权限')}</legend>
       {!managedWorkspace && <div className="field">
         <PathInput label={t('会话项目目录')} value={directory} onChange={setDirectory} directory />
         {directory !== permissions.projectDirectory && (
@@ -104,47 +109,34 @@ export function PermissionSettings({
             >
               <option value="none">{t('禁用工具')}</option>
               <option value="read">{t('允许只读工具')}</option>
-              <option value="ask">{t('允许写入并逐次审批')}</option>
+              <option value="ask">{t('使用读写工具')}</option>
             </select>
           </label></>}
-          <label className="inline-toggle">
+          {!managedWorkspace && <label className="inline-toggle">
             <input type="checkbox" checked={Boolean(permissions.pi.fullAccess)} onChange={async (event) => {
               const fullAccess = event.target.checked;
               if (fullAccess && !await confirm({ title: t('本机完全访问'), danger: true, description: t('此会话将以当前系统账户权限访问本机文件，修改与终端命令仍需确认。') })) return;
               onSave({ ...permissions, pi: { ...permissions.pi, fullAccess } });
             }} />
             {t('本机完全访问')}
-          </label>
-          {!permissions.pi.fullAccess && permissions.pi.projectWrite && <label className="field">
-            <span>{t('文件修改审批')}</span>
-            <select value={permissions.pi.fileApproval ?? 'ask'} onChange={(event) =>
-              onSave({ ...permissions, pi: { ...permissions.pi, fileApproval: event.target.value as 'ask' | 'allow' } })}>
-              <option value="ask">{t('逐次确认')}</option>
-              <option value="allow">{t('已授权范围内免审批')}</option>
-            </select>
           </label>}
           <label className="field">
-            <span>{t('Echo 工具权限')}</span>
+            <span>{t('文件修改确认')}</span>
             <select
-              value={permissions.pi.echoTools ?? ''}
+              disabled={!scopedFileWrite}
+              value={scopedFileWrite ? permissions.pi.fileApproval ?? 'ask' : 'ask'}
               onChange={(event) =>
-                onSave({
-                  ...permissions,
-                  pi: {
-                    ...permissions.pi,
-                    echoTools: (event.target.value || undefined) as ConversationPermissions['pi']['echoTools'],
-                  },
-                })
+                onSave({ ...permissions, pi: { ...permissions.pi, fileApproval: event.target.value as 'ask' | 'allow' } })
               }
             >
-              <option value="">{t('沿用原会话权限')}</option>
-              <option value="none">{t('禁用工具')}</option>
-              <option value="read">{t('允许只读工具')}</option>
-              <option value="ask">{t('允许写入并逐次审批')}</option>
-              <option value="granted">{t('允许已授权的 Echo 工具')}</option>
+              <option value="ask">{t('逐次确认')}</option>
+              <option value="allow">{t('授权目录内直接写入')}</option>
             </select>
-            <small>{t('角色工具授权与文件权限分别设置。业务审批由对应工具处理。')}</small>
+            {permissions.pi.fullAccess
+              ? <small>{t('本机完全访问时，文件修改始终需要确认。')}</small>
+              : !scopedFileWrite && <small>{t('先将主会话的工作目录设为读写。')}</small>}
           </label>
+          {!managedWorkspace && <EchoToolSettings permissions={permissions} onSave={onSave} />}
           {!managedWorkspace && permissions.projectDirectory && (
             <label className="inline-toggle">
               <input
@@ -157,14 +149,14 @@ export function PermissionSettings({
                   })
                 }
               />
-              {t('逐次批准项目文件写入')}
+              {t('允许写入项目目录')}
             </label>
           )}
-          {permissions.projectDirectory&&permissions.pi.projectWrite&&permissions.pi.tools==='ask'&&<label className="inline-toggle">
+          {(permissions.pi.fullAccess || scopedFileWrite) && <label className="inline-toggle">
             <input type="checkbox" checked={Boolean(permissions.pi.terminal)} onChange={event=>onSave({...permissions,pi:{...permissions.pi,terminal:event.target.checked}})}/>
             {t('允许终端命令')}
           </label>}
-          {permissions.pi.terminal&&<small>{t('需同时允许项目写入与逐次审批；命令以本机用户权限运行，项目目录不是终端沙箱。')}</small>}
+          {permissions.pi.terminal&&<small>{t('终端命令逐次确认，并以当前系统账户权限运行。')}</small>}
         </>
       )}
       {kind === 'dsh' && (
@@ -177,6 +169,73 @@ export function PermissionSettings({
         </small>
       )}
     </fieldset>
+  );
+}
+
+export function EchoToolSettings({ permissions, onSave }: {
+  permissions: ConversationPermissions;
+  onSave: (settings: ConversationPermissions) => void;
+}) {
+  return (
+    <label className="field">
+      <span>{t('主会话工具模式')}</span>
+      <select value={permissions.pi.echoTools ?? permissions.pi.tools} onChange={(event) =>
+        onSave({
+          ...permissions,
+          pi: {
+            ...permissions.pi,
+            echoTools: event.target.value as ConversationPermissions['pi']['echoTools'],
+          },
+        })
+      }>
+        <option value="none">{t('禁用')}</option>
+        <option value="read">{t('仅查询')}</option>
+        <option value="ask">{t('变更前确认')}</option>
+        <option value="granted">{t('直接调用')}</option>
+      </select>
+      <small>{t('仅适用于已授权的 Echo 工具。文件权限及工具自身的审批单独生效。')}</small>
+    </label>
+  );
+}
+
+type SubtaskApprovalMode = 'deny' | 'user' | 'main';
+type SubtaskApprovalPolicy = {
+  approvals?: 'ask' | 'deny';
+  approvalReviewer?: 'user' | 'main';
+};
+
+const subtaskApprovalOptions = {
+  deny: '禁止修改',
+  user: '由你审批',
+  main: '主会话代审',
+} as const;
+
+function subtaskApprovalMode(policy?: SubtaskApprovalPolicy): SubtaskApprovalMode {
+  return policy?.approvals === 'deny' ? 'deny' : policy?.approvalReviewer ?? 'user';
+}
+
+export function subtaskApprovalLabel(policy?: SubtaskApprovalPolicy) {
+  return subtaskApprovalOptions[subtaskApprovalMode(policy)];
+}
+
+export function SubtaskApprovalSettings({ policy, onChange }: {
+  policy?: SubtaskApprovalPolicy;
+  onChange: (approval: SubtaskApprovalPolicy) => void;
+}) {
+  const mode = subtaskApprovalMode(policy);
+  return (
+    <label className="field">
+      <span>{t('子任务文件修改')}</span>
+      <select value={mode} onChange={(event) => {
+        const next = event.target.value as SubtaskApprovalMode;
+        onChange(next === 'deny' ? { approvals: 'deny' } : { approvals: 'ask', approvalReviewer: next });
+      }}>
+        {Object.entries(subtaskApprovalOptions).map(([key, label]) => (
+          <option key={key} value={key}>{t(label)}</option>
+        ))}
+      </select>
+      {mode === 'main' && <small>{t('主会话只代审授权目录内的文件修改。终端命令仍由你审批。')}</small>}
+    </label>
   );
 }
 
@@ -299,9 +358,11 @@ function InteractionCard({
 export function ConversationInteractions({
   id,
   act,
+  openSession,
 }: {
   id: string;
   act: (run: () => Promise<unknown>) => Promise<unknown>;
+  openSession?: () => void;
 }) {
   const [items, setItems] = useState<PendingInteraction[]>([]);
   useEffect(() => {
@@ -327,6 +388,8 @@ export function ConversationInteractions({
       window.removeEventListener('echo-event', listener);
     };
   }, [id]);
+  if (items.length && openSession)
+    return <Button secondary onClick={openSession}>{t('有操作待确认')}</Button>;
   return items.length ? (
     <div className="host-interactions" aria-live="polite">
       {items.map((item) => (

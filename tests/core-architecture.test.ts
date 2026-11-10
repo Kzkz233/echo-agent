@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, conversation, FakeBackend, until } from './helpers.ts';
+import { setup, conversation, FakeBackend, until, submitFixtureReplies } from './helpers.ts';
 import { EchoError, observationSilence, type Backend } from '../packages/contracts/index.ts';
 import { internal } from '../packages/kernel/registry.ts';
 import { contributeSignal } from '../packages/kernel/trigger-actions.ts';
@@ -46,6 +46,7 @@ test('reconciling an observation normalizes silence and unblocks the waiting hum
 test('a contributed trigger observes expiration and cannot reuse the mail relay opt-in', async (t) => {
   const app = await setup(t, []), chat = conversation(app), backend = new FakeBackend();
   app.router.backends.set('api', backend);
+  backend.responder = submitFixtureReplies;
   let sends = 0;
   app.plugins.add({
     manifest: { id: 'fixture', name: 'Fixture', version: '1', description: '', dependencies: [],
@@ -97,14 +98,19 @@ test('external reference ownership survives plugin unload and protects the saved
   await assert.rejects(app.registry.call('conversations.delete', { id: chat.id, confirmed: true }, internal), /解除.*绑定/);
 });
 
-test('a committed outbound action waits for its adapter and an unknown send is never repeated', async (t) => {
+test('a pending legacy outbound action waits for its adapter and an unknown send is never repeated', async (t) => {
   const app = await setup(t, []), chat = conversation(app), backend = new FakeBackend();
   app.router.backends.set('api', backend);
-  await app.registry.call('channels.bind', {
+  const binding = await app.registry.call('channels.bind', {
     adapter: 'fixture.channel', peer: 'fixture', conversationId: chat.id, automaticSources: ['care'],
   }, internal);
-  await app.router.send({
+  const run = await app.router.send({
     requestId: 'persist-delivery', conversationId: chat.id, text: 'Proactive turn', source: 'care',
+  });
+  const message = app.store.assistantForRun(run.id)!;
+  app.store.put('channel-outbound', 'old-outbound', {
+    id: 'old-outbound', bindingId: binding.id, adapter: binding.adapter, messageId: message.id, state: 'pending',
+    payload: { conversationId: chat.id, peer: binding.peer, text: message.text, messageId: message.id, idempotencyKey: 'old-outbound' },
   });
   const pending = app.store.documents<{ id: string; state: string }>('channel-outbound');
   assert.equal(pending.length, 1);

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { invariant } from '../contracts/index.ts';
 
@@ -57,6 +57,10 @@ export class Secrets {
   async status(reference: string) {
     try { return { configured: !!(await this.get(reference)), source: reference.startsWith('env:') ? reference : 'local' }; }
     catch { return { configured: false, source: reference.startsWith('env:') ? reference : 'local', unavailable: true }; }
+  }
+  async remove(reference: string) {
+    invariant(/^[\w.-]{1,100}$/.test(reference), 'credential_name', '凭据引用无效。');
+    await rm(join(this.root, reference + '.secret'), { force: true });
   }
   async get(reference: string) {
     if (!reference) return undefined;

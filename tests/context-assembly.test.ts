@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { orderContext, type ContextBlock } from '../packages/kernel/context.ts';
-import { conversation, FakeBackend, setup } from './helpers.ts';
+import { conversation, FakeBackend, setup, submitFixtureReplies } from './helpers.ts';
 import { seedProfile } from '../scripts/inference-fixture.ts';
 import { contextCompaction } from '../packages/contracts/compaction.ts';
 
@@ -28,9 +28,9 @@ test('main Pi compacts by default and keeps canonical history across turns', asy
   app.store.append(c.id, 'assistant', 'human', 'a'.repeat(1500), 'early');
   app.store.append(c.id, 'user', 'human', recent, 'recent');
   app.store.append(c.id, 'assistant', 'human', 'b'.repeat(1200), 'recent');
-  fake.responder = async (request) => ({
-    text: request.toolPolicy === 'none' ? 'SYNTHETIC SUMMARY' : 'Synthetic reply',
-  });
+  fake.responder = async (request) => request.toolPolicy === 'none'
+    ? { text: 'SYNTHETIC SUMMARY' }
+    : submitFixtureReplies(request, 'Synthetic reply');
   const first = await app.router.send({ conversationId: c.id, requestId: 'compact', text: 'Current question' });
   assert.equal(first.state, 'succeeded', first.error ?? 'Compacted turn failed');
   assert.equal(fake.calls.length, 2);

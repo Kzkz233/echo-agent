@@ -2,20 +2,13 @@ import type { Store } from './store.ts';
 import { characterActive } from './characters.ts';
 
 import type { AgentPrincipal } from '../contracts/index.ts';
-import { conversationPermissions } from '../contracts/interaction.ts';
+import { conversationPermissions, defaultEchoReadPermissions } from '../contracts/interaction.ts';
 
 export type HarnessMcp = { url: string; token: string };
 export type HarnessMcpProvider = (principal: AgentPrincipal) => HarnessMcp;
 export const harnessMcpTokenEnv = 'ECHO_HARNESS_MCP_TOKEN';
 
-export const defaultPermissions = [
-  'system.read',
-  'persona.read',
-  'memory.read',
-  'knowledge.read',
-  'observation.read',
-  'review.read',
-];
+export const defaultPermissions = defaultEchoReadPermissions;
 export type RoleToolGrants = { toolPermissions?: string[]; independentToolGrants?: boolean };
 
 export function roleToolGrants(store: Store, role?: RoleToolGrants) {

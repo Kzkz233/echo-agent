@@ -113,6 +113,10 @@ The bundled contract audit checks every declared setting/enum, static UI RPC met
 
 MCP is an authenticated loopback `/mcp` facade over the same operations. The frontend controls exported permissions; defaults are read only. Tools use their ordinary names with dots converted to underscores, without a PW prefix. A plugin does not need its own HTTP/MCP service. Same-process work uses typed async function calls, not internal HTTP ports.
 
+Under **Extensions → External MCP**, add a Streamable HTTP URL or a trusted local stdio command. Save the connection, discover its tools, then grant individual tools in the character's app tool permissions. HTTP bearer tokens and stdio environment variables are kept in Echo's credential store. Third-party tools use the role's change-capable tool mode because their behavior is defined by the external server. The public loopback MCP endpoint does not re-export these tools.
+
+The included **DeepSeek Web Search** template starts without a key. Enter your own DeepSeek API key to make its Search and Fetch tools available to authorized characters. Search returns links and excerpts. Fetch reads a selected public page. Discovery verifies the local tool catalog without making a billed request or validating the key with DeepSeek.
+
 Approving an action requires the frontend caller and a frozen, current request. Exposing a proposal tool to MCP does not expose the approval decision. Avatar, QQ or another notification channel does not become an approval authority merely by displaying a message.
 
 Review also defines `review.targets@1` (describe an optional non-core target, then apply stable proposals after full reading) and `review.reports@1` (idempotent program notices). Current Concerns contributes `reflections.state`; it never edits Review itself or gains access to core memories. Target selection is explicit. Frozen jobs keep their original context and target descriptions; an unavailable selected target leaves application pending instead of silently discarding proposals.

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, conversation, FakeBackend, until } from './helpers.ts';
+import { setup, conversation, FakeBackend, until, submitFixtureReplies } from './helpers.ts';
 import { internal } from '../packages/kernel/registry.ts';
 import { calendar, opportunity, type Decision } from '../plugins/care/policy.ts';
 import { observationSilence } from '../packages/contracts/index.ts';
@@ -12,6 +12,7 @@ test('manual Care checks share the canonical trigger path, preserve the plan and
   await app.plugins.enable('care');
   await app.plugins.enable('avatar');
   app.router.backends.set('api', backend);
+  backend.responder = submitFixtureReplies;
   await app.registry.call(
     'channels.bind',
     {

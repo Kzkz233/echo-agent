@@ -370,7 +370,7 @@ export class CodexBackend implements Backend {
         type: 'function',
         name,
         description: operation.description,
-        inputSchema: z.toJSONSchema(operation.input),
+        inputSchema: operation.toolInputSchema ?? z.toJSONSchema(operation.input),
       };
     });
     const toolsHash = createHash('sha256').update(JSON.stringify(dynamicTools)).digest('hex');

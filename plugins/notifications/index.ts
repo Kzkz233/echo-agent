@@ -88,7 +88,15 @@ export class Notifications {
       activate: (ctx) => {
         this.ctx = ctx;
         ctx.capabilities.provide(deliveryPoint,'notifications.outputs','通知收件箱',input=>{
-          if(input.action==='list')return{targets:[{id:'notifications.inbox',label:'通知收件箱',revision:'1',portable:true,legacySources:['review','notification','notice']}]};
+          if (input.action === 'list') return { targets: [{
+            id: 'notifications.inbox',
+            label: '通知收件箱',
+            revision: '1',
+            portable: true,
+            style: 'notifications.inbox',
+            initialStyle: '标题写明事件或结果。正文简述发生了什么，并注明关键结果、截止时间或待确认事项。',
+            legacySources: ['review', 'notification', 'notice'],
+          }] };
           const e=input.envelope;
           if(input.action==='deliver')this.publish({id:'output.'+e.id,title:e.title??'任务结果',text:e.text});
           return{result:{state:this.store.document('notifications','output.'+e.id)?'delivered':'unknown'}};

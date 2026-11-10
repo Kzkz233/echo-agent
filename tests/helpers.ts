@@ -69,7 +69,7 @@ export class FakeBackend implements Backend {
   calls: GenerateRequest[] = [];
   seeds: any[] = [];
   archived: string[] = [];
-  responder: (r: GenerateRequest) => Promise<GenerateResult> = async () => ({ text: '合成回复' });
+  responder: (r: GenerateRequest) => Promise<GenerateResult> = submitFixtureReplies;
   async generate(request: GenerateRequest) {
     this.calls.push(request);
     return this.responder(request);
@@ -81,6 +81,11 @@ export class FakeBackend implements Backend {
   async archiveSession(_profile: any, sessionId: string) {
     this.archived.push(sessionId);
   }
+}
+export async function submitFixtureReplies(request: GenerateRequest, text = '合成回复') {
+  for (const targetId of request.replyTargets ?? [])
+    request.respond?.({ targetId, phase: 'final', messages: [text] });
+  return { text: request.replyTargets?.length ? '' : text };
 }
 export async function until(fn: () => boolean, timeout = 5000) {
   const start = Date.now();

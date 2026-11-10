@@ -4,6 +4,8 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { Agent } from 'undici';
 import { z } from 'zod';
 import { invariant } from '../../packages/contracts/index.ts';
+import type { ChannelTextMode } from '../../packages/contracts/delivery.ts';
+import { replyPartGaps } from '../../packages/contracts/reply-pacing.ts';
 import {
   defineManifest,
   type Plugin,
@@ -15,6 +17,7 @@ import { Secrets } from '../../packages/kernel/secrets.ts';
 import { Events } from '../../packages/kernel/events.ts';
 import { operations } from '../shared.ts';
 import { QqFailure, networkFailure, qqAttempt } from './retry.ts';
+import { qqTextParts } from './text-parts.ts';
 const configSchema = z.object({
   enabled: z.boolean().default(false),
   appId: z.string().default(''),
@@ -64,6 +67,7 @@ export class QQ {
   private queue = Promise.resolve();
   private token?: { value: string; until: number };
   private refreshing?: Promise<string>;
+  private readonly replyPacing = new Map<string, Set<AbortController>>();
   private statusValue: any = { state: 'disabled' };
   constructor(
     readonly store: Store,
@@ -222,7 +226,7 @@ export class QQ {
         )
           return;
         const peer = msg.kind + ':' + (msg.kind === 'group' ? msg.groupOpenid : msg.senderId);
-        await ctx.registry.call(
+        const received = await ctx.registry.call(
           'channels.receive',
           {
             adapter: 'qq.bot',
@@ -233,6 +237,8 @@ export class QQ {
           internal,
           signal,
         );
+        if (received.state === 'queued')
+          for (const waiting of this.replyPacing.get(peer) ?? []) waiting.abort();
       },
     });
     this.gateway = gateway.start().catch((e) => {
@@ -247,7 +253,7 @@ export class QQ {
     return work;
   }
   async send(
-    input: { peer: string; text: string; replyTo?: string; idempotencyKey: string; image?: string },
+    input: { peer: string; text: string; replyTo?: string; idempotencyKey: string; image?: string; textMode?: ChannelTextMode; parts?: string[] },
     signal: AbortSignal,
   ) {
     const cfg = this.config();
@@ -257,25 +263,25 @@ export class QQ {
     invariant(match, 'qq_peer', 'QQ peer must be c2c:openid or group:openid');
     if (!input.replyTo && !cfg.allowProactive)
       return { state: 'failed', receipt: { code: 'PASSIVE_REPLY_ID_REQUIRED' } };
+    // Existing receipts already freeze the message parts and sequence numbers.
+    const { textMode, ...content } = input;
     const key = hash(input.idempotencyKey),
-      fingerprint = hash(input);
+      fingerprint = hash(content);
     let row = this.store.document<Progress>('qq-deliveries', key);
     if (row) {
       invariant(row.hash === fingerprint, 'idempotency_conflict', 'QQ delivery content changed');
       if (row.state === 'delivered' || row.state === 'unknown')
         return { state: row.state, receipt: row };
     } else {
-      const text = Array.from(input.text),
-        chunks: Array<string> = [];
-      for (let i = 0; i < text.length; i += 1500) chunks.push(text.slice(i, i + 1500).join(''));
+      const sequenceKey = 'qq.sequence.' + hash([input.peer, input.replyTo ?? key]),
+        last = this.store.get<number>(sequenceKey, 0);
+      const chunks = qqTextParts(input.text, 5 - last, Boolean(input.image), textMode, input.parts);
       if (!chunks.length) return { state: 'skipped' };
       if (chunks.length > 5)
         return {
           state: 'failed',
           receipt: { code: 'TEXT_REQUIRES_MORE_THAN_FIVE_REPLIES', retainedInHistory: true },
         };
-      const sequenceKey = 'qq.sequence.' + hash([input.peer, input.replyTo ?? key]),
-        last = this.store.get<number>(sequenceKey, 0);
       if (input.replyTo && last + chunks.length > 5)
         return { state: 'failed', receipt: { code: 'REPLY_SEQUENCE_BUDGET_EXHAUSTED' } };
       const parts: Part[] = chunks.map((text, i) => ({ text, seq: last + i + 1, state: 'pending' }));
@@ -294,13 +300,34 @@ export class QQ {
       this.store.put('qq-deliveries', key, row);
     }
     const combined = AbortSignal.any([signal, this.life.signal]);
+    const textParts = row.parts.filter((part) => !part.media);
+    const conversational = input.replyTo && textMode !== 'combined' && input.parts?.length === textParts.length &&
+      input.parts.every((part, index) => part === textParts[index].text);
+    const gaps = conversational ? replyPartGaps(textParts.map((part) => part.text), 'qq') : [];
+    const pacing = new AbortController();
+    const pacedSignal = AbortSignal.any([combined, pacing.signal]);
+    const waiting = this.replyPacing.get(input.peer) ?? new Set<AbortController>();
+    if (gaps.length) {
+      waiting.add(pacing);
+      this.replyPacing.set(input.peer, waiting);
+    }
     const resource = `/v2/${match[1] === 'group' ? 'groups' : 'users'}/${encodeURIComponent(match[2])}`;
     let effectStarted = false;
     try {
       const token = await this.getToken(combined);
-      for (const part of row.parts) {
+      let lastTextAt: number | undefined;
+      for (const [index, part] of row.parts.entries()) {
         if (part.state === 'confirmed') continue;
         effectStarted = false;
+        if (!part.media && lastTextAt !== undefined) {
+          const gap = gaps[index - 1];
+          const wait = gap === undefined ? 600 : gap - (performance.now() - lastTextAt);
+          if (wait > 0 && !pacing.signal.aborted) {
+            try { await this.sleep(Math.ceil(wait), pacedSignal); }
+            catch (error) { if (!pacing.signal.aborted || combined.aborted) throw error; }
+          }
+        }
+        combined.throwIfAborted();
         if (part.media && (!part.fileInfo || (part.fileExpires ?? 0) <= Date.now())) {
           const upload = await qqAttempt(() => this.request(
             safeEndpoint(cfg.apiBase, resource + '/files'),
@@ -316,6 +343,7 @@ export class QQ {
         this.store.put('qq-deliveries', key, row);
         const result = await qqAttempt(
           async () => {
+            if (!part.media) lastTextAt = performance.now();
             const result = await this.request(
               safeEndpoint(cfg.apiBase, resource + '/messages'),
               {
@@ -346,6 +374,8 @@ export class QQ {
       row.error = failure.code;
       const part = row.parts.find((p) => p.state === 'sending');
       if (part) part.state = failure.uncertain ? 'unknown' : 'failed';
+    } finally {
+      if (waiting.delete(pacing) && !waiting.size) this.replyPacing.delete(input.peer);
     }
     this.store.put('qq-deliveries', key, row);
     return { state: row.state, receipt: row };

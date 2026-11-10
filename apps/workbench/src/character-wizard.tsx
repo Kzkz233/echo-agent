@@ -9,12 +9,14 @@ import { rpc } from './client.ts';
 import { t } from './i18n.ts';
 import { Button, PathInput, useConfirm, useUnsavedChanges, sameData, requestNavigation } from './ui.tsx';
 import { TaskField } from './automation-view.tsx';
-import { PermissionSettings } from './host-interactions.tsx';
+import { EchoToolSettings, PermissionSettings, SubtaskApprovalSettings } from './host-interactions.tsx';
 import { ReasoningSelect } from './reasoning-select.tsx';
 import { ModelChoice } from './model-choice.tsx';
 import { modelEligible } from './model-eligibility.ts';
 import { inferenceTasks } from '../../../packages/contracts/inference.ts';
 import { contextCompaction } from '../../../packages/contracts/compaction.ts';
+import type { OutputTarget } from '../../../packages/contracts/delivery.ts';
+import { defaultEchoReadPermissions } from '../../../packages/contracts/interaction.ts';
 import { RoleWorkspaces } from './role-workspaces.tsx';
 const AvatarAssets = lazy(() => import('./avatar-assets.tsx'));
 const ChatStickView = lazy(() =>
@@ -24,12 +26,23 @@ const ChannelBindings = lazy(() =>
   import('./feature-views.tsx').then((module) => ({ default: module.FeaturePage })),
 );
 
-const steps = ['角色资料', '模型与权限', '启用能力', '检查并创建'];
+const steps = ['角色资料', '角色功能', '模型与权限', '检查并创建'];
 const expressionFields = [
+  ['chat', '应用对话风格'],
   ['external', 'QQ 回复风格'],
   ['bubble', '桌宠气泡风格'],
-  ['stickers', '表情使用偏好'],
 ] as const;
+const initialExpression = {
+  chat: '自然清楚地交流。闲聊简短，复杂问题先用一句话说明准备怎么处理，再继续工作。',
+  external: '按即时消息的语气写。闲聊可以分成几条发送。汇报保留完整正文，先说结论。',
+  bubble: '口语化，先说重点。一般一两句，适合在桌宠气泡中阅读。',
+};
+function editableChannelStyles(targets: OutputTarget[]) {
+  return [...new Map(targets.flatMap(({ style, label, presentation }) =>
+    style && !['chat', 'external', 'bubble'].includes(style)
+      ? [[style, { style, label: label.split(' · ')[0], presentation }] as const] : [],
+  )).values()];
+}
 export function CharacterWizard({
   data,
   act,
@@ -56,7 +69,23 @@ export function CharacterWizard({
   const [choosingTask, setChoosingTask] = useState(false);
   const [taskSearch, setTaskSearch] = useState('');
   const [taskPreview, setTaskPreview] = useState('');
+  const [deliveryTargets, setDeliveryTargets] = useState<OutputTarget[]>([]);
+  const channelStyles = editableChannelStyles(deliveryTargets);
   useEffect(() => setTaskPreview(''), [taskIndex, draft]);
+  useEffect(() => {
+    if (!personaId || !['expression', 'chatstick'].includes(editorSection)) return;
+    let active = true;
+    const load = () => rpc<{ targets: OutputTarget[] }>('outputs.targets', { personaId, conversationId: data.characters.find((role: any) => role.id === personaId)?.mainConversationId })
+      .then((result) => {
+        if (active) setDeliveryTargets(result.targets);
+      }).catch(() => {});
+    void load();
+    const listener = (event: Event) => {
+      if (['channels.updated', 'plugins.changed'].includes((event as CustomEvent).detail.type)) void load();
+    };
+    window.addEventListener('echo-event', listener);
+    return () => { active = false; window.removeEventListener('echo-event', listener); };
+  }, [personaId, editorSection]);
   const confirm = useConfirm();
   const baseline = useRef<unknown>(undefined);
   const requestId = useRef(crypto.randomUUID());
@@ -67,9 +96,17 @@ export function CharacterWizard({
       const value = await rpc('persona.character.catalog');
       const drafts = await rpc('persona.character.drafts');
       const saved = personaId ? await rpc('persona.character.read', { id: personaId }) : undefined;
+      const newId = crypto.randomUUID();
+      const newTargets = saved ? [] : await rpc<{ targets: OutputTarget[] }>('outputs.targets', { personaId: newId })
+        .then((result) => result.targets).catch(() => []);
+      const initialChannels = Object.fromEntries(newTargets.flatMap(({ style, initialStyle }) =>
+        style && initialStyle && !['chat', 'external', 'bubble'].includes(style) ? [[style, t(initialStyle)]] : []));
       const next = characterDraft.parse(
         saved ?? {
-          persona: { id: crypto.randomUUID(), name: '', prompt: '' },
+          persona: { id: newId, name: '', prompt: '', expression: {
+            chat: t(initialExpression.chat), external: t(initialExpression.external), bubble: t(initialExpression.bubble),
+            ...(Object.keys(initialChannels).length ? { channels: initialChannels } : {}),
+          } },
           features: value.features
             .filter((f: any) => ['memory', 'avatar'].includes(f.id))
             .map((f: any) => f.id),
@@ -79,8 +116,7 @@ export function CharacterWizard({
             .filter(
               (row: any) =>
                 row.scope === 'character' &&
-                row.permission.endsWith('.read') &&
-                data.mcpPermissions.includes(row.permission),
+                defaultEchoReadPermissions.includes(row.permission),
             )
             .map((row: any) => row.permission),
         },
@@ -88,6 +124,7 @@ export function CharacterWizard({
       if (active) {
         setCatalog(value);
         setDraft(next);
+        if (!saved) setDeliveryTargets(newTargets);
         setSavedDrafts(drafts);
         setTaskIndex(
           initialTaskId
@@ -189,7 +226,7 @@ export function CharacterWizard({
     const rows = f.resource === 'vault' ? data.vaults
       : f.resource === 'mailAccount' ? data.mailAccounts ?? []
       : f.resource === 'executor' ? data.profiles.filter((p:any)=>p.id!==draft.profileId&&modelEligible(p,{executor:true}))
-      : f.resource === 'permission' ? data.mcpPermissionCatalog.filter((p:any)=>draft.toolPermissions.includes(p.permission)).map((p:any)=>({id:p.permission,name:p.owners.map((id:string)=>t(data.plugins.find((plugin:any)=>plugin.id===id)?.name??'共享模块')).join(' · ')+' · '+t(p.permission.endsWith('.read')?'读取':p.permission.endsWith('.write')?'修改':'调用')})) : [];
+      : f.resource === 'permission' ? data.mcpPermissionCatalog.filter((p:any)=>draft.toolPermissions.includes(p.permission)).map((p:any)=>({id:p.permission,name:p.external ? `${t(p.external.server)} · ${p.external.tool}` : p.owners.map((id:string)=>t(data.plugins.find((plugin:any)=>plugin.id===id)?.name??'共享模块')).join(' · ')+' · '+t(p.permission.endsWith('.read')?'读取':p.permission.endsWith('.write')?'修改':'调用')})) : [];
     const update = (next: unknown) =>
       rowUpdate ? rowUpdate(next) : changeConfig(featureId, f.key, next);
     if (f.type !== 'multi' && (f.resource === 'executor' || f.resource === 'model'))
@@ -249,6 +286,7 @@ export function CharacterWizard({
         {f.type === 'boolean' ? (
           <input
             type="checkbox"
+            disabled={f.disabled}
             checked={value === true}
             onChange={async (e) => {
               const checked = e.target.checked;
@@ -375,8 +413,9 @@ export function CharacterWizard({
         <small>{t('保留比例按有效上下文上限计算，完整聊天记录保留。')}</small>
       </fieldset>
       <details className="setup-capability">
-        <summary>{t('角色可用的应用能力')}</summary>
-        <p className="muted">{t('在这里选择角色工具。对外 MCP 在应用设置中单独管理。')}</p>
+        <summary>{t('应用工具权限')}</summary>
+        <EchoToolSettings permissions={draft.permissions} onSave={(permissions) => change({ permissions })} />
+        {canDelegate && <p className="muted">{t('子任务最多可获得勾选的工具。未指定工具时，仅授予其中的查询工具。')}</p>}
         <div className="role-permission-list">
           {(data.mcpPermissionCatalog ?? [])
             .filter(
@@ -390,9 +429,9 @@ export function CharacterWizard({
                 .map((plugin: any) => t(plugin.name));
               return (
                 <div className="role-tool-grant" key={row.permission}>
-                  <strong title={row.permission}>{owners.join(' · ') || t('共享模块')} · {t(
+                  <strong title={row.permission}>{row.external ? <>{t(row.external.server)} · {row.external.tool}{!row.external.available && ` · ${t('待配置')}`}</> : <>{owners.join(' · ') || t('共享模块')} · {t(
                     row.permission.endsWith('.read') ? '读取' : row.permission.endsWith('.write') ? '修改' : '调用',
-                  )}</strong>
+                  )}</>}</strong>
                   <label className="inline-toggle">
                   <input
                     type="checkbox"
@@ -415,7 +454,7 @@ export function CharacterWizard({
                         changeConfig('delegation', 'toolPermissions', event.target.checked
                           ? [...new Set([...current, row.permission])] : current.filter((permission) => permission !== row.permission));
                       }} />
-                    {t('可委派')}
+                    {t('子任务')}
                   </label>}
                 </div>
               );
@@ -424,11 +463,15 @@ export function CharacterWizard({
       </details>
       {model && (
         <details className="setup-capability">
-          <summary>{t('工作空间与权限')}</summary>
-          <RoleWorkspaces permissions={draft.permissions}
+          <summary>{t('工作目录与文件权限')}</summary>
+          <RoleWorkspaces personaId={draft.persona.id} permissions={draft.permissions}
             workers={canDelegate ? (delegation?.workspaces as { path: string; write: boolean }[] | undefined) ?? [] : undefined}
-            onMain={(permissions) => change({ permissions })}
-            onWorkers={(roots) => changeConfig('delegation', 'workspaces', roots)} />
+            onChange={(permissions, roots) => change({
+              permissions,
+              ...(roots === undefined ? {} : { configurations: {
+                ...draft.configurations, delegation: { ...delegation, workspaces: roots },
+              } }),
+            })} />
           <PermissionSettings
             value={draft.permissions}
             backend={model}
@@ -439,10 +482,17 @@ export function CharacterWizard({
         </details>
       )}
       {canDelegate && <details className="setup-capability">
-        <summary>{t('子任务授权与审批')}</summary>
-        <div className="form-grid">{feature('delegation')?.fields
-          .filter((entry: any) => delegationPermissionFields.includes(entry.key) && !['workspaces', 'toolPermissions'].includes(entry.key))
-          .map((entry: any) => field('delegation', entry))}</div>
+        <summary>{t('子任务权限')}</summary>
+        <div className="form-grid">
+          <SubtaskApprovalSettings policy={delegation} onChange={(approval) => change({
+            configurations: { ...draft.configurations, delegation: { ...delegation, ...approval } },
+          })} />
+          {feature('delegation')?.fields
+            .filter((entry: any) => ['autonomous', 'terminal', 'allowFullAccess'].includes(entry.key))
+            .map((entry: any) => field('delegation', {
+              ...entry, disabled: delegation?.approvals === 'deny' && entry.key !== 'autonomous',
+            }))}
+        </div>
       </details>}
       <Button secondary onClick={() => openSettings('backends')}>
         {t('管理模型服务')}
@@ -484,7 +534,7 @@ export function CharacterWizard({
       </div>
       {packages && <p>{packages.draft.persona.name}</p>}
       <p className="muted role-feature-scope-note">
-        {t('此处选择角色启用哪些功能；模块本身在插件页全局启停。')}
+        {t('选择此角色使用的功能。插件安装与启停在应用设置中管理。')}
       </p>
       {!personaId && savedDrafts.length > 0 && (
         <label className="field">
@@ -722,7 +772,7 @@ export function CharacterWizard({
       <h2>{draft.persona.name || t('未命名角色')}</h2>
       <p>{draft.persona.prompt.slice(0, 300)}</p>
       <dl>
-        <dt>{t('启用能力')}</dt>
+        <dt>{t('角色功能')}</dt>
         <dd>{draft.features.map((id) => t(feature(id)?.name ?? id)).join(' · ')}</dd>
         <dt>{t('主会话模型')}</dt>
         <dd>{model?.model || model?.name || t('稍后连接')}</dd>
@@ -751,7 +801,7 @@ export function CharacterWizard({
                 rows={3}
                 aria-label={t(label)}
                 maxLength={600}
-                placeholder={t('留空沿用默认风格')}
+                placeholder={t('留空沿用角色人设')}
                 value={draft.persona.expression?.[key] ?? ''}
                 onChange={(e) =>
                   change({
@@ -767,6 +817,14 @@ export function CharacterWizard({
               />
             </label>
           ))}
+          {channelStyles.map(({ style, label, presentation }) => <label className="field" key={style}>
+            <span>{t('{channel} 回复风格', { channel: t(label) })}</span>
+            <textarea rows={3} maxLength={600} aria-label={t('{channel} 回复风格', { channel: t(label) })} placeholder={t('留空沿用角色人设')}
+              value={draft.persona.expression?.channels?.[style] ?? (presentation === 'external' ? draft.persona.expression?.external : undefined) ?? ''}
+              onChange={(event) => change({ persona: { ...draft.persona, expression: { ...draft.persona.expression,
+                channels: { ...draft.persona.expression?.channels, [style]: event.target.value },
+              } } })} />
+          </label>)}
         </div>
       </details>
       {personaId &&
@@ -804,8 +862,8 @@ export function CharacterWizard({
     extraSections.set('extensions', { id: 'extensions', title: '扩展能力', order: 100 });
   const sections = [
     { id: 'profile', title: '角色资料' },
+    { id: 'features', title: '角色功能' },
     { id: 'model', title: '模型与权限' },
-    { id: 'features', title: '启用能力' },
     ...['memory', 'tools', 'tasks', 'expression', 'appearance']
       .filter((id) => extraSections.has(id) || ['tasks', 'expression'].includes(id))
       .map(
@@ -819,6 +877,7 @@ export function CharacterWizard({
       .sort((a, b) => a.order - b.order),
     { id: 'summary', title: '配置概览' },
   ];
+  const stickerPolicy = (draft.configurations.chatstick?.channels ?? {}) as Record<string, boolean>;
   const renderFeatures = (section: string) => (
     <>
       {catalog.features
@@ -834,8 +893,38 @@ export function CharacterWizard({
         .map((item: any) => (
           <section key={item.id} className="role-settings-block" data-role-feature={item.id}>
             <h2>{t(item.name)}</h2>
-            {item.id === 'chatstick' && personaId && (
-              <ChatStickView personaId={personaId} embedded />
+            {item.presentation?.editor === 'chatstick' && (
+              <>
+                <label className="field">
+                  <span>{t('表情使用偏好')}</span>
+                  <textarea
+                    rows={3}
+                    aria-label={t('表情使用偏好')}
+                    maxLength={600}
+                    placeholder={t('留空沿用默认风格')}
+                    value={draft.persona.expression?.stickers ?? ''}
+                    onChange={(event) => change({
+                      persona: {
+                        ...draft.persona,
+                        expression: { ...draft.persona.expression, stickers: event.target.value },
+                      },
+                    })}
+                  />
+                </label>
+                <fieldset className="sticker-channels">
+                  <legend>{t('表情投递渠道')}</legend>
+                  {deliveryTargets.map((target) => (
+                    <label className={'inline-toggle' + (!target.supportsImages ? ' unavailable' : '')} key={target.id}>
+                      <input type="checkbox" aria-label={t(target.label)} disabled={!target.supportsImages}
+                        checked={target.supportsImages && stickerPolicy[target.id] !== false}
+                        onChange={(event) => changeConfig('chatstick', 'channels', { ...stickerPolicy, [target.id]: event.target.checked })} />
+                      <span>{t(target.label)}</span>
+                      {!target.supportsImages && <small>{t('不支持图片')}</small>}
+                    </label>
+                  ))}
+                </fieldset>
+                {personaId && <ChatStickView personaId={personaId} embedded />}
+              </>
             )}
             {item.presentation?.editor === 'avatar' ? (
               draft.features.includes('avatar') && (
@@ -888,7 +977,11 @@ export function CharacterWizard({
               )
             ) : (
               <div className="form-grid">
-                {item.fields.filter((f: any) => item.id !== 'delegation' || !delegationPermissionFields.includes(f.key)).map((f: any) => field(item.id, f))}
+                {item.fields
+                  .filter(
+                    (field: any) => item.id !== 'delegation' || !delegationPermissionFields.includes(field.key),
+                  )
+                  .map((f: any) => field(item.id, f))}
               </div>
             )}
             {data.inference.tasks
@@ -996,8 +1089,6 @@ export function CharacterWizard({
             ) : step === 0 ? (
               profileEditor
             ) : step === 1 ? (
-              modelEditor
-            ) : step === 2 ? (
               <>
                 {featureEditor}
                 {sections
@@ -1013,6 +1104,8 @@ export function CharacterWizard({
                     </details>
                   ))}
               </>
+            ) : step === 2 ? (
+              modelEditor
             ) : (
               summaryEditor
             )}

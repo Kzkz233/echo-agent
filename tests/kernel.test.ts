@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { Store } from '../packages/kernel/store.ts';
 import { Registry, PluginManager, internal } from '../packages/kernel/registry.ts';
 import { EchoError, profileSchema } from '../packages/contracts/index.ts';
-import { setup, temporary, conversation, FakeBackend } from './helpers.ts';
+import { setup, temporary, conversation, FakeBackend, until } from './helpers.ts';
 import { cp, writeFile } from 'node:fs/promises';
 
 test('a standalone extension is discovered, permission checked and disposed', async (t) => {
@@ -239,6 +239,7 @@ test('observation is structurally an application message, and its reply is a nat
   assert.equal(messages[1].role, 'assistant');
   assert.equal(messages[1].source, 'observation');
   assert.equal(backend.calls[0].reasoning, 'off');
+  await until(() => app.store.pendingDeliveries().length === 1);
   assert.equal(app.store.pendingDeliveries().length, 1);
   assert.equal(run.state, 'succeeded');
 });

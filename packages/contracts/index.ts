@@ -171,6 +171,8 @@ export type GenerateRequest = {
   onDelta?: (text: string) => void;
   onNativeRun?: (id: string) => void;
   onItem?: (item: ExecutionUpdate) => void;
+  respond?: (input: import('./delivery.ts').ReplySubmission) => { accepted: true };
+  replyTargets?: string[];
 };
 export type GenerateResult = {
   text: string;
@@ -240,6 +242,8 @@ export const personaSchema = z.object({
   expression: z
     .object({
       external: z.string().trim().max(600).optional(),
+      chat: z.string().trim().max(600).optional(),
+      channels: z.record(id, z.string().trim().max(600)).optional(),
       bubble: z.string().trim().max(600).optional(),
       stickers: z.string().trim().max(600).optional(),
     })

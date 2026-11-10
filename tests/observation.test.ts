@@ -7,7 +7,7 @@ import {
   observationSilence,
   EchoError,
 } from '../packages/contracts/index.ts';
-import { setup, conversation, FakeBackend, until } from './helpers.ts';
+import { setup, conversation, FakeBackend, until, submitFixtureReplies } from './helpers.ts';
 import type { StdioRpc } from '../packages/backends/rpc.ts';
 import { localTimestamp } from '../packages/kernel/time.ts';
 
@@ -131,6 +131,7 @@ test('a previously attempted observation cannot consume the next interaction coo
     chat = conversation(app),
     backend = new FakeBackend();
   app.router.backends.set('api', backend);
+  backend.responder = submitFixtureReplies;
   let probes = 0;
   t.mock.method(app.observations, 'sample', async (work: (native: StdioRpc) => Promise<void>) => {
     await work({
@@ -401,7 +402,7 @@ test('observation silence is explicit and only a reply creates a bubble receipt'
     ['empty', ''],
     ['reply', 'A real response'],
   ]) {
-    backend.responder = async () => ({ text });
+    backend.responder = async (request) => outcome === 'reply' ? submitFixtureReplies(request, text) : { text };
     const run = await app.router.send({
       conversationId: chat.id,
       source: 'observation',
@@ -411,6 +412,7 @@ test('observation silence is explicit and only a reply creates a bubble receipt'
     });
     assert.equal(run.meta.observationOutcome, outcome);
   }
+  await until(() => app.store.pendingDeliveries().length === 1);
   assert.deepEqual(
     app.store.pendingDeliveries().map((r) => r.text),
     ['A real response'],

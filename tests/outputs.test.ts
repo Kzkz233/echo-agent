@@ -87,9 +87,28 @@ async function fixture(t: any) {
   };
 }
 
-test('one generated result fans out independently; retrying failed delivery never reruns inference', async (t) => {
+test('a single ready destination cannot forward a model reply without a tool submission', async (t) => {
+  const f = await fixture(t);
+  f.backend.responder = async () => ({ text: 'This text is not a channel reply.' });
+  const delivery = await f.app.deliveries.plan(f.chat.id, 'human', ['fixture.destination']);
+  const result = await f.app.router.send({ conversationId: f.chat.id, requestId: 'missing-reply-tool', text: 'Synthetic input', delivery });
+  assert.equal(result.state, 'failed');
+  assert.match(result.error!, /echo_respond/);
+  assert.equal(f.app.store.assistantForRun(result.id), undefined);
+  assert.deepEqual(f.app.deliveries.rows(), []);
+  assert.equal(f.calls(), 0);
+});
+
+test('one task submits distinct replies; retrying failed delivery never reruns inference', async (t) => {
   const f = await fixture(t);
   f.setState('failed');
+  f.backend.responder = async (request) => {
+    assert.deepEqual(request.replyTargets, ['core.chat', 'fixture.destination']);
+    assert.throws(() => request.respond!({ targetId: 'not-authorized', phase: 'final', messages: ['Must not send'] }), /授权/);
+    for (const targetId of request.replyTargets!)
+      request.respond!({ targetId, phase: 'final', messages: ['For ' + targetId] });
+    return { text: 'Do not mirror this model tail.' };
+  };
   const result = await f.app.triggerActions.dispatch(
     {
       action: 'conversation',
@@ -110,13 +129,52 @@ test('one generated result fans out independently; retrying failed delivery neve
   );
   assert.equal(f.backend.calls.length, 1);
   assert.equal(f.calls(), 1);
-  assert.equal(f.app.store.allMessages(f.chat.id).filter((m) => m.role === 'assistant').length, 1);
+  assert.deepEqual(f.app.store.allMessages(f.chat.id).filter((m) => m.role === 'assistant').map(m=>m.text), ['For core.chat', 'For fixture.destination']);
   const failed = f.app.deliveries.rows().find((r) => r.state === 'failed')!;
   f.setState('delivered');
   await f.app.deliveries.retry(failed.id, new AbortController().signal);
   assert.equal(f.calls(), 2);
   assert.equal(f.backend.calls.length, 1);
   assert(f.app.deliveries.rows().every((r) => r.state === 'delivered'));
+});
+
+test('registered delivery styles and image support are applied independently per target', async (t) => {
+  const f = await fixture(t);
+  await f.app.plugins.enable('chatstick');
+  await f.app.plugins.enable('avatar');
+  const persona = f.app.personas.get('companion');
+  assert(persona);
+  f.app.store.put('personas', persona.id, { ...persona, expression: {
+    chat: 'FIXTURE_CHAT_STYLE',
+    channels: { 'notifications.inbox': 'FIXTURE_INBOX_STYLE' },
+  } });
+  f.app.store.saveConversation({ ...f.chat, injection: true });
+  f.app.store.put('character-settings.chatstick', persona.id, { channels: { 'core.chat': false, 'notifications.inbox': true } });
+  const image = { provider: 'chatstick.image', vaultId: 'fixture-vault', hash: 'a'.repeat(64), label: 'Fixture sticker' };
+  f.app.store.put('chatstick', persona.id + ':hello', { personaId: persona.id, key: 'hello', label: 'Fixture sticker', meaning: 'FIXTURE_STICKER_CATALOG', enabled: true, image });
+  f.backend.responder = async (request) => {
+    const prompt = request.messages.map((message) => message.text).join('\n');
+    if (request.replyTargets?.includes('avatar.bubble')) {
+      assert.match(prompt, /FIXTURE_STICKER_CATALOG/);
+      assert.match(prompt, /投递目标只有 avatar\.bubble。/);
+    } else {
+      assert.doesNotMatch(prompt, /FIXTURE_STICKER_CATALOG/);
+    }
+    assert.match(prompt, /core\.chat[^\n]*FIXTURE_CHAT_STYLE/);
+    assert.match(prompt, /notifications\.inbox[^\n]*FIXTURE_INBOX_STYLE/);
+    for (const targetId of request.replyTargets ?? [])
+      request.respond?.({ targetId, phase: 'final', messages: ['For ' + targetId + '\n[ECHO_STICKER:hello]'] });
+    return { text: '' };
+  };
+  for (const selected of [['core.chat', 'notifications.inbox', 'avatar.bubble'], ['core.chat', 'notifications.inbox']]) {
+    const delivery = await f.app.deliveries.plan(f.chat.id, 'human', selected);
+    assert.equal(delivery.targets.find((target) => target.id === 'notifications.inbox')?.supportsImages, false);
+    const run = await f.app.router.send({ conversationId: f.chat.id, requestId: 'fixture-images-' + selected.length, text: 'Use the channel styles', delivery });
+    assert.equal(run.state, 'succeeded', run.error ?? 'Synthetic turn failed');
+    const replies = f.app.store.channelFinalsForRun(run);
+    assert.deepEqual(replies.map((reply) => [reply.text, Boolean(reply.meta.image)]),
+      selected.map((id) => ['For ' + id, id === 'avatar.bubble']));
+  }
 });
 
 test('reports can target external outputs without entering chat; main-chat presentations stay out of inference and Review', async (t) => {

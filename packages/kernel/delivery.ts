@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { EchoError, invariant, type Message, type Run } from '../contracts/index.ts';
+import { EchoError, invariant, type Message } from '../contracts/index.ts';
 import {
   deliveryPoint,
   deliveryRequest,
@@ -48,6 +48,7 @@ function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
 export class Deliveries {
   private life = new AbortController();
   private running = new Map<string, Promise<unknown>>();
+  private destinationQueue = new Map<string, Promise<unknown>>();
   private dispose: (() => void)[] = [];
   constructor(
     readonly store: Store,
@@ -71,15 +72,17 @@ export class Deliveries {
       consumePermission: 'outputs.deliver',
       cardinality: 'many',
     });
-    scope.provide(deliveryPoint, 'core.chat', '主会话', (input) => {
+    scope.provide(deliveryPoint, 'core.chat', '聊天', (input) => {
       if (input.action === 'list')
         return {
           targets: [
             {
               id: 'core.chat',
-              label: '主会话',
+              label: '聊天',
               revision: '1',
               portable: true,
+              supportsImages: true,
+              style: 'chat',
               legacySources: ['*'],
             },
           ],
@@ -123,8 +126,10 @@ export class Deliveries {
       this.events.emit('message.posted', { conversationId: e.conversationId });
       return { result: { state: 'delivered' } };
     });
+    router.planLocalReply = (conversationId, bubble, signal) =>
+      this.plan(conversationId, 'human', [bubble ? 'avatar.bubble' : 'core.chat'], {}, signal);
     this.dispose.push(
-      router.registerDeliveryStage((message, run) => this.stageMessage(message, run)),
+      router.registerDeliveryStage((message) => this.stageMessage(message)),
     );
     // A crash while sending has an ambiguous result. Never replay it on startup.
     for (const row of this.states(['sending']))
@@ -226,9 +231,10 @@ export class Deliveries {
     this.store.put('output-deliveries', row.id, { ...row, updatedAt: new Date().toISOString() });
     this.events.emit('output.changed', { outputId: row.outputId });
   }
-  private stageMessage(message: Message, run?: Run) {
-    const plan = run?.meta.delivery ?? message.meta.delivery;
-    if (!plan) return;
+  private stageMessage(message: Message) {
+    if (!message.meta.delivery) return;
+    const plan = deliveryPlan.parse(message.meta.delivery);
+    if (plan.targets.length && message.meta.replyPhase !== 'progress' && message.meta.replyPhase !== 'final') return;
     const personaId = this.store.conversation(message.conversationId)!.personaId;
     this.stage(
       {
@@ -237,7 +243,9 @@ export class Deliveries {
         conversationId: message.conversationId,
         messageId: message.id,
         text: message.text,
-        plan: deliveryPlan.parse(plan),
+        title: message.meta.replyTitle as OutputEnvelope['title'],
+        parts: message.meta.replyParts as OutputEnvelope['parts'],
+        plan,
       },
       true,
     );
@@ -260,7 +268,8 @@ export class Deliveries {
           outputId: envelope.id,
           targetId: target.id,
           provider: target.provider,
-          state: characterActive(this.store, envelope.personaId) ? 'pending' : 'skipped',
+          state: characterActive(this.store, envelope.personaId) && target.ready ? 'pending' : 'skipped',
+          ...(target.ready ? {} : { reason: target.issue ?? '输出目标当前不可用。' }),
           createdAt: new Date().toISOString(),
         });
       }
@@ -279,8 +288,10 @@ export class Deliveries {
       e.messageId,
       e.text,
       e.title,
+      e.parts,
       e.plan.source,
       e.plan.task,
+      e.plan.replyTo,
       e.plan.targets.map((t) => t.id).sort(),
     ];
     invariant(
@@ -315,7 +326,7 @@ export class Deliveries {
           "SELECT data FROM documents WHERE namespace='output-deliveries' AND json_extract(data,'$.state') IN (" +
             states.map(() => '?').join(',') +
             ')' +
-            (owner ? " AND json_extract(data,'$.provider') LIKE ?" : ''),
+            (owner ? " AND json_extract(data,'$.provider') LIKE ?" : '') + ' ORDER BY rowid',
         )
         .all(...states, ...(owner ? [owner + '.%'] : [])) as { data: string }[]
     ).map((row) => JSON.parse(row.data));
@@ -346,7 +357,11 @@ export class Deliveries {
   private deliver(id: string, outer = this.life.signal): Promise<unknown> {
     const active = this.running.get(id);
     if (active) return active;
-    const work = Promise.resolve()
+    const row = this.store.document<Receipt>('output-deliveries', id);
+    const output = row && this.store.document<OutputEnvelope>('outputs', row.outputId);
+    if (row?.state !== 'pending' || !output) return Promise.resolve(row);
+    const destination = JSON.stringify([output.conversationId, row.targetId]);
+    const work = (this.destinationQueue.get(destination) ?? Promise.resolve())
       .then(async () => {
         const row = this.store.document<Receipt>('output-deliveries', id);
         if (row?.state !== 'pending') return row;
@@ -376,6 +391,10 @@ export class Deliveries {
         const current = (await this.catalog(envelope.conversationId, signal)).find(
           (t) => t.id === target.id && t.provider === target.provider,
         );
+        if (this.router.isDeleting(envelope.conversationId) || !this.store.conversation(envelope.conversationId)) {
+          this.save({ ...row, state: 'skipped', reason: '会话已删除或正在删除。' });
+          return;
+        }
         if (!current || current.revision !== target.revision || !current.ready) {
           this.save({
             ...row,
@@ -426,9 +445,11 @@ export class Deliveries {
       })
       .finally(() => {
         this.running.delete(id);
+        if (this.destinationQueue.get(destination) === work) this.destinationQueue.delete(destination);
         queueMicrotask(() => this.flush());
       });
     this.running.set(id, work);
+    this.destinationQueue.set(destination, work);
     return work;
   }
   async refreshQueued(owner?: string) {

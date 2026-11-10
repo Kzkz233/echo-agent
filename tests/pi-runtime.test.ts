@@ -17,6 +17,36 @@ import { PiBackend } from '../packages/backends/pi.ts';
 import { createServer } from 'node:http';
 import { z } from 'zod';
 
+test('Pi publishes one progress message and can finish with a structured reply tool', async (t) => {
+  const app = await setup(t, []);
+  const chat = conversation(app, { kind: 'main' });
+  const requests: any[] = [];
+  const server = createServer(async (request, response) => {
+    let body = '';
+    for await (const part of request) body += part;
+    const payload = JSON.parse(body);
+    requests.push(payload);
+    const call = requests.length;
+    response.setHeader('Content-Type', 'text/event-stream');
+    response.end('data: ' + JSON.stringify({ choices: [{ index: 0, finish_reason: 'tool_calls', delta: {
+      role: 'assistant', tool_calls: [{ index: 0, id: 'fixture-reply-' + call, type: 'function', function: {
+        name: 'echo_respond', arguments: JSON.stringify({ targetId: 'core.chat', phase: call === 1 ? 'progress' : 'final', messages: [call === 1 ? 'Checking the sources.' : 'Sources confirmed.'] }),
+      } }],
+    } }] }) + '\n\ndata: [DONE]\n\n');
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); }));
+  seedProfile(app, profileSchema.parse({ id: 'test', kind: 'api', name: 'Loopback', model: 'fixture', endpoint: `http://127.0.0.1:${(server.address() as any).port}/v1` }));
+  const run = await app.router.send({ conversationId: chat.id, text: 'Check the sources', requestId: 'fixture-reply-tool' });
+  assert.equal(run.state, 'succeeded', run.error ?? 'Synthetic run did not complete');
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[0].tools.find((tool: any) => tool.function.name === 'echo_respond').function.parameters.properties.targetId.enum, ['core.chat']);
+  assert.equal(run.result, 'Sources confirmed.');
+  assert.deepEqual(app.store.allMessages(chat.id).filter(m => m.role === 'assistant').map(m => [m.meta.replyPhase, m.text]),
+    [['progress', 'Checking the sources.'], ['final', 'Sources confirmed.']]);
+  await until(() => app.deliveries.rows().filter(row => row.state === 'delivered').length === 2);
+});
+
 test('external hosts are optional worker plugins and cannot bind a main role', async (t) => {
   const app = await setup(t, []);
   assert(!app.router.backends.has('dsh'));
@@ -470,6 +500,7 @@ test(
       permissions: conversationPermissions.parse({ projectDirectory: project, pi: { fullAccess: true } }),
       onInteraction: async () => ({ decision: 'deny' }),
     }, data);
+    assert(!full.tools.some((tool) => ['powershell', 'bash'].includes(tool.name)));
     const outside = { path: join(data, 'private.txt') };
     await full.validate('read', outside);
     const fullReader = full.tools.find((tool) => tool.name === 'read')! as any;

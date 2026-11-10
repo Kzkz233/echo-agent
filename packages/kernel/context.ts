@@ -17,6 +17,7 @@ const turn = z.object({
   effective: z.array(messageSchema),
   source: messageSchema.shape.source,
   presentation: z.enum(['external', 'bubble']).optional(),
+  replyStyles: z.array(z.object({ id, label: z.string(), text: z.string(), supportsImages: z.boolean().optional() })).optional(),
   outputTargets: z.array(id).optional(),
   phase: z.enum(['stable', 'turn']).optional(),
 });

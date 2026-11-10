@@ -2,10 +2,38 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { setup, conversation, FakeBackend, until } from './helpers.ts';
+import { setup, conversation, FakeBackend, until, submitFixtureReplies } from './helpers.ts';
 import { internal } from '../packages/kernel/registry.ts';
 import { QqFailure, qqAttempt, networkFailure } from '../plugins/qq/retry.ts';
+import { qqTextParts } from '../plugins/qq/text-parts.ts';
+import { replyPartGaps } from '../packages/contracts/reply-pacing.ts';
 import{QqGateway}from'../plugins/qq/gateway.ts';
+
+test('conversational pacing grows with readable length and stays within the batch budget', () => {
+  for (const [surface, lower, upper] of [['chat', 800, 1400], ['qq', 1000, 1800]] as const) {
+    assert.deepEqual(replyPartGaps(['First'], surface), []);
+    const [short] = replyPartGaps(['First', '好'], surface);
+    const [long] = replyPartGaps(['First', '长'.repeat(90)], surface);
+    assert(short >= lower && short < long);
+    assert.equal(long, upper);
+    assert.equal(replyPartGaps(['First', '长'.repeat(90), '长'.repeat(90)], surface).reduce((a, b) => a + b), 2600);
+  }
+});
+
+test('QQ splits plain paragraphs within the reply budget and keeps structured text together', () => {
+  const plain = 'First\r\n\r\nSecond\r\n\r\nThird\r\n\r\nFourth';
+  assert.deepEqual(qqTextParts(plain, 5, false), ['First', 'Second', 'Third\n\nFourth']);
+  assert.deepEqual(qqTextParts(plain, 3, true), ['First', 'Second\n\nThird\n\nFourth']);
+  assert.deepEqual(qqTextParts(plain, 2, true), [plain]);
+  assert.deepEqual(qqTextParts(plain, 5, false, 'combined'), [plain]);
+  for (const structured of [
+    'Summary\n\n- First\n- Second',
+    'Summary\n\n```ts\nlet x = 1;\n```',
+    'Summary\r\n\r\n---\r\n\r\nDetails',
+  ]) assert.deepEqual(qqTextParts(structured, 5, false), [structured]);
+  assert.deepEqual(qqTextParts('🎉'.repeat(1501), 5, false), ['🎉'.repeat(1500), '🎉']);
+  assert.deepEqual(qqTextParts('🎉'.repeat(1501), 5, false, 'combined'), ['🎉'.repeat(1500), '🎉']);
+});
 
 test('QQ network retry is bounded and retains uncertainty from an earlier attempt', async () => {
   let calls = 0,
@@ -128,6 +156,7 @@ test('official QQ gateway handles a synthetic C2C message and confirmed segments
     failImage = true,
     uploads = 0;
   const sent: { msg_seq: number; msg_id: string; content?: string; msg_type: number; media?: { file_info: string } }[] = [];
+  const sentAt: number[] = [];
   const server = createServer(async (req, res) => {
     let raw = '';
     for await (const chunk of req) raw += chunk;
@@ -154,6 +183,7 @@ test('official QQ gateway handles a synthetic C2C message and confirmed segments
     if (req.url?.endsWith('/messages')) {
       postCount++;
       sent.push(body);
+      sentAt.push(performance.now());
       if (body.content?.startsWith('B') && failSecond) {
         failSecond = false;
         res.statusCode = 400;
@@ -235,7 +265,10 @@ test('official QQ gateway handles a synthetic C2C message and confirmed segments
   app.store.put('personas', persona.id, { ...persona, expression: {
     external: 'Fixture mobile prose', bubble: 'Fixture bubble prose',
   } });
-  fake.responder = async () => ({ text: 'A'.repeat(1500) + 'B'.repeat(100) + '\n[ECHO_STICKER:here]' });
+  fake.responder = async (request) => {
+    request.respond!({ targetId: request.replyTargets![0], phase: 'final', messages: ['A short greeting.', 'Back to you!\n[ECHO_STICKER:here]'] });
+    return { text: '' };
+  };
   app.router.backends.set('api', fake);
   const binding = await app.registry.call(
     'channels.bind',
@@ -257,29 +290,32 @@ test('official QQ gateway handles a synthetic C2C message and confirmed segments
   );
   await until(
     () =>
-      app.store
-        .documents<any>('channel-outbound')
-        .some((r) => r.bindingId === binding.id && r.state === 'failed'),
+      app.deliveries.rows().some((r) => r.targetId === 'channels.binding.' + binding.id && r.state === 'failed'),
     10000,
   );
-  const row = app.store.documents<any>('channel-outbound').find((r) => r.bindingId === binding.id)!;
+  const row = app.deliveries.rows().find((r) => r.targetId === 'channels.binding.' + binding.id)!;
+  assert.equal(app.store.documents('channel-outbound').length, 0);
   assert.equal(fake.calls.length, 1);
   const guidance = fake.calls[0].messages.find((message) => message.context === 'turn')!.text;
   assert.match(guidance, /本轮通过消息渠道回复/);
   assert.match(guidance, /Fixture mobile prose/);
   assert.doesNotMatch(guidance, /Fixture bubble prose/);
+  assert(fake.calls[0].messages.some((message) => message.text.includes('"key":"here"')));
   assert.equal(fake.calls[0].messages.at(-1)!.text, 'Synthetic question');
   assert.equal(app.store.allMessages(c.id).find((message) => message.role === 'user')?.text, 'Synthetic question');
   assert.equal(postCount, 2);
+  assert.deepEqual(sent.map((part) => part.content), ['A short greeting.', 'Back to you!']);
+  assert(sentAt[1] - sentAt[0] >= 950, 'Separate text replies receive the conversational interval');
   assert.deepEqual(
     sent.map((s) => s.msg_seq),
     [1, 2],
   );
   assert(sent.every((s) => s.msg_id === 'inbound-one'));
+  await app.registry.call('channels.bind', { ...binding, textMode: 'combined' }, internal);
   await app.plugins.disable('chatstick');
-  await app.registry.call('channels.retry', { id: row.id, confirmed: true }, internal);
+  await app.registry.call('outputs.retry', { id: row.id, confirmed: true }, internal);
   assert.equal(postCount, 4);
-  await app.registry.call('channels.retry', { id: row.id, confirmed: true }, internal);
+  await app.registry.call('outputs.retry', { id: row.id, confirmed: true }, internal);
   assert.equal(postCount, 5);
   assert.deepEqual(
     sent.map((s) => s.msg_seq),
@@ -291,9 +327,24 @@ test('official QQ gateway handles a synthetic C2C message and confirmed segments
   const reply = app.store.allMessages(c.id).find((message) => message.role === 'assistant');
   assert(reply?.meta.image);
   assert.doesNotMatch(reply.text, /ECHO_STICKER/);
-  const complete = app.store.documents<any>('channel-outbound').find((r) => r.id === row.id);
-  assert.equal(complete.state, 'delivered');
-  assert.equal(complete.receipt.parts[0].traceId, 'fixture-trace');
+  const complete = app.store.document<any>('output-deliveries', row.id);
+  assert.equal(complete?.state, 'delivered');
+  assert.equal(complete?.receipt.parts[0].traceId, 'fixture-trace');
+  fake.responder = (request) => submitFixtureReplies(request, 'This was said only in the desktop bubble.');
+  await app.router.send({ requestId: 'bubble-only', conversationId: c.id, text: 'Say it here', bubble: true });
+  assert.equal(postCount, 5);
+  fake.responder = (request) => submitFixtureReplies(request, 'Hello again.\n\nTwo paragraphs, one message.');
+  socket!.send(JSON.stringify({ op: 0, t: 'C2C_MESSAGE_CREATE', s: 3, d: {
+    id: 'inbound-two', timestamp: new Date().toISOString(), content: 'Synthetic follow-up',
+    author: { id: 'fixture-user', user_openid: 'fixture-user' },
+  } }));
+  await until(() => app.deliveries.rows()
+    .some((delivery) => delivery.id !== row.id && delivery.state === 'delivered'), 10000);
+  assert.equal(postCount, 6);
+  assert(fake.calls.at(-1)?.messages.some((message) => message.text.includes('only in the desktop bubble')));
+  assert.deepEqual(sent.at(-1), {
+    content: 'Hello again.\n\nTwo paragraphs, one message.', msg_type: 0, msg_id: 'inbound-two', msg_seq: 1,
+  });
   await app.plugins.disable('qq');
   assert(app.plugins.active.has('channels'));
   assert.equal(

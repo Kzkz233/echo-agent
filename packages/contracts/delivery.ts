@@ -6,6 +6,15 @@ export const outputTargets = z
   .max(20)
   .refine((ids) => new Set(ids).size === ids.length);
 export const outputTask = z.object({ type: key, id: key });
+export const channelTextMode = z.enum(['auto', 'combined']);
+export type ChannelTextMode = z.infer<typeof channelTextMode>;
+export const replySubmission = z.object({
+  targetId: key,
+  phase: z.enum(['progress', 'final']),
+  title: z.string().trim().min(1).max(200).optional(),
+  messages: z.array(z.string().trim().min(1).max(20000)).min(1).max(3),
+}).strict();
+export type ReplySubmission = z.infer<typeof replySubmission>;
 export const outputTarget = z.object({
   id: key,
   label: z.string().max(200),
@@ -13,13 +22,17 @@ export const outputTarget = z.object({
   ready: z.boolean().default(true),
   issue: z.string().max(500).optional(),
   portable: z.boolean().default(false),
+  supportsImages: z.boolean().default(false),
   presentation: z.enum(['bubble', 'external']).optional(),
+  style: key.optional(),
+  initialStyle: z.string().max(600).optional(),
   legacySources: z.array(z.string()).default([]),
 });
 export const deliveryPlan = z.object({
   targets: z.array(outputTarget.extend({ provider: key, owner: key })).max(20),
   source: z.string().min(1).max(100),
   task: outputTask.optional(),
+  replyTo: z.string().min(1).max(300).optional(),
 });
 export const outputEnvelope = z.object({
   id: key,
@@ -28,6 +41,7 @@ export const outputEnvelope = z.object({
   messageId: key.optional(),
   text: z.string().max(100000),
   title: z.string().max(200).optional(),
+  parts: replySubmission.shape.messages.optional(),
   plan: deliveryPlan,
 });
 export const deliveryResult = z.object({

@@ -41,6 +41,7 @@ import { Store } from '../../packages/kernel/store.ts';
 import { Events } from '../../packages/kernel/events.ts';
 import { Registry, PluginManager, internal } from '../../packages/kernel/registry.ts';
 import { Extensions } from '../../packages/kernel/extensions.ts';
+import { ExternalMcp } from '../../packages/kernel/external-mcp.ts';
 import { FrontendCatalog } from '../../packages/kernel/frontend.ts';
 import { Router } from '../../packages/kernel/router.ts';
 import { Secrets } from '../../packages/kernel/secrets.ts';
@@ -102,6 +103,7 @@ export class Application {
   readonly observations: Observations;
   readonly reviews: Reviews;
   readonly extensions: Extensions;
+  readonly externalMcp: ExternalMcp;
   readonly frontend: FrontendCatalog;
   readonly materials = new MaterialSources(this.capabilities);
   readonly retrieval = new Retrieval(
@@ -239,7 +241,7 @@ export class Application {
     this.backups = new Backups(this.store, project);
     this.notifications = new Notifications(this.store, this.events, this.router);
     this.approvals = new Approvals(this.store, this.events);
-    this.channels = new Channels(this.store, this.router, this.events, this.triggerActions);
+    this.channels = new Channels(this.store, this.router, this.events, this.triggerActions, this.deliveries);
     this.qq = new QQ(this.store, this.secrets, this.events);
     this.personas = new Personas(this.store, this.router, this.files);
     this.memories = new Memories(this.store, this.router, this.files, this.retrieval);
@@ -280,6 +282,12 @@ export class Application {
       this.triggerActions,
     );
     this.extensions = new Extensions(this.store, this.plugins);
+    this.externalMcp = new ExternalMcp(this.store, this.secrets, this.registry,
+      (caller, permission) => Boolean(caller.conversationId && caller.personaId && echoToolPermissions(
+        this.store, false, { conversationId: caller.conversationId, personaId: caller.personaId },
+        this.plugins.characterPermissions(),
+      ).has(permission)), () => this.events.emit('externalMcp.changed', {}));
+    this.externalMcp.install();
     this.frontend = new FrontendCatalog(
       this.capabilities,
       this.router.inference.owner,
@@ -622,6 +630,7 @@ export class Application {
         clock: { timezone: configuredTimezone(this.store) },
         frontend: { pages: await this.frontend.pages() },
         extensionPackages: this.extensions.packageStatus(),
+        externalMcpServers: this.externalMcp.list(),
         preferences: this.store.get('preferences', { language: 'zh-CN', accent: '#5969c9' }),
         profiles: this.router.profiles(),
         connections: this.router.inference.connections(),
@@ -694,7 +703,7 @@ export class Application {
           'review.read',
         ]),
         mcpAvailablePermissions: [
-          ...new Set(this.registry.list(internal, true).map((o) => o.permission)),
+          ...new Set(this.registry.list(internal, true).filter((op) => !op.roleOnly).map((o) => o.permission)),
         ],
         mcpPermissionCatalog: (() => {
           const entries = new Map<string, { owners: Set<string>; tools: string[] }>();
@@ -707,14 +716,21 @@ export class Application {
             entry.tools.push(operation.name);
             entries.set(operation.permission, entry);
           }
-          return [...entries].map(([permission, entry]) => ({
+          const externalTools = new Map(this.externalMcp.list().flatMap((server) => server.tools.map((tool) => [tool.permission, {
+            external: { server: server.name, tool: tool.title, available: entries.has(tool.permission) },
+          }] as const)));
+          return [...[...entries].map(([permission, entry]) => ({
             permission,
             scope: this.plugins.characterPermissions().has(permission)
               ? 'character'
               : 'application',
             owners: [...entry.owners],
             tools: entry.tools,
-          }));
+            ...externalTools.get(permission),
+          })), ...this.externalMcp.pendingPermissions().map((tool) => ({
+            permission: tool.permission, scope: 'character', owners: ['external-mcp'], tools: [tool.name],
+            ...externalTools.get(tool.permission),
+          }))];
         })(),
       };
     });
@@ -1295,6 +1311,7 @@ export class Application {
         requestId: id,
         reasoning: reasoning.optional(),
         bubble: z.boolean().default(false),
+        workSession: z.literal(true).optional(),
         attachmentIds: z.array(id).max(4).optional(),
       }),
       'conversation.write',
@@ -1308,6 +1325,7 @@ export class Application {
         runId: id,
         requestId: id,
         text: z.string().min(1).max(24000),
+        workSession: z.literal(true).optional(),
         attachmentIds: z.array(id).max(4).optional(),
       }),
       'conversation.write',
@@ -1498,6 +1516,7 @@ export class Application {
       () => this.deliveries.close(),
       () => this.plugins.close(),
       () => this.router.close(),
+      () => this.externalMcp.close(),
       () => this.clock.close(),
     ])
       try {

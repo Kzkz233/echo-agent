@@ -15,7 +15,8 @@ export const sections: Section[] = [
     group: '交流与陪伴',
     views: [
       { id: 'personas', text: '角色列表' },
-      { id: 'character', text: '主会话' },
+      { id: 'character', text: '聊天' },
+      { id: 'character-session', text: '后台工作会话' },
       { id: 'character-wizard', text: '角色配置' },
       { id: 'persona-settings', text: '角色设定' },
       { id: 'memory', text: '角色记忆' },
@@ -108,7 +109,7 @@ export const sections: Section[] = [
     ],
   },
 ];
-export const coreViews = new Set(['chat', 'automation', 'backends', 'plugins', 'diagnostics']);
+export const coreViews = new Set(['chat', 'character-session', 'automation', 'backends', 'plugins', 'diagnostics']);
 export function navigationSections(pages: FrontendPageEntry[] = []): Section[] {
   const result = sections.map((section) => ({ ...section, views: [...section.views] }));
   for (const page of pages) {

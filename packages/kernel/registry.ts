@@ -20,6 +20,8 @@ export type Operation = {
   output: z.ZodType;
   permission: string;
   mcp: boolean;
+  roleOnly?: boolean;
+  toolInputSchema?: Record<string, unknown>;
   owner: string;
   run: (input: any, caller: Caller, signal: AbortSignal) => unknown | Promise<unknown>;
 };
@@ -131,6 +133,7 @@ export class Registry {
     return [...this.entries.values()].filter(
       (op) =>
         (!mcp || op.mcp) &&
+        this.inScope(op, caller) &&
         this.allowed(caller, op.permission) &&
         !this.owners.get(op.owner)?.closing &&
         (this.owners.get(op.owner)?.active ?? true),
@@ -138,6 +141,10 @@ export class Registry {
   }
   allowed(caller: Caller, permission: string) {
     return caller.permissions.has('*') || caller.permissions.has(permission);
+  }
+  private inScope(operation: Operation, caller: Caller) {
+    return !operation.roleOnly || caller.kind === 'internal' ||
+      (caller.kind === 'mcp' && Boolean(caller.personaId && caller.conversationId));
   }
   async callFromOwner(
     owner: string,
@@ -176,7 +183,7 @@ export class Registry {
     const op = this.entries.get(name);
     invariant(op, 'not_found', '未找到操作：' + name);
     invariant(
-      this.allowed(caller, op.permission),
+      this.allowed(caller, op.permission) && this.inScope(op, caller),
       'permission_denied',
       '需要权限：' + op.permission,
     );
