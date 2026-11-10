@@ -1,0 +1,25 @@
+{
+  "id": "assets",
+  "name": "Image & Expression Assets",
+  "description": "管理图片和表情素材，支持标签与预览。",
+  "version": "0.9.0",
+  "dependencies": [
+    "files"
+  ],
+  "permissions": [
+    "assets.read",
+    "assets.write",
+    "character.contribute"
+  ],
+  "settings": [],
+  "views": [],
+  "apiVersion": 1,
+  "package": "@echo/assets",
+  "characterSettings": {
+    "section": "appearance",
+    "title": "外观与桌宠",
+    "order": 30
+  },
+  "category": "Files and knowledge",
+  "optionalDependencies": []
+}

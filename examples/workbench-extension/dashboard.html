@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Example dashboard</title>
+<style>
+  body { margin: 0; padding: 32px; color: #273047; background: #fafbfe; font: 15px system-ui, sans-serif; }
+  h2 { font-weight: 600; } output { display: block; margin: 24px 0; font-size: 28px; }
+  button { border: 0; border-radius: 8px; padding: 10px 18px; background: #5969c9; color: white; cursor: pointer; }
+</style>
+<h2>Example dashboard</h2><p id="message"></p><output id="count">Loading…</output><button id="increment">Increase count</button>
+<script>
+  let value;
+  const display = () => { document.querySelector('#message').textContent = value.message; document.querySelector('#count').textContent = value.count; };
+  Echo.call('workbenchdemo.read').then(result => { value = result; display(); }).catch(error => { document.querySelector('#message').textContent = error.message; });
+  document.querySelector('#increment').onclick = async () => { value = await Echo.call('workbenchdemo.save', { ...value, count: value.count + 1 }); display(); };
+</script></html>

@@ -1,0 +1,21 @@
+{
+  "apiVersion": 1,
+  "id": "groups",
+  "package": "@echo/groups",
+  "version": "0.9.0",
+  "name": "Character Group Conversations",
+  "description": "以明确署名组织多角色交流、共享背景与协作。",
+  "dependencies": [
+    "persona"
+  ],
+  "permissions": [
+    "groups.read",
+    "groups.write"
+  ],
+  "settings": [],
+  "views": [
+    "groups"
+  ],
+  "category": "Communication",
+  "optionalDependencies": []
+}

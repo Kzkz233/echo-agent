@@ -1,0 +1,47 @@
+{
+  "apiVersion": 1,
+  "id": "local-models",
+  "package": "@echo/local-models",
+  "name": "Local Model Runtime",
+  "version": "0.12.1",
+  "description": "On-demand GGUF and ONNX embedding models, with shared residency limits and no model loaded at startup.",
+  "dependencies": [
+    "embeddings"
+  ],
+  "permissions": [
+    "local-models.read",
+    "local-models.write",
+    "inference.contribute",
+    "embeddings.provide"
+  ],
+  "settings": [
+    {
+      "key": "maxLoadedModels",
+      "label": "最多保留的本地模型数",
+      "type": "number",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "key": "idleSeconds",
+      "label": "闲置释放秒数",
+      "type": "number",
+      "min": 10,
+      "max": 3600
+    }
+  ],
+  "views": [],
+  "category": "Files and knowledge",
+  "storagePaths": [
+    {
+      "table": "kv",
+      "collection": "local-models.config",
+      "pointers": [
+        "/cacheDir",
+        "/directory",
+        "/root"
+      ]
+    }
+  ],
+  "optionalDependencies": []
+}

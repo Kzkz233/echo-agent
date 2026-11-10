@@ -1,0 +1,22 @@
+{
+  "apiVersion": 1,
+  "id": "channels",
+  "package": "@echo/channels",
+  "name": "Conversation Channels",
+  "description": "Bind presentation/messaging adapters to canonical conversations. One inference per input, attributed origins and durable delivery receipts.",
+  "version": "0.9.0",
+  "dependencies": [],
+  "permissions": [
+    "channels.read",
+    "channels.write",
+    "channels.receive",
+    "channels.deliver",
+    "reply-image.read",
+    "outputs.provide"
+  ],
+  "settings": [],
+  "views": [
+    "channels"
+  ],
+  "category": "Communication"
+}

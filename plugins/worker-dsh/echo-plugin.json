@@ -1,0 +1,16 @@
+{
+  "id": "worker-dsh",
+  "name": "DeepSeek Harness Worker",
+  "description": "Delegate project tasks to dedicated DeepSeek Harness sessions.",
+  "version": "0.10.0",
+  "dependencies": [],
+  "permissions": [
+    "inference.provide",
+    "inference.contribute"
+  ],
+  "settings": [],
+  "views": [],
+  "apiVersion": 1,
+  "package": "@echo/worker-dsh",
+  "category": "Tasks and execution"
+}

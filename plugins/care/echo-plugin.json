@@ -1,0 +1,28 @@
+{
+  "id": "care",
+  "name": "Proactive Conversation",
+  "description": "按时段与交流节奏发起角色会话，可结合当前主观想法和上下文，向桌宠或已绑定通道展示表达。",
+  "version": "0.9.0",
+  "dependencies": [
+    "persona"
+  ],
+  "permissions": [
+    "care.read",
+    "care.write",
+    "automation.contribute",
+    "character.contribute"
+  ],
+  "settings": [],
+  "views": [
+    "care"
+  ],
+  "apiVersion": 1,
+  "package": "@echo/care",
+  "characterSettings": {
+    "section": "tasks",
+    "title": "自动化任务",
+    "order": 20
+  },
+  "category": "Memory and behavior",
+  "optionalDependencies": []
+}

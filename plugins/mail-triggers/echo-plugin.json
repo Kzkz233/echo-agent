@@ -1,0 +1,28 @@
+{
+  "apiVersion": 1,
+  "id": "mail-triggers",
+  "package": "@echo/mail-triggers",
+  "name": "Email Triggers",
+  "description": "增强邮件同步：按邮箱、发件人和主题筛选新邮件，合并通知或触发角色提醒；历史回填不触发。",
+  "version": "0.9.0",
+  "dependencies": [
+    "mail"
+  ],
+  "permissions": [
+    "mail.read",
+    "mail-triggers.read",
+    "mail-triggers.write",
+    "automation.contribute",
+    "character.contribute",
+    "notifications.write"
+  ],
+  "settings": [],
+  "views": [],
+  "characterSettings": {
+    "section": "tasks",
+    "title": "自动化任务",
+    "order": 40
+  },
+  "category": "Communication",
+  "optionalDependencies": []
+}

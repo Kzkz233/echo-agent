@@ -1,0 +1,23 @@
+{
+  "id": "notifications",
+  "name": "Notification Center",
+  "description": "统一收件箱与渠道回执；未知投递不重发，新增渠道可由插件贡献。",
+  "version": "0.9.0",
+  "dependencies": [],
+  "permissions": [
+    "notifications.read",
+    "notifications.write",
+    "notifications.deliver",
+    "notifications.channel",
+    "agenda.delivery",
+    "review.contribute",
+    "outputs.provide"
+  ],
+  "settings": [],
+  "views": [
+    "notifications"
+  ],
+  "apiVersion": 1,
+  "package": "@echo/notifications",
+  "category": "System"
+}

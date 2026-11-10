@@ -1,0 +1,20 @@
+{
+  "apiVersion": 1,
+  "id": "approvals",
+  "package": "@echo/approvals",
+  "name": "Action Approval",
+  "description": "前端审批中心：冻结操作内容、批准或拒绝、逐次执行回执；不绑定任何聊天通道。",
+  "version": "0.9.0",
+  "dependencies": [],
+  "permissions": [
+    "approvals.read",
+    "approvals.request",
+    "approvals.decide",
+    "approvals.execute"
+  ],
+  "settings": [],
+  "views": [
+    "approvals"
+  ],
+  "category": "System"
+}

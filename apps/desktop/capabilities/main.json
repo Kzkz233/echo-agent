@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Local Echo windows only",
+  "windows": ["main", "avatar", "settings", "extension-*"],
+  "permissions": ["core:default", "core:window:allow-start-dragging", "core:window:allow-close", "dialog:allow-open", "dialog:allow-save"]
+}

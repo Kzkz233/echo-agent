@@ -1,0 +1,12 @@
+{
+  "apiVersion": 1,
+  "id": "hello",
+  "name": "Hello extension",
+  "description": "A minimal standalone Echo operation",
+  "version": "0.1.0",
+  "dependencies": [],
+  "permissions": ["hello.read"],
+  "command": "node",
+  "args": ["extension.mjs"],
+  "settings": [{ "key": "greeting", "label": "Greeting prefix", "type": "text" }]
+}

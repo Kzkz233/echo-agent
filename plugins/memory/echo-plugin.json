@@ -1,0 +1,37 @@
+{
+  "id": "memory",
+  "name": "Persona Memory",
+  "description": "统一检索词构造、关键词或本地/API 语义检索，按有效上下文去重。",
+  "version": "0.12.1",
+  "dependencies": [
+    "persona",
+    "knowledge"
+  ],
+  "permissions": [
+    "context.contribute",
+    "memory.read",
+    "memory.write",
+    "memory.enhance",
+    "inference.contribute",
+    "character.contribute",
+    "knowledge.read",
+    "knowledge.enhance"
+  ],
+  "characterPermissions": [
+    "memory.read",
+    "memory.write"
+  ],
+  "settings": [],
+  "views": [
+    "memory"
+  ],
+  "apiVersion": 1,
+  "package": "@echo/memory",
+  "characterSettings": {
+    "section": "memory",
+    "title": "记忆与资料",
+    "order": 10
+  },
+  "category": "Memory and behavior",
+  "optionalDependencies": []
+}

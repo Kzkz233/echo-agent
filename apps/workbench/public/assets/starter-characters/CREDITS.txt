@@ -1,0 +1,7 @@
+Hina Codex Pet by Ryu JaeHyun. Visual artwork: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+Source: https://github.com/springtiger07/codex-chibi-girl-pets/tree/6e8ca988a6b3db007cc74e5f0ab62aca5a801131/Hina
+Echo adaptation: lossless PNG conversion, named animation mapping, idle-frame preview and cropped/resized portrait. Original artwork and character names retained. No endorsement implied.
+
+Miyu Codex Pet by Ryu JaeHyun. Visual artwork: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+Source: https://github.com/springtiger07/codex-chibi-girl-pets/tree/6e8ca988a6b3db007cc74e5f0ab62aca5a801131/Miyu
+Echo adaptation: lossless PNG conversion, named animation mapping, idle-frame preview and cropped/resized portrait. Original artwork and character names retained. No endorsement implied.

@@ -1,0 +1,20 @@
+{
+  "apiVersion": 1,
+  "id": "mail-actions",
+  "package": "@echo/mail-actions",
+  "name": "Email Actions & Approval",
+  "description": "增强邮箱工作台：发送、标记、移动和归档前核对审批，保留逐项执行回执。",
+  "version": "0.9.0",
+  "dependencies": [
+    "mail",
+    "approvals"
+  ],
+  "permissions": [
+    "mail-actions.write",
+    "approvals.contribute"
+  ],
+  "settings": [],
+  "views": [],
+  "category": "Communication",
+  "optionalDependencies": []
+}

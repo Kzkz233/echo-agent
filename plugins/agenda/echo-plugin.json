@@ -1,0 +1,40 @@
+{
+  "id": "agenda",
+  "name": "Calendar & Reminders",
+  "description": "Calendar, priorities, time ranges, reminders and optional conversation binding. No project workflow required.",
+  "version": "0.12.1",
+  "dependencies": [],
+  "permissions": [
+    "agenda.read",
+    "agenda.write",
+    "agenda.notify",
+    "review.contribute",
+    "character.contribute"
+  ],
+  "settings": [
+    {
+      "key": "allDayReminderHour",
+      "label": "All-day reminder hour",
+      "type": "number",
+      "min": 0,
+      "max": 23
+    },
+    {
+      "key": "conversationId",
+      "label": "Default reminder conversation ID (optional)",
+      "type": "text",
+      "resource": "conversation"
+    }
+  ],
+  "views": [
+    "agenda"
+  ],
+  "apiVersion": 1,
+  "package": "@echo/agenda",
+  "characterSettings": {
+    "section": "tools",
+    "title": "工具与委派",
+    "order": 30
+  },
+  "category": "Tasks and execution"
+}

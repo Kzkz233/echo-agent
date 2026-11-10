@@ -1,0 +1,32 @@
+{
+  "id": "mail",
+  "name": "Email Workspace",
+  "description": "连接多个邮箱，按文件夹同步与检索邮件，按需读取正文并管理草稿。",
+  "version": "0.9.0",
+  "dependencies": [],
+  "permissions": [
+    "mail.read",
+    "mail.write",
+    "review.contribute",
+    "scheduler.contribute",
+    "character.contribute"
+  ],
+  "settings": [
+    {
+      "key": "reviewLookbackDays",
+      "label": "Review: arrival lookback days (explicitly read bodies are always eligible)",
+      "type": "number",
+      "min": 1,
+      "max": 3650
+    }
+  ],
+  "views": ["mail"],
+  "apiVersion": 1,
+  "package": "@echo/mail",
+  "characterSettings": {
+    "section": "tools",
+    "title": "工具与委派",
+    "order": 40
+  },
+  "category": "Communication"
+}

@@ -1,0 +1,27 @@
+{
+  "id": "files",
+  "name": "File Management",
+  "description": "保存原件与媒体，记录来源和版本，供知识库及其他功能引用。",
+  "version": "0.12.1",
+  "dependencies": [],
+  "permissions": [
+    "files.declare",
+    "files.read",
+    "files.write",
+    "reply-image.provide"
+  ],
+  "settings": [],
+  "views": [],
+  "apiVersion": 1,
+  "package": "@echo/files",
+  "category": "Files and knowledge",
+  "storagePaths": [
+    {
+      "table": "documents",
+      "collection": "vaults",
+      "pointers": [
+        "/path"
+      ]
+    }
+  ]
+}

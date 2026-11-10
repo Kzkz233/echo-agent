@@ -1,0 +1,42 @@
+{
+  "id": "backup",
+  "name": "Backup & Restore",
+  "description": "备份应用数据与资料，校验完整性，并恢复到独立目录。",
+  "version": "0.12.0",
+  "dependencies": [],
+  "permissions": [
+    "backup.read",
+    "backup.write",
+    "scheduler.contribute"
+  ],
+  "settings": [
+    {
+      "key": "directory",
+      "label": "备份目录",
+      "type": "path",
+      "pathMode": "directory"
+    },
+    {
+      "key": "keep",
+      "label": "保留完整备份份数",
+      "type": "number",
+      "min": 1,
+      "max": 365
+    }
+  ],
+  "views": [
+    "backup"
+  ],
+  "apiVersion": 1,
+  "package": "@echo/backup",
+  "category": "System",
+  "storagePaths": [
+    {
+      "table": "kv",
+      "collection": "backup.config",
+      "pointers": [
+        "/directory"
+      ]
+    }
+  ]
+}

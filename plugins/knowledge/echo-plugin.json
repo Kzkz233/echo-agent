@@ -1,0 +1,39 @@
+{
+  "id": "knowledge",
+  "name": "Knowledge System",
+  "description": "统一文档库、来源、附件、版本、解析流程与内容检索。",
+  "version": "0.9.0",
+  "dependencies": [
+    "files",
+    "documents"
+  ],
+  "permissions": [
+    "files.read",
+    "knowledge.read",
+    "knowledge.write",
+    "character.contribute",
+    "context.contribute",
+    "knowledge.enhance"
+  ],
+  "characterPermissions": [
+    "knowledge.read"
+  ],
+  "settings": [
+    {
+      "key": "strategy",
+      "label": "默认检索策略",
+      "type": "select",
+      "options": [
+        "keyword",
+        "semantic",
+        "hybrid"
+      ]
+    }
+  ],
+  "views": [
+    "knowledge"
+  ],
+  "apiVersion": 1,
+  "package": "@echo/knowledge",
+  "category": "Built-in components"
+}

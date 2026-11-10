@@ -1,0 +1,19 @@
+{
+  "id": "clock",
+  "apiVersion": 1,
+  "package": "@echo/clock",
+  "version": "0.12.0",
+  "category": "Built-in components",
+  "name": "Clock",
+  "description": "应用时钟、时区与定时唤醒。任务可单独指定时区。",
+  "permissions": [
+    "system.read"
+  ],
+  "settings": [
+    {
+      "key": "timezone",
+      "label": "应用时区（system 跟随系统）",
+      "type": "text"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "worker-codex",
+  "name": "Codex Worker",
+  "description": "将项目任务委派给独立的 Codex 会话；主会话继续由 Pi 调度。",
+  "version": "0.10.0",
+  "dependencies": [],
+  "permissions": [
+    "inference.provide",
+    "inference.contribute"
+  ],
+  "settings": [],
+  "views": [],
+  "apiVersion": 1,
+  "package": "@echo/worker-codex",
+  "category": "Tasks and execution"
+}

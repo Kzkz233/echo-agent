@@ -1,0 +1,30 @@
+{
+  "apiVersion": 1,
+  "id": "delegation",
+  "package": "@echo/delegation",
+  "name": "Task System",
+  "description": "管理任务委派、工作会话、运行记录、成果与验收。",
+  "version": "0.9.0",
+  "dependencies": [
+    "persona"
+  ],
+  "permissions": [
+    "delegation.read",
+    "delegation.write",
+    "context.contribute",
+    "character.contribute",
+    "review.contribute",
+    "avatar.state"
+  ],
+  "settings": [],
+  "views": [
+    "delegation"
+  ],
+  "characterSettings": {
+    "section": "tools",
+    "title": "工具与委派",
+    "order": 20
+  },
+  "category": "Built-in components",
+  "optionalDependencies": []
+}

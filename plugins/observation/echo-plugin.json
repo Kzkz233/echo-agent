@@ -1,0 +1,36 @@
+{
+  "id": "observation",
+  "name": "Live Observation",
+  "description": "只采集白名单可见区域；本地检测、五秒选帧，支持单图与组图识别。默认关闭。",
+  "version": "0.16.1",
+  "dependencies": [
+    "persona",
+    "files"
+  ],
+  "permissions": [
+    "observation.read",
+    "observation.configure",
+    "review.contribute",
+    "care.block",
+    "inference.contribute",
+    "automation.contribute",
+    "character.contribute",
+    "observation.source.provide",
+    "observation.source.read"
+  ],
+  "characterPermissions": [
+    "observation.read"
+  ],
+  "settings": [],
+  "views": [
+    "observation"
+  ],
+  "apiVersion": 1,
+  "package": "@echo/observation",
+  "characterSettings": {
+    "section": "tasks",
+    "title": "自动化任务",
+    "order": 10
+  },
+  "category": "Memory and behavior"
+}

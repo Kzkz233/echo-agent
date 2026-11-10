@@ -1,0 +1,554 @@
+{
+  "format": "frame-atlas-v1",
+  "image": "atlas.png",
+  "author": "pzUH",
+  "license": "CC0-1.0",
+  "source": "https://opengameart.org/content/cute-girl-free-sprites",
+  "archive_sha256": "facd021364fba2cfb25c21172ce890aea1bedbebab437be51c4426ee0dc9257d",
+  "clips": {
+    "idle": {
+      "fps": 10,
+      "frames": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (1).png",
+          "source_sha256": "939c1f8e6ba129632632d9dc302c905b4674c3c15c00f4c6a1f3dc189073c09e"
+        },
+        {
+          "x": 256,
+          "y": 0,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (2).png",
+          "source_sha256": "2af8ecd05ed874776b73b24a4070ad2e6c391f38d6d4be003636c622d2a53d2c"
+        },
+        {
+          "x": 512,
+          "y": 0,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (3).png",
+          "source_sha256": "72d03ef5ad31218a123e7caa79e03fc3f3d521a379c2947d8846724f128328d4"
+        },
+        {
+          "x": 768,
+          "y": 0,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (4).png",
+          "source_sha256": "9df513c2cd439e9efa9e7d020529dfe9190b60dbe5af0a3d1a1affe8d20b0deb"
+        },
+        {
+          "x": 1024,
+          "y": 0,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (5).png",
+          "source_sha256": "9798a45d98ca0bb2b8f06cd41c31bfc8eb5b5387e02b33f47b7ff0775731bb75"
+        },
+        {
+          "x": 1280,
+          "y": 0,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (6).png",
+          "source_sha256": "c4aa79fe5685d1af873b5ab937658fcda2d0d52d169dbfa7088d0a97af23057d"
+        },
+        {
+          "x": 1536,
+          "y": 0,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (7).png",
+          "source_sha256": "716efe1407ab227e514235ec2a13271230d51d5ca11b9158d527c394c6a08c83"
+        },
+        {
+          "x": 1792,
+          "y": 0,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (8).png",
+          "source_sha256": "b9289e9c019d366c1b8c1871a369580340fe291c15c890d10fc6660ba8f84dcd"
+        },
+        {
+          "x": 0,
+          "y": 280,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (9).png",
+          "source_sha256": "f5fe2bf73da3cd7c76700a4595bce8489c8b143a84756817899b1bbe898f4b28"
+        },
+        {
+          "x": 256,
+          "y": 280,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (10).png",
+          "source_sha256": "16516da80667ea4a8d7a9df3beda58530e94b3a6a89dcfcabb9c2500d304ecbd"
+        },
+        {
+          "x": 512,
+          "y": 280,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (11).png",
+          "source_sha256": "05819d730547fc173755ee74ac2796d8788b93247f12abb345198ad9cfc0482b"
+        },
+        {
+          "x": 768,
+          "y": 280,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (12).png",
+          "source_sha256": "375d2b8239ab6809e5af989964a3e42b1171e5f4f051e5bbaa81cb4af5f78a78"
+        },
+        {
+          "x": 1024,
+          "y": 280,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (13).png",
+          "source_sha256": "55e1f8e3427ac8985d5ed5b9efc909a336031a5c5001a20fc64cbc1d874466e5"
+        },
+        {
+          "x": 1280,
+          "y": 280,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (14).png",
+          "source_sha256": "89e3413753037e9b233ded03789f1172f2018382f8c86a17d1de9737032e49c6"
+        },
+        {
+          "x": 1536,
+          "y": 280,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (15).png",
+          "source_sha256": "4e3bdbef848a021d5ec3c4d7c009441f028ce1a848487fa2b246113b6f11ebc1"
+        },
+        {
+          "x": 1792,
+          "y": 280,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Idle (16).png",
+          "source_sha256": "390e5664b2b1a3f2d9a37e9e5537a53d2d7ae2d426069f7235f34ce1fcb96a1f"
+        }
+      ]
+    },
+    "walk": {
+      "fps": 12,
+      "frames": [
+        {
+          "x": 0,
+          "y": 560,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (1).png",
+          "source_sha256": "93a2302273de28ec0ebf8c6804dea921bd8c406f93337dc8f65be5dba2423123"
+        },
+        {
+          "x": 256,
+          "y": 560,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (2).png",
+          "source_sha256": "cdbf7de65d57a9820a8524317a8664aec6ec7b46aa92b85c771d97b8fd46056b"
+        },
+        {
+          "x": 512,
+          "y": 560,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (3).png",
+          "source_sha256": "81a840ecb9cc73145021ec4b84cfa7c8505755afe8d2096426697b0437d00cc0"
+        },
+        {
+          "x": 768,
+          "y": 560,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (4).png",
+          "source_sha256": "d332a048dfbdfbf66b0be7b9b60a74d7e91a4a20c33da522e3e4e4e80d0111b8"
+        },
+        {
+          "x": 1024,
+          "y": 560,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (5).png",
+          "source_sha256": "507d746f9ef19d413b3316961fb650606ec7561ca08e58461835ec801b98d756"
+        },
+        {
+          "x": 1280,
+          "y": 560,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (6).png",
+          "source_sha256": "fa7e52a624406f5c304602e24dea5095ce589e0cc287a7de1f90e4e7391e4af6"
+        },
+        {
+          "x": 1536,
+          "y": 560,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (7).png",
+          "source_sha256": "973ef93e4bc1c0eaae6f861298544bcb407bfd686656455d55204a672feaa4c7"
+        },
+        {
+          "x": 1792,
+          "y": 560,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (8).png",
+          "source_sha256": "7f3e0ec6558dde1d6929e067a4d6a09bcd63afb1a434dbb067226bdb10287d7b"
+        },
+        {
+          "x": 0,
+          "y": 840,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (9).png",
+          "source_sha256": "c83f379e9152d4ba3b9b172684cbc9ea9ddef7d1c20301d158a17e3cc4ff20b9"
+        },
+        {
+          "x": 256,
+          "y": 840,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (10).png",
+          "source_sha256": "7090f379b9285daa042fced6629efeaeb0e05944a776867d41dd68068681c62c"
+        },
+        {
+          "x": 512,
+          "y": 840,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (11).png",
+          "source_sha256": "c67496efd6d8a56ab79ac290454a362c0a5970617b30b55d11b1379f8f80923c"
+        },
+        {
+          "x": 768,
+          "y": 840,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (12).png",
+          "source_sha256": "f8a54f365281ad668cc5b138956a2a77d1f528247a11bbf17e4efb519e463bde"
+        },
+        {
+          "x": 1024,
+          "y": 840,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (13).png",
+          "source_sha256": "6eed947298a51b6045f4110009f45af99c3e081392283cbf3a597e1c4f90b44b"
+        },
+        {
+          "x": 1280,
+          "y": 840,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (14).png",
+          "source_sha256": "69bad4c55992c49a1db7f38c3826763b2f7480e73a1b9213064d427b2988ebb4"
+        },
+        {
+          "x": 1536,
+          "y": 840,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (15).png",
+          "source_sha256": "7711311238462f803a194edab8c6649b5b6aef2a79be1302d3ad6330beb7c7ce"
+        },
+        {
+          "x": 1792,
+          "y": 840,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (16).png",
+          "source_sha256": "c9856f86ad9b8c2d2df815bc62ffaa7ea0438e841eac36a1cd7e0f0a38f5e7f5"
+        },
+        {
+          "x": 0,
+          "y": 1120,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (17).png",
+          "source_sha256": "11741a9d6aae372cc10454a96f17de619903f23d93950d0883834afe3080c91f"
+        },
+        {
+          "x": 256,
+          "y": 1120,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (18).png",
+          "source_sha256": "55b9aca9f619ba532633b8389afefcf54642baf5033274f58104c642a2d37658"
+        },
+        {
+          "x": 512,
+          "y": 1120,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (19).png",
+          "source_sha256": "2ec64885ae3c8baa1db177fc2a191497d2eab7db8fa9a5b09cce675e10a92d49"
+        },
+        {
+          "x": 768,
+          "y": 1120,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Walk (20).png",
+          "source_sha256": "df1cad679bbe7a992e98503b21227e5bf48417dee024ddf0704d17d8da74a563"
+        }
+      ]
+    },
+    "jump": {
+      "fps": 12,
+      "frames": [
+        {
+          "x": 1024,
+          "y": 1120,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (1).png",
+          "source_sha256": "b7046a795c878af3f3a8b4d57a7daed7d10c8cc3a7192ce05b5605ae2ab1c8d7"
+        },
+        {
+          "x": 1280,
+          "y": 1120,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (2).png",
+          "source_sha256": "13dae324c1940d8718937cc5984b77817e2beefa5c7fecf6982036220dbd97c9"
+        },
+        {
+          "x": 1536,
+          "y": 1120,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (3).png",
+          "source_sha256": "d2d93ce6f51a70759906b1c01cf3682b4a9a26e9cd22ac52f6d93891bb9f36e2"
+        },
+        {
+          "x": 1792,
+          "y": 1120,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (4).png",
+          "source_sha256": "6024811a08dd746111398218c7f597dd6eaeac5f84381848be3edf655babefae"
+        },
+        {
+          "x": 0,
+          "y": 1400,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (5).png",
+          "source_sha256": "4963122abd51808cc510c9dd7dea8e7439ba44272b710dfd160c60c529c7ef91"
+        },
+        {
+          "x": 256,
+          "y": 1400,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (6).png",
+          "source_sha256": "efeafb04deaf4f8798dca1f7e3e9553830e533a33bef380741b864c5589f8032"
+        },
+        {
+          "x": 512,
+          "y": 1400,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (7).png",
+          "source_sha256": "1f1d66f90b8951de21a080d09c9e02a401e7acdacad37864fa5f7b63786fdba7"
+        },
+        {
+          "x": 768,
+          "y": 1400,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (8).png",
+          "source_sha256": "9aea479ca31a7396d5ca4ea070a0398c1e198cef9738e7e329fe05e7661ef21a"
+        },
+        {
+          "x": 1024,
+          "y": 1400,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (9).png",
+          "source_sha256": "a8c792e85e832927cd62b93ede4293ff00586e34c8773a706c5dae105110caa5"
+        },
+        {
+          "x": 1280,
+          "y": 1400,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (10).png",
+          "source_sha256": "86b8a577b17c5debeeb8f3549f15e4d5895d9dd0637fa3dbc58ab5da69d8db68"
+        },
+        {
+          "x": 1536,
+          "y": 1400,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (11).png",
+          "source_sha256": "42531d4196eb0fcfd3d10c15ca0b1963a985a6e0f8f43e6f1264fb6f4ca78e04"
+        },
+        {
+          "x": 1792,
+          "y": 1400,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (12).png",
+          "source_sha256": "d1d7eab69b9b123538d5f53e6de111f52741fa98d3c80040f33fbfc6a513c2ce"
+        },
+        {
+          "x": 0,
+          "y": 1680,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (13).png",
+          "source_sha256": "b5b2dc8495a72a598565bfcaac7974c1af71f30d92636f3d82832ccb7c88772c"
+        },
+        {
+          "x": 256,
+          "y": 1680,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (14).png",
+          "source_sha256": "0707535ddd69c2b5d6c063c57f087a34e314e07f115c15ae36a6c1951d0975d3"
+        },
+        {
+          "x": 512,
+          "y": 1680,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (15).png",
+          "source_sha256": "0a39ceae6861719b3c621a111fda4e788fd815ef8b92ec681fd81a34402048e9"
+        },
+        {
+          "x": 768,
+          "y": 1680,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (16).png",
+          "source_sha256": "cb4a21c1db74d35c0b55f39d4c9c1d394c730bf22b6b7834cb0ab4d5fbb37627"
+        },
+        {
+          "x": 1024,
+          "y": 1680,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (17).png",
+          "source_sha256": "6fb284d81d4a3ddc2a0054d2148b28b201e03d4f4e5c373d45ec1cdfcbdd2a1e"
+        },
+        {
+          "x": 1280,
+          "y": 1680,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (18).png",
+          "source_sha256": "93de49d34088854a5954b9d04124fb66cdcc959f1690ca74e80b6fa0daa4eb45"
+        },
+        {
+          "x": 1536,
+          "y": 1680,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (19).png",
+          "source_sha256": "cb08013a35089fe9a961fcc39660d6f2c631db45ef1b45b25f49894f1089d0ac"
+        },
+        {
+          "x": 1792,
+          "y": 1680,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (20).png",
+          "source_sha256": "62c20c362eed1e04a0479f08f5413bcea7f5b2d62cb4035f00af364f2c5b6762"
+        },
+        {
+          "x": 0,
+          "y": 1960,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (21).png",
+          "source_sha256": "6649ffd60a5dc0152b2d58ec7b1349e9b9916cb6c506eb0cdf2e6ec882c4cd90"
+        },
+        {
+          "x": 256,
+          "y": 1960,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (22).png",
+          "source_sha256": "876d3d9e6fdf1733e98a9296cef5aed9b30753caa4ee098f33e870c65fbffbae"
+        },
+        {
+          "x": 512,
+          "y": 1960,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (23).png",
+          "source_sha256": "47c449e4a60f2e83e54196afc074c79e96042df57a654b4df07f7848f2d96bb9"
+        },
+        {
+          "x": 768,
+          "y": 1960,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (24).png",
+          "source_sha256": "8e345d4e15486aaf54484b8cc74f34a7b11edd5a1b460117c9a17cfe93726f44"
+        },
+        {
+          "x": 1024,
+          "y": 1960,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (25).png",
+          "source_sha256": "ea344d3e2d21efe4bd49f57b1b8889d6c87f00c4c1d3eeb9ba317b27288ed3a5"
+        },
+        {
+          "x": 1280,
+          "y": 1960,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (26).png",
+          "source_sha256": "27e22cecfd5173b4af35f0aaa96edb7a2b79031aebc8b2e6f537cc0afdd86ae7"
+        },
+        {
+          "x": 1536,
+          "y": 1960,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (27).png",
+          "source_sha256": "98cebf051ea02ce181e6b866f3f3ccb264f7a35c964b97014b13ecc4c5cee58f"
+        },
+        {
+          "x": 1792,
+          "y": 1960,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (28).png",
+          "source_sha256": "444d3a60fcd915811554a082c0b1ff755650f4bfaeef9c74760f78fad5825499"
+        },
+        {
+          "x": 0,
+          "y": 2240,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (29).png",
+          "source_sha256": "b88602bf802e83e3919955d1e5f627702ee6b6f817e23a5bff1665f10814d554"
+        },
+        {
+          "x": 256,
+          "y": 2240,
+          "w": 238,
+          "h": 260,
+          "source_file": "png/Jump (30).png",
+          "source_sha256": "ab0beec9d1fea86e896a0ca50801daf81f5d30f73a96b5d229d50a83730cfbc0"
+        }
+      ]
+    }
+  },
+  "atlas_sha256": "9d80a3300915456e711e015fc4c3e4d205026c00417ce32d7ce1241ec4156097"
+}

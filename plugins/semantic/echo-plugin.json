@@ -1,0 +1,50 @@
+{
+  "id": "semantic",
+  "name": "Semantic Search",
+  "description": "提供语义与混合检索、查询优化和结果重排，使用共享模型与索引。",
+  "version": "0.12.0",
+  "dependencies": [
+    "knowledge",
+    "embeddings"
+  ],
+  "permissions": [
+    "semantic.read",
+    "semantic.write",
+    "knowledge.enhance",
+    "memory.enhance",
+    "inference.contribute",
+    "character.contribute"
+  ],
+  "settings": [
+    {
+      "key": "collections",
+      "label": "增强范围（memory,knowledge）",
+      "type": "text"
+    },
+    {
+      "key": "threshold",
+      "label": "语义阈值",
+      "type": "number",
+      "min": 0,
+      "max": 1
+    },
+    {
+      "key": "rerankMethod",
+      "label": "结果重排方式",
+      "type": "select",
+      "options": [
+        "llm",
+        "model"
+      ],
+      "optionLabels": {
+        "llm": "语言模型",
+        "model": "专用重排模型"
+      }
+    }
+  ],
+  "views": [],
+  "apiVersion": 1,
+  "package": "@echo/semantic",
+  "category": "Files and knowledge",
+  "optionalDependencies": []
+}

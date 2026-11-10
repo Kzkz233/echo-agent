@@ -1,0 +1,111 @@
+{
+  "id": "avatar",
+  "name": "Desktop Avatar",
+  "description": "Lightweight frame animation, shared bubbles and native chat input; optional renderer extensions.",
+  "version": "0.12.1",
+  "dependencies": [],
+  "permissions": [
+    "avatar.read",
+    "avatar.write",
+    "avatar.render",
+    "avatar.state",
+    "channels.adapter",
+    "character.contribute",
+    "reply-image.read",
+    "outputs.provide"
+  ],
+  "settings": [
+    {
+      "key": "assetDirectory",
+      "label": "Sprite directory (atlas.png + manifest.json; empty uses bundled CC0 sprite)",
+      "type": "path",
+      "pathMode": "directory"
+    },
+    {
+      "key": "corner",
+      "label": "Corner",
+      "type": "select",
+      "options": [
+        "left",
+        "right"
+      ],
+      "optionLabels": {
+        "left": "左下角",
+        "right": "右下角"
+      }
+    },
+    {
+      "key": "enabled",
+      "label": "显示桌宠",
+      "type": "boolean"
+    },
+    {
+      "key": "scale",
+      "label": "桌宠大小",
+      "type": "number",
+      "min": 0.4,
+      "max": 2
+    },
+    {
+      "key": "bubbleSeconds",
+      "label": "气泡停留时间（秒）",
+      "type": "number",
+      "min": 5,
+      "max": 120
+    },
+    {
+      "key": "fps",
+      "label": "桌宠帧率",
+      "type": "number",
+      "min": 1,
+      "max": 30
+    },
+    {
+      "key": "roam",
+      "label": "空闲时在屏幕底部漫游",
+      "type": "boolean"
+    }
+  ],
+  "views": [
+    "avatar"
+  ],
+  "apiVersion": 1,
+  "package": "@echo/avatar",
+  "characterSettings": {
+    "section": "appearance",
+    "title": "外观与桌宠",
+    "order": 10,
+    "editor": "avatar"
+  },
+  "category": "Desktop companion",
+  "storagePaths": [
+    {
+      "table": "documents",
+      "collection": "avatar-profiles",
+      "pointers": [
+        "/assetDirectory"
+      ]
+    },
+    {
+      "table": "documents",
+      "collection": "avatar-assets",
+      "pointers": [
+        "/directory"
+      ]
+    },
+    {
+      "table": "documents",
+      "collection": "character-settings.avatar",
+      "pointers": [
+        "/assetDirectory"
+      ]
+    },
+    {
+      "table": "kv",
+      "collection": "avatar.config",
+      "pointers": [
+        "/assetDirectory"
+      ]
+    }
+  ]
+}

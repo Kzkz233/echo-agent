@@ -1,0 +1,35 @@
+{
+  "id": "documents",
+  "name": "Knowledge Document Processing",
+  "description": "按需提取文档正文，支持代码解析、MinerU 在线 API 或本地模型，并保留 Markdown 与图片。",
+  "version": "0.9.0",
+  "dependencies": [
+    "files"
+  ],
+  "permissions": [
+    "knowledge.parse",
+    "documents.read",
+    "character.contribute"
+  ],
+  "settings": [],
+  "views": [],
+  "apiVersion": 1,
+  "package": "@echo/documents",
+  "characterSettings": {
+    "section": "tools",
+    "title": "工具与委派",
+    "order": 50
+  },
+  "category": "Files and knowledge",
+  "storagePaths": [
+    {
+      "table": "kv",
+      "collection": "documents.config",
+      "pointers": [
+        "/command",
+        "/args/*"
+      ]
+    }
+  ],
+  "optionalDependencies": []
+}

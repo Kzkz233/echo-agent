@@ -1,0 +1,10 @@
+{
+  "id":"models","apiVersion":1,"package":"@echo/models","version":"0.14.0",
+  "name":"Model Services","category":"Built-in components",
+  "description":"管理模型资源与本地运行额度；模型按需加载，凭据由应用存储保护。",
+  "dependencies":["embeddings","local-models"],"permissions":["system.read"],
+  "settings":[
+    {"key":"maxLoadedModels","label":"最多保留的本地模型数","type":"number","min":1,"max":4},
+    {"key":"idleSeconds","label":"闲置释放秒数","type":"number","min":10,"max":3600}
+  ]
+}

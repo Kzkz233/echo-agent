@@ -1,0 +1,41 @@
+{
+  "apiVersion": 1,
+  "id": "qq",
+  "package": "@echo/qq",
+  "name": "QQ Bot Channel",
+  "description": "通过 QQ 机器人将消息收发到指定会话，支持网关重连与分段投递回执。",
+  "version": "0.9.0",
+  "dependencies": [
+    "channels"
+  ],
+  "permissions": [
+    "qq.read",
+    "channels.adapter",
+    "channels.receive"
+  ],
+  "settings": [
+    {
+      "key": "enabled",
+      "label": "Connect QQ bot",
+      "type": "boolean"
+    },
+    {
+      "key": "appId",
+      "label": "QQ bot App ID",
+      "type": "text"
+    },
+    {
+      "key": "secretRef",
+      "label": "App secret credential reference",
+      "type": "text"
+    },
+    {
+      "key": "allowProactive",
+      "label": "Allow sends without an incoming reply ID (requires platform permission)",
+      "type": "boolean"
+    }
+  ],
+  "views": [],
+  "category": "Communication",
+  "optionalDependencies": []
+}

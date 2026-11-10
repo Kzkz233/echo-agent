@@ -1,0 +1,27 @@
+{
+  "id": "persona",
+  "name": "Character System",
+  "description": "管理角色身份、人设、权限、主会话与功能配置。",
+  "version": "0.9.0",
+  "dependencies": [],
+  "permissions": [
+    "context.contribute",
+    "persona.read",
+    "persona.write",
+    "character.configure",
+    "automation.invoke"
+  ],
+  "characterPermissions": [
+    "persona.read"
+  ],
+  "settings": [],
+  "views": [
+    "personas",
+    "persona-settings",
+    "character",
+    "character-wizard"
+  ],
+  "apiVersion": 1,
+  "package": "@echo/persona",
+  "category": "Built-in components"
+}

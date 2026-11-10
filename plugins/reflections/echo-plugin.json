@@ -1,0 +1,53 @@
+{
+  "apiVersion": 1,
+  "id": "reflections",
+  "package": "@echo/reflections",
+  "name": "Character Concerns",
+  "description": "维护角色近期在意、想主动关心和接着聊的事；与长期记忆分工，参与记忆整理和主动交流。",
+  "version": "0.12.0",
+  "dependencies": [
+    "persona"
+  ],
+  "permissions": [
+    "reflections.read",
+    "reflections.write",
+    "context.contribute",
+    "review.contribute",
+    "care.context",
+    "character.contribute"
+  ],
+  "settings": [
+    {
+      "key": "inject",
+      "label": "向启用人格记忆的会话注入当前关注",
+      "type": "boolean"
+    },
+    {
+      "key": "maxNotes",
+      "label": "最多注入条数",
+      "type": "number",
+      "min": 1,
+      "max": 20
+    },
+    {
+      "key": "maxChars",
+      "label": "注入字符上限",
+      "type": "number",
+      "min": 300,
+      "max": 10000
+    }
+  ],
+  "views": [
+    "reflections"
+  ],
+  "characterSettings": {
+    "section": "memory",
+    "title": "记忆与资料",
+    "order": 20
+  },
+  "category": "Memory and behavior",
+  "optionalDependencies": [
+    "review",
+    "care"
+  ]
+}

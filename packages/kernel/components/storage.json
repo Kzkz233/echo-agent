@@ -1,0 +1,13 @@
+{
+  "id": "storage",
+  "apiVersion": 1,
+  "package": "@echo/storage",
+  "version": "0.12.1",
+  "category": "Built-in components",
+  "name": "Application Storage",
+  "description": "管理应用数据位置、完整性与受控迁移；外部资料目录和项目保持独立。",
+  "permissions": [
+    "system.read",
+    "system.write"
+  ]
+}

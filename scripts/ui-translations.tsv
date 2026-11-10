@@ -1,0 +1,2346 @@
+(provider unavailable)	提供方不可用
+MB	MB
+· blocked: reconcile unknown execution	· 暂停：请先核对未知执行
+· v	· v
+· 已缓存正文	· Body cached
+个附件	attachments
+使用可配置输入模式。	uses the selected input mode.
+服务器	Server
+聊聊吧	Let's chat
+说点什么…	Say something…
+(unavailable; using frames)	不可用，已回落到帧动画
+5 秒选帧 · 四帧拼图 · 两轮上文	5-second frames · 4-frame mosaic · 2 prior rounds
+API Base URL（包含 /v1）	API base URL (including /v1)
+API Key	API Key
+API 思考参数格式	Reasoning parameter format
+Adapter	通道适配器
+Add entry on	在此日期新增
+Add previewed entries	添加预览条目
+Agenda	日程
+All day	全天
+All-day reminder hour	全天条目的提醒小时
+Allow sends without an incoming reply ID (requires platform permission)	允许主动推送（需要平台权限）
+Also show replies in a bubble	同时显示桌宠气泡
+App secret credential reference	应用密钥引用
+Approvals	审批
+Approve	批准
+Assets	素材
+Automatic	自动
+Avatar	桌宠
+Back up now	立即备份
+Backends	推理后端
+Backup	备份
+Bindings	会话绑定
+Calendar time zone (IANA)	日历时区（IANA）
+Calendar title	日程标题
+Cancel sign-in	取消登录
+Care	关心事项
+Care card	关心卡片
+Channels	通道
+Character renderer	角色渲染器
+Check sign-in	检查登录状态
+Choose a conversation	选择会话
+Choose an adapter	选择适配器
+Close	关闭
+Codex account	Codex 账户
+Connect QQ	连接 QQ
+Connect QQ bot	连接 QQ 机器人
+Conversation	会话
+Conversation (optional)	会话（可选）
+Conversation binding	会话绑定
+Copy sign-in link	复制登录链接
+Corner	停靠位置
+Create a complete backup	完整备份
+DSH Provider ID	DSH 提供方 ID
+DSH 与 Codex 使用 Echo 自己的数据目录，不读取你的桌面会话。DSH 参数示例：每行依次填写 --profile、sdk-minimal。Codex：app-server。认证须在对应的隔离目录中完成。	DSH and Codex use isolated Echo data. DSH arguments: --profile and sdk-minimal on separate lines. Codex: app-server. Sign in within the isolated profile.
+Daily	每日
+Date	日期
+Default reminder conversation ID (optional)	默认提醒会话（可选）
+Default reply conversation	默认回复会话
+Delete	删除
+Delivery receipts	投递回执
+Disable	停用
+Discovered peers	已发现的联系人
+Document Parsing	文档解析
+E	E
+Edit	编辑
+Edit entry	编辑日程
+Enable	启用
+Enable automatic execution	自动执行
+End	结束
+English	English
+Enter 发送	Enter to send
+Entry details	日程详情
+Executions	执行记录
+Export	导出
+Export three-day brief	导出三日简报
+Extension points and providers	扩展点与提供方
+File root	文件库
+Files	文件
+Frame animation (lightweight default)	帧动画
+HTTPS 模型下载源	Model download origin (HTTPS)
+Import	导入
+Import RIS	导入 RIS
+Import a RIS bibliography	导入 RIS 文献
+Import an image	导入图片
+Import an original	导入原件
+Inspect	核对
+Inspect receipt (does not retry)	核对回执
+Interval	间隔
+JPEG 质量	JPEG quality
+Knowledge	知识库
+Knowledge export ZIP	知识库导出 ZIP
+Knowledge export format	知识库导出格式
+Last complete backup	最近完整备份
+Load	载入
+Local source path	本地原件路径
+MB ·	MB ·
+MCP 对外能力	MCP tools
+角色可用的应用能力	Application capabilities granted to this character
+应用设置决定全局上限；这里决定这个角色能调用哪些共享模块。	Application settings set the global ceiling; this controls which shared tools this character can call.
+共享模块	Shared module
+应用级许可构成全局上限；角色还需单独获准才能使用对应工具。默认只开放读取。	Application permissions set the global ceiling. Each character must also be granted access to character-level tools. Only read access is enabled by default.
+角色级能力 · 在角色配置中单独授予	Character-level · Grant per character
+应用级能力 · 此处设置全局上限	Application-level · Sets the global ceiling
+画面诊断：可见区域 {visible}% · 内容信号 {content}% · {backend}	Frame check: visible area {visible}% · image signal {content}% · {backend}
+GDI 没读到像素内容；无边框全屏可能触发显卡合成回退。	GDI returned no image pixels; borderless full-screen may require GPU capture fallback.
+Mail	邮件
+Mail Actions	邮件操作
+Mark read	标为已读
+Mark reconciled	标记已核对
+Markdown preview	Markdown 预览
+Markdown source	Markdown 原文
+Markdown 与附件	Markdown and attachments
+Markdown 正文	Markdown body
+Markdown 正文与附件会显示在这里。	Markdown and attachments appear here.
+Memory	记忆
+Minutes before (all-day entries use the configured reminder hour)	提前分钟数（全天日程使用默认提醒时刻）
+New entry	新建日程
+Next month	下个月
+No per-entry binding	不单独绑定会话
+None	无
+Not signed in	未登录
+Notes	备注
+Notification inbox	通知收件箱
+Notifications	通知
+Observation	观察
+One named-group regular expression per line: date, start, end, priority, project, title, notes	每行一条命名组正则：date、start、end、priority、project、title、notes
+Open again to renew access	重新打开以续期访问
+Open official sign-in	打开官方登录页面
+Open the official sign-in link, then check sign-in again.	在官方页面登录后，再检查登录状态。
+Optional Review sources	整理资料来源
+Optional Review targets (non-core only)	整理目标（非核心内容）
+Parent entry	上级条目
+Pending decisions and receipts	审批与回执
+Persona	角色
+Plugins	插件
+Preview drafts	预览条目
+Previous month	上个月
+Priority	优先级
+Progress fallback after scheduled time (minutes)	兜底延迟分钟数
+Project	项目
+Project name	项目名称
+Projects	项目
+QQ	QQ
+QQ bot App ID	QQ App ID
+QQ connection	QQ 连接
+Recent reminders	最近提醒
+Register	注册
+Register a root	注册文件库
+Reject	拒绝
+Remind me	提醒我
+Report conversation ID (blank: disabled)	报告接收会话（留空不发送）
+Research	文献
+Restore to new directory	恢复到新目录
+Retry failed portion	补发失败部分
+Review	记忆整理
+Review before execution	执行前核对
+Review: arrival lookback days (explicitly read bodies are always eligible)	整理时回看天数（已读正文始终可纳入）
+Run once	执行一次
+Save binding	保存绑定
+Save card	保存卡片
+Save entry	保存日程
+Save planning details	保存规划
+Save project	保存项目
+Save task	保存任务
+Schedule	执行周期
+Scheduled brief conversation ID (blank: export only)	简报接收会话（留空仅导出）
+Scheduled task	定时任务
+Scheduler	任务调度
+Select…	请选择…
+Semantic Search	语义检索
+Shift + Enter 换行	Shift + Enter for a new line
+Sign in with ChatGPT	使用 ChatGPT 登录
+Signed in:	已登录：
+Sprite directory (atlas.png + manifest.json; empty uses bundled CC0 sprite)	帧素材目录（留空使用演示素材）
+Start	开始
+State	状态
+Structured agenda input	结构化日程输入
+Structured input	结构化输入
+Task handler	任务处理器
+This provider does not require OpenAI sign-in	此提供方无需 OpenAI 登录
+Title	标题
+Today	今天
+Unassigned	未分配
+Unscheduled	尚未安排时间
+Use semantic enhancement when available	使用可用的语义检索
+Verify	校验
+[External image:	[外部图片：
+[Unregistered attachment:	[未注册附件：
+disabled	未启用
+e	e
+enabled	已启用
+env:MY_API_KEY 或本机凭据名称	env:MY_API_KEY or a stored credential name
+example.com	example.com
+files ·	个文件 ·
+game.exe	game.exe
+messages on this binding	条消息使用此绑定
+v0.2	v0.2
+”仍被以下功能使用。先在对应页面解除绑定，再删除会话。	” is still used by these features. Unbind it there before deleting the conversation.
+”的聊天记录将从 Echo 删除，已绑定的宿主会话会归档。	” will be removed from Echo. Its native backend session will be archived.
+⌃ K	⌃ K
+上次执行的结果尚未确认。	The previous result still needs to be checked.
+专用工作目录	Dedicated working directory
+为此会话注入人格与召回的记忆	Inject persona and recalled memories into this conversation
+主动交流	Proactive chat
+主动交流会话、频率和提示词在 Plugins → Care 设置。默认不自动开口。	Configure proactive chat in Plugins → Care. It starts off.
+主动交流提示词	Proactive chat prompt
+主导航	Main navigation
+主题	Subject
+主题色	Accent color
+互动会话	Interaction conversation
+互动最小间隔（秒）	Minimum interaction interval (seconds)
+人工确认处理	Resolve manually
+人格提示词	Persona prompt
+人格记忆	Persona & memory
+人类发言后的静默分钟	Quiet time after a human message (minutes)
+从一个想法、一件小事开始。	Start with a thought or a small moment.
+任务与白名单	Task & allowlist
+任务路由	Task routes
+会话后端	Conversation backend
+会话已删除	Conversation deleted
+会话已导出	Conversation exported
+会话标题	Conversation title
+会话角色	Conversation persona
+会话设置	Conversation settings
+会话设置已保存	Conversation settings saved
+作为核心记忆固定注入	Always include as core memory
+你	You
+你的上下文，自己的节奏。	Your context, your pace.
+使用同一操作注册表选择性暴露工具。默认只开放读取。	Choose which tools to expose. Read-only access is the default.
+使用已启用的 RAG 增强	Use the enabled retrieval enhancement
+使用邮箱提供的应用密码连接 IMAP 和 SMTP。	Connect IMAP and SMTP with an application password.
+依赖：	Dependencies:
+保存任务路由	Save routes
+模块推理模型	Module inference models
+推理任务路由	Inference task routes
+此处选择角色启用哪些功能；模块本身在插件页全局启停。	Select the features enabled for this character; modules themselves are enabled globally in Plugins.
+保存后端	Save backend
+保存开放范围	Save tool access
+保存正文	Save body
+保存草稿	Save draft
+保存角色	Save persona
+保存记忆	Save memory
+保存设置	Save settings
+保存账户	Save account
+保存配置	Save configuration
+保留 Echo 会话和历史回执。解除后，这个入口不再自动调用该会话。	Keep the conversation and receipts. This entry point will stop routing to the conversation.
+保留完整备份份数	Complete backups to keep
+信任并登记	Trust and register
+修改核心记忆？	Update core memory?
+值得聊聊	Worth discussing
+停止回复	Stop reply
+停用	Disable
+停用增强插件不会删除条目或规划属性；基础日历依然可用。	Disabling the enhancement keeps calendar entries and planning data.
+允许首次下载模型	Allow model downloads
+元数据已同步	Metadata synced
+先为聊天选择一个推理后端。	Choose a chat backend first.
+先在 Plugins → Backup 选择备份目录和保留数量。快照含会话、状态和受管档案，不含密钥文件。	Set a backup directory and retention in Plugins → Backup. Snapshots include chats and managed files, but not credentials.
+先在 Plugins 启用 QQ，再保存 App ID 和 App Secret。QQ 网络直连，模型路由独立配置。	Enable QQ in Plugins, then save its App ID and secret. QQ connects directly; inference routes are separate.
+先解除会话绑定	Unbind this conversation first
+先读取完整正文后再编辑	Read the complete document before editing
+先选择一个账户	Select an account first
+全部	All
+全部条目	All entries
+全部账户	All accounts
+关联角色	Linked persona
+关键词阈值	Keyword threshold
+关闭	Close
+关闭导入面板	Close import panel
+关闭导出面板	Close export panel
+关闭库管理面板	Close library settings
+关闭知识正文	Close document
+关闭通知	Dismiss notice
+关闭错误提示	Dismiss error
+内容	Content
+写好内容后保存，发送前仍需核对审批。	Save a draft, then review it before sending.
+写邮件	Compose
+凭据引用	Credential reference
+切换后端会归档旧宿主会话，并带入完整 Echo 记录。	Switching archives the old backend session and imports the full Echo history.
+删除会话	Delete conversation
+删除当前会话	Delete current conversation
+删除日程	Delete entry
+删除白名单	Remove allowlist rule
+删除这条日程？	Delete this entry?
+删除这段对话？	Delete this conversation?
+刷新	Refresh
+刷新状态	Refresh status
+刷新页面数据	Refresh page data
+前往配置	Configure
+加载更多缓存记录	Load more cached messages
+加载更早记录	Load earlier messages
+加载本地扩展	Load local extension
+加载本地扩展？	Load this extension?
+单次最大输出 token	Maximum output tokens
+参考前几轮摘要	Prior summaries to include
+发件人：	From:
+发件账户	Sending account
+发送 ↑	Send ↑
+发送结果待核对，不会自动重发。请到审批页检查回执。	The send result is unknown and will not be retried. Check its receipt in Approvals.
+取消	Cancel
+只会写入指定的新空目录，不覆盖现有数据。恢复后自动功能保持关闭。	Restore only to the new empty directory. Existing data is untouched and automation stays off.
+只在你打开邮件时读取正文，不自动加载外部图片。	Bodies load when opened. External images are not loaded automatically.
+只观察，不触发互动	Observe without interaction
+只重试明确失败的部分，已确认成功的内容会保留。	Retry only the confirmed failed portion. Successful segments are preserved.
+召回结果	Recall results
+可以独立保留桌宠，关闭管理窗口以释放页面资源。观察到娱乐内容时，桌宠停留在右下角。	The avatar can stay after closing the manager. During entertainment observation it docks at the lower right.
+可召回	Recalled on demand
+可执行程序的完整路径	Executable path
+可独立打开的知识库	Portable library bundle
+可选：简短介绍这个网站或游戏，以及希望关注什么。	Optional: briefly describe this source and what to notice.
+同步	Sync
+名称	Name
+后端名称	Backend name
+后端配置	Backend configuration
+向量来源	Embedding source
+启动参数（每行一个）	Arguments, one per line
+启用	Enable
+启用主动交流	Enable proactive chat
+启用自动整理	Enable automatic review
+和	With
+回到最新消息 ↓	Latest messages ↓
+图片上传量按 base64 估算，不含文本、TLS 和协议开销。	Estimated base64 image bytes, excluding text and protocol overhead.
+在“账户设置”添加一个账户。	Add an account in Account settings.
+增强范围（memory,knowledge）	Enhancement scopes (memory,knowledge)
+备份目录	Backup directory
+外观与语言	Appearance & language
+多个地址以英文逗号分隔	Separate addresses with commas
+字符	characters
+完成	Done
+完成左侧的设置后，记录会显示在这里。	New records appear here.
+对	To
+对话	Chat
+对话轮数	Conversation rounds
+导入	Import
+导入一份原件，或创建一篇笔记。	Import a source or create a note.
+导入原件	Import source
+导入文本文件；启用 Document Parsing 后也可处理 PDF 和 Office。每份原件对应一个当前知识包。	Import text, or enable Document Parsing for PDF and Office files. One source maps to one current entry.
+导出	Export
+导出会话	Export conversation
+导出完整会话	Export full conversation
+导出知识库	Export library
+封已加载	messages loaded
+将按当前冻结的完整内容执行，请先核对收件人和正文。	The frozen operation will run exactly as shown. Check the recipients and body first.
+将此会话的增量记录纳入记忆整理	Include new messages in memory review
+小模型生成检索词	Generate retrieval terms with a small model
+尚未选择后端	No backend selected
+工作	Work
+已切换后端	Backend switched
+已创建对话	Conversation created
+已刷新	Refreshed
+已向前加载一批历史元数据	Older metadata loaded
+已启用	Enabled
+已固化知识包	Knowledge imported
+已导出	Exported
+已提交审批	Submitted for approval
+已有账户的密码留空即可沿用，凭据保存在本机受保护存储中。	Leave the password blank to keep the stored credential.
+已请求停止	Stop requested
+已请求续跑	Resume requested
+已读取	Read
+已读取下一段	Next section loaded
+已连接本机	Connected locally
+已配置账户	Configured accounts
+希望视觉模型关注什么	What the vision model should notice
+库管理	Libraries
+应用上下文	Application context
+开启观察	Start observation
+开始一段对话	Start a conversation
+开始小时	Start hour
+开始恢复	Restore
+当前会话后端	Current conversation backend
+当前知识库	Current library
+思考与运行参数	Reasoning & runtime options
+思考强度	Reasoning level
+恢复到新目录？	Restore to a new directory?
+我知道了	Got it
+执行方式	Backend type
+扩展已登记，可在列表中启用	Extension registered; enable it in the list
+扩展目录	Extension directory
+批准执行	Approve operation
+批准这项操作？	Approve this operation?
+换个检索词，或检查检索提供方配置。	Try another query or check the retrieval provider.
+提醒不调用模型。Notifications 可增强收件箱和已绑定会话展示；缺少它时提醒仍保存在此处。	Reminders do not use a model. Enable Notifications to show them in the inbox and linked chat.
+插件状态筛选	Filter plugins by state
+搜索主题、发件人或已读正文	Search subject, sender, or cached body
+搜索会话	Search conversations
+搜索对话或角色	Search conversations or personas
+搜索插件	Search plugins
+搜索插件…	Search plugins…
+搜索邮件	Search mail
+撰写邮件	Compose mail
+操作已完成，但页面刷新失败。请刷新后查看结果。	The operation finished, but the page could not refresh. Refresh to see its result.
+收件人	Recipients
+收件人：	To:
+收起桌宠	Hide avatar
+收起绑定提示	Dismiss binding notice
+放弃修改并离开	Discard and leave
+整理	Review
+整理已发起	Review started
+整理方向	Review instructions
+文档解析器	Document parser
+新建对话	New conversation
+新建笔记	New note
+新知识库目录	New library directory
+新账户	New account
+无	None
+时区	Time zone
+显示桌宠	Show avatar
+暂停观察	Pause observation
+更多选项	More options
+更换素材可提供 PNG 帧图集及对应 manifest。角色素材使用自身的许可。	Use a PNG frame atlas and its manifest. Character assets retain their own licenses.
+最多召回	Maximum recalled memories
+最小间隔分钟	Minimum interval (minutes)
+最近的检索回退	Recent retrieval fallback
+最近运行	Recent runs
+未启用	Disabled
+未绑定的联系人不会调用模型。Observe 不自动发送 QQ；平台对主动推送、回复时限和条数另有约束。	Unbound peers never invoke a model. Observation does not send QQ; platform limits still apply.
+本地 ONNX 模型路径或 ID	Local ONNX model path or ID
+本地扩展可运行本机代码，仅加载信任的目录。	Local extensions run code. Load only trusted directories.
+本机地址	Local address
+本机已连接	Local connection
+本次进程	This session
+材料文件路径	Source file path
+条材料 · 已检查	materials · read
+条目	Entries
+条记忆建议	memory suggestions
+来源背景说明	Source context
+查找功能…	Find a feature…
+查找页面	Find a page
+查看与编辑草稿	View or edit draft
+查看图片	View image
+查看诊断	Open diagnostics
+标记已核对	Mark checked
+标题	Title
+核对后端	Inspect backend
+核对完成	Inspection complete
+核对完整内容后在这里批准或拒绝。邮件等插件只负责提出操作；消息通道不能代替你的审批决定。	Check the full content before approving or rejecting. Message channels cannot approve for you.
+核心	Core
+核心记忆会固定注入后续对话，请确认内容准确。	Core memory is always included in future chats. Confirm that it is accurate.
+桌面客户端会自动连接。命令行用户可运行启动器打开浏览器。	The desktop client connects automatically. CLI users can open the browser from the launcher.
+桌面显示	Desktop display
+检索	Search
+检索完成	Search complete
+检索提供方	Retrieval provider
+检索知识正文…	Search knowledge…
+检索结果	Search results
+检索预览	Preview recall
+模型 ID	Model ID
+模型 ID（留空沿用 Harness 默认）	Model ID (blank uses backend default)
+正在回复	Replying
+正在处理	Working
+正在思考	Thinking
+正在排版…	Formatting…
+正在观察获准内容	Observing allowed content
+正在读取	Loading
+正在读取对话	Loading conversation
+正在读取正文	Loading body
+正在读取邮件列表	Loading mail
+正在重新连接	Reconnecting
+正文	Body
+正文未能读取	Body could not be loaded
+此会话仍有绑定	This conversation is still linked
+此扩展可以运行本机代码，请仅加载你信任的目录。	This extension can run local code. Only load a directory you trust.
+此插件的常用功能位于左侧专用页面。	Open the feature from the sidebar.
+此模型支持图像输入	This model supports images
+段	sections
+每帧宽度	Frame width
+每日分钟	Minute of day
+每日小时	Hour of day
+每段材料字符数	Characters per review packet
+气泡显示秒数	Bubble duration (seconds)
+没有匹配的功能	No matching features
+没有匹配的邮件	No matching messages
+没有找到匹配的对话	No matching conversations
+没有找到相关内容	No relevant content found
+注册目录	Register directory
+浏览	Browse
+添加	Add
+添加你的第一个账户	Add your first account
+添加记忆	Add memory
+点击日期旁的 ＋ 新增条目，点击条目编辑。	Use + on a date to add an entry, or select one to edit.
+点击气泡、右键或双击角色打开输入气泡。Ctrl+Enter 发送，Enter 换行，Esc 收起；输入会沿用所选会话的人格、记忆和推理后端。	Click a bubble, right-click, or double-click the avatar to reply. Enter sends; Shift+Enter adds a line; Esc cancels.
+版本	Version
+版本、权限与依赖	Version, permissions & dependencies
+申请发送审批	Request send approval
+申请审批使用上次保存的完整草稿；修改后请先保存。	Approval uses the saved draft. Save any changes first.
+界面语言	Interface language
+留空沿用已存凭据	Leave blank to keep the stored key
+登记扩展	Register extension
+白名单内容	Allowed source
+目录已注册	Directory registered
+目标会话编号	Target conversation
+直接 TLS 连接	Direct TLS connection
+知识已保存	Knowledge saved
+知识库目录	Library directories
+知识条目类型	Entry type
+知识标题	Knowledge title
+知识检索词	Knowledge query
+知识正文	Knowledge body
+知识片段	Knowledge excerpt
+知道发生了什么	How it works
+确认	Confirm
+确认保存	Save changes
+确认处理	Confirm resolution
+确认外部影响后结束此条未知执行，不会重新执行。	Confirm external effects before ending this unknown execution. It will not run again.
+确认已核对外部结果？	Confirm the external result was checked?
+确认已核对执行结果？	Confirm the execution was checked?
+确认续跑	Resume
+示例素材：pzUH · Cute Girl · CC0	Sample: pzUH · Cute Girl · CC0
+离开前放弃修改？	Discard changes before leaving?
+移除	Remove
+移除记忆	Remove memory
+移除这条记忆？	Remove this memory?
+程序文件名	Process filename
+程序通知	Application notice
+程序通知保留独立作者与投递回执，不会冒充你的聊天消息。	Application notices retain their own authorship and receipts.
+端口	Port
+等待可见白名单内容	Waiting for an allowed visible source
+简体中文	简体中文
+管理连接设置	Manage connections
+系统	System
+纳入整理	Include in review
+纳入这些非核心记忆	Apply these non-core memories
+结束小时	End hour
+结束这条未知运行，不会重新投递或重发消息。	End this unknown run without resending or replaying it.
+继续一封草稿，或写一封新邮件	Continue a draft or write a new message
+继续读取	Read more
+编辑	Edit
+编辑知识正文	Edit knowledge body
+编辑记忆	Edit memory
+编辑账户	Edit account
+网站域名	Website domain
+聊天消息	Chat message
+聊天默认路由	Default chat route
+能力：	Permissions:
+自动写入非核心记忆	Apply non-core memories automatically
+自动整理已关闭	Automatic review is off
+自动整理已启用	Automatic review is on
+自动选择可用提供方	Select an available provider automatically
+自定义主题色	Custom accent color
+草稿与发送回执	Drafts and send receipts
+草稿已保存	Draft saved
+补发	Retry delivery
+补发失败的部分？	Retry the failed portion?
+补载历史元数据	Load older metadata
+观察互动	Observation chat
+观察互动的方向	Observation interaction prompt
+视觉观察	Visual observation
+角色	Persona
+角色、已保存的记忆和知识档案会保留。此操作无法撤销。	Personas, saved memories, and archives are kept. Deleting the chat cannot be undone.
+角色缩放	Avatar scale
+解析与检索提供方	Parsing & retrieval providers
+解除此通道绑定？	Unbind this channel?
+解除绑定	Unbind
+触发方式	Trigger
+让对话有自己的延续	Keep the conversation going
+记忆召回	Memory recall
+记忆已纳入	Memories applied
+记忆检索	Memory query
+试着检索一件事…	Search for a memory…
+语义阈值	Semantic threshold
+请先解除绑定，再删除聊天记录。	Unbind this conversation before deleting it.
+调整周期与提示词	Schedule & prompts
+调整缩放与气泡时长	Scale & bubble duration
+账户已保存	Account saved
+资料	Library
+超时毫秒	Timeout (milliseconds)
+输入 API Key	Enter an API key
+输入文本字符预算	Input character budget
+近期观察	Recent observations
+返回全部	Back to all
+还没有完成的四帧观察。	No completed observation batches yet.
+还没有对话，点击 + 开始	No conversations yet. Use + to start.
+还没有整理记录。先在对话里打开「纳入整理」，再选择运行。	No reviews yet. Include a conversation in review, then start one.
+还没有模型运行。	No model runs yet.
+还没有草稿	No drafts yet
+还没有记录	No records yet
+还没有记忆。可以手动添加，也可以在对话后运行整理。	No memories yet. Add one or review a conversation.
+还没有邮件账户	No mail accounts yet
+这样可以避免后台继续向已删除的会话投递。	This prevents background tasks from routing to a deleted chat.
+这里不会直接发送，最后一步由你在审批页确认。	Sending requires your confirmation in Approvals.
+这里还没有条目	No entries yet
+连接	Connect
+连接中	Connecting
+连接令牌	Connection token
+连接本机 Echo	Connect to local Echo
+选择一个条目阅读	Select an entry to read
+选择一封邮件	Select a message
+选择或粘贴文件路径	Choose or paste a file path
+选择或粘贴目录路径	Choose or paste a directory path
+选择现有账户编辑，或添加一个新账户。	Select an account to edit or add a new one.
+选择账户同步元数据，或换个检索词。	Select an account to sync, or try another query.
+邮件主题	Mail subject
+邮件收件人	Mail recipients
+邮件正文	Mail body
+邮件视图	Mail view
+邮件账户筛选	Filter mail by account
+配置推理后端	Configure backend
+采集已关闭	Capture is off
+重新选择此邮件可以再试一次。	Select this message again to retry.
+重试	Retry
+量化	Quantization
+陪伴	Companion
+静止画面最长选帧间隔（秒）	Maximum still-frame interval (seconds)
+默认只导出普通知识与附件，不包含人格、记忆和观察档案。	Exports include ordinary knowledge and attachments, excluding persona, memory, and observation archives.
+默认格式：2026-11-05 09:00-10:00 [high] #Project title。日期、优先级和项目可按 Plugins 中的正则调整。	Format: 2026-11-05 09:00-10:00 [high] #Project title. Customize parsing in Plugins.
+（无主题）	(No subject)
+（未配置）	(not configured)
+（空正文）	(Empty body)
+＋ 新角色	＋ New persona
+＋ 添加	＋ Add
+＋ 添加白名单	＋ Add rule
+＋ 添加记忆	＋ Add memory
+Chat	聊天
+Diagnostics	诊断
+收件箱	Inbox
+草稿与发送	Drafts & sending
+账户设置	Accounts
+账户名称	Account name
+登录用户名	Login name
+发件地址	From address
+密码或应用密码	Password or app password
+靛蓝	Indigo
+海蓝	Ocean
+青绿	Teal
+蔷薇	Rose
+琥珀	Amber
+知识	Knowledge
+记忆	Memory
+观察	Observation
+文件管理	Files
+媒体素材	Assets
+邮件工作台	Mail
+任务调度	Scheduler
+数据保护	Data protection
+文献管理	Research
+待办审批	Approvals
+通知中心	Notifications
+会话对接	Channels
+已启用	Enabled
+未启用	Disabled
+等待依赖	Waiting for dependencies
+加载失败	Failed to load
+每日	Daily
+按轮数	By rounds
+两者结合	Both
+本地模型	Local model
+在线 / 本机 API	API
+关键词	Keywords
+跟随后端默认	Backend default
+关闭思考	Reasoning off
+极低	Minimal
+低	Low
+中	Medium
+高	High
+极高	Extra high
+左侧	Left
+右侧	Right
+打开功能页	Open feature
+未保存	Unsaved
+保存	Save
+已保存	Saved
+无可用的提供方	No available provider
+没有匹配的插件	No matching plugins
+和 {name} 聊聊吧	Chat with {name}
+对 {name} 说点什么…	Message {name}…
+此页有尚未保存的修改。	This page has unsaved changes.
+诊断信息	Diagnostic details
+已完成	Completed
+进行中	Running
+已暂停	Paused
+待处理	Pending
+失败	Failed
+结果待核对	Needs inspection
+已拒绝	Rejected
+已成功	Succeeded
+已发送	Sent
+草稿	Draft
+发送中	Sending
+读取失败	Could not load
+按需载入	Loaded on demand
+编辑素材与快捷操作	Assets & shortcuts
+跟随聊天路由	Use the chat route
+点击气泡、右键或双击角色打开输入气泡。Enter 发送，Shift+Enter 换行，Esc 取消；输入会沿用所选会话的人格、记忆和推理后端。	Click the bubble, right-click, or double-click the avatar to reply. Enter sends, Shift+Enter adds a line, and Esc cancels.
+Absolute directory	目录绝对路径
+Argument name (e.g. accountId or id)	参数名（如 accountId 或 id）
+Argument value	参数值
+Backup directory to verify	待校验的备份目录
+External peer (QQ: c2c:openid or group:openid; desktop: local)	外部联系人（如 c2c:openid）
+Hour	小时
+IMAP 文件夹	IMAP folder
+Interval minutes	间隔分钟数
+Minute	分钟
+Name	名称
+New empty data directory	新的空数据目录
+QQ App ID	QQ App ID
+QQ App Secret	QQ App Secret
+Tags, comma separated	标签（逗号分隔）
+Timezone (default Asia/Shanghai)	时区（默认 Asia/Shanghai）
+What to care about	关心内容
+v	v
+Library	资料库
+Activity	动态
+Automation	自动化
+Connections	连接
+System	系统
+Calendar	日历
+Planning matrix	日程矩阵
+Mon	一
+Tue	二
+Wed	三
+Thu	四
+Fri	五
+Sat	六
+Sun	日
+聊天与互动	Chat & interactions
+检索词构造	Retrieval terms
+记忆整理	Memory review
+在线 / 本机 API 向量	API embeddings
+角色提示词	Persona prompts
+插件设置	Plugin settings
+观察配置	Observation settings
+后端配置	Backend configuration
+日程	Calendar entry
+此页有尚未保存的修改。	This page has unsaved changes.
+新的对话	New conversation
+新角色	New persona
+新的后端	New backend
+不附加参数	No extra parameter
+模型 API	Model API
+内置 Pi	Embedded Pi
+左下角	Lower left
+右下角	Lower right
+Ctrl+Enter 发送，Enter 换行，Esc 收起	Enter sends · Shift+Enter adds a line · Esc cancels
+输入未发送，请稍后重试。	Message was not submitted. Please try again.
+操作失败。	Operation failed.
+请先选择推理后端。	Choose an inference backend first.
+会话仍有运行或未知结果，请先核对。	Inspect the active or unknown run first.
+会话仍有绑定，请先解除。	Unbind the conversation before deleting it.
+配置项无效，请检查表单。	Invalid settings. Check the form fields.
+找不到这条会话。	This conversation no longer exists.
+连接凭据无效，请从 Echo 启动器打开，或填写本机连接信息。	Invalid connection credentials. Open Echo from its launcher or reconnect.
+请求未完成。	The request did not complete.
+请求失败。	Request failed.
+已投递	Delivered
+排队中	Queued
+已读	Read
+未读	Unread
+待办	Open
+已取消	Cancelled
+已阻塞	Blocked
+技术回执	Technical receipt
+请输入检索词	Enter a search query
+修改后请先保存，再申请审批。	Save your changes before requesting approval.
+搜索所有知识库…	Search all libraries…
+后端绑定尚未完成。	The backend connection is incomplete.
+重新绑定	Reconnect backend
+已重新绑定	Backend reconnected
+新角色	New persona
+技术回执	Technical receipt
+Bind presentation/messaging adapters to canonical conversations. One inference per input, attributed origins and durable delivery receipts.	将消息与展示渠道绑定到同一会话，每次输入只生成一次，并保存来源与投递回执。
+Calendar, priorities, time ranges, reminders and optional conversation binding. No project workflow required.	日历、优先级、时间范围与提醒，可按需绑定会话。
+Lightweight frame animation, shared bubbles and native chat input; optional renderer extensions.	轻量帧动画、共享气泡与原生输入，可选渲染增强。
+Official Tencent gateway protocol, direct QQ networking, scoped conversation bindings and per-segment receipts. Disabled until configured.	腾讯官方网关、QQ 直连、会话绑定与逐段回执，配置后启用。
+Optional project matrix, structured regular-expression input, parent tasks, estimates and manual PNG export. All entries remain in Agenda.	项目矩阵、正则输入、父任务、估时与手动导出图片。条目仍保存在日历中。
+管理图片和表情素材，支持标签与预览。	Manage image and expression assets with tags and previews.
+共享的授权目录、文件编号、来源、校验和与安全写入。	Authorized folders, stable file IDs, provenance, checksums and safe writes.
+关心事项、静默门控、与观察互斥；在原会话生成并展示气泡。默认关闭。	Proactive care with quiet periods and observation gating. Replies stay in the same conversation. Off by default.
+前端审批中心：冻结操作内容、批准或拒绝、逐次执行回执；不绑定任何聊天通道。	Review frozen actions, approve or reject them, and inspect receipts independently of messaging channels.
+只采集白名单可见区域；本地检测、五秒选帧、四帧拼图。默认关闭。	Capture visible allowed areas with local detection, five-second selection and four-frame mosaics. Off by default.
+可选持久调度；统一时钟、逐次回执、未知执行不重放。	Durable scheduling with a shared clock and per-run receipts. Unknown outcomes are never replayed.
+可选的本地或在线向量化与语义检索；停用后基础归档和关键词检索继续工作。	Optional local or API embeddings and semantic search. Archives and keyword search work independently.
+按日或对话轮数整理，完整材料分段阅读、断点续跑、观察原文归档。	Daily or turn-based review with complete incremental reading, checkpoints and raw observation archives.
+按需 IMAP 同步、关键词检索、正文和草稿；发送需前端逐份确认。默认无账户。	On-demand IMAP sync, search, message reading and drafts. Sending requires approval. No accounts by default.
+按需 SQLite 在线快照与受管文件备份、校验、保留策略；不含凭据。	Verified SQLite snapshots and managed-file backups with retention limits. Credentials are excluded.
+按需工作进程提取数字 PDF、DOCX、PPTX、XLSX 正文；不加载向量模型。	Extract digital PDF and Office text in an on-demand worker. No embedding model is loaded.
+注册任意目录，导入文本原件并维护一对一的知识包。	Register folders, import originals and maintain one knowledge document per source.
+独立角色与观察偏好，按会话选择是否注入。	Independent personas and observation preferences, with per-conversation injection controls.
+统一收件箱与渠道回执；未知投递不重发，新增渠道可由插件贡献。	A shared inbox with delivery receipts and pluggable channels. Unknown deliveries are never repeated.
+统一检索词构造、关键词或本地/API 语义检索，按有效上下文去重。	Shared query planning, keyword or semantic recall, and deduplication against effective context.
+邮件操作增强：冻结草稿，在 Approvals 前端批准后才发送，结果未知不重发。	Freeze drafts for approval before sending. Unknown send outcomes are never retried.
+采样检查	Local checks
+选中帧	Selected frames
+完成拼图	Mosaics
+图像上传	Image uploads
+新的后端	New backend
+File Archive	原件档案
+Knowledge Library	知识库
+Persona Profiles	角色设定
+Persona Memory	角色记忆
+Proactive Conversation	主动交流
+Memory Review	记忆整理
+Live Observation	实时观察
+Desktop Avatar	桌宠展示
+Calendar & Reminders	日历与提醒
+Email Workspace	邮箱工作台
+Email Actions & Approval	邮箱操作与审批
+Notification Center	通知中心
+Action Approval	操作审批
+Conversation Channels	会话通道
+QQ Bot Channel	QQ 机器人通道
+Task Scheduler	任务调度
+Knowledge Document Processing	知识库文档解析
+Knowledge Semantic Search	知识库语义检索
+Image & Expression Assets	图片与表情素材
+Backup & Restore	备份与恢复
+导入 RIS 清单	Import RIS bibliography
+文献库已同步	Reference libraries synced
+同步文献库	Sync libraries
+连接文献库	Connect library
+RIS 文件	RIS file
+文献清单已导入	Bibliography imported
+全部文献	All references
+尚未同步	Not synced
+标题、作者或 DOI	Title, author or DOI
+文献处理状态	Processing status
+文献	Reference
+作者	Authors
+期刊与年份	Journal and year
+附件	Attachments
+操作	Actions
+未解析	Not processed
+查看文献详情	View reference details
+查看文献	View reference
+正在读取文献	Loading references
+没有匹配的文献	No matching references
+共 {count} 篇文献	{count} references
+上一页	Previous
+下一页	Next
+文献处理任务	Reference processing
+已处理 {count} 个附件	{count} attachments processed
+继续处理	Resume processing
+关闭连接文献库	Close library setup
+文献库已连接	Library connected
+显示名称	Display name
+留空使用文献库名称	Leave blank to use the library name
+存放文献知识的知识库	Destination knowledge library
+文献详情	Reference details
+关闭文献详情	Close reference details
+摘要	Abstract
+尚无摘要	No abstract available
+附件与解析	Attachments and processing
+附件可用	Attachment available
+附件缺失	Missing attachment
+文献处理已开始	Reference processing started
+重新解析文献	Reprocess reference
+解析为知识	Process into knowledge
+备注已保存	Notes saved
+保存备注	Save notes
+设置备注写入权限	Configure note editing
+永久删除所选知识？	Permanently delete selected entries?
+更新所选条目？	Update selected entries?
+删除正文、历史版本和附件关联。已保存的原件仍保留。	Deletes content, revisions and attachment links. Saved original files are retained.
+将更新所选条目的目录或归档状态。	Updates the folder or archive status of selected entries.
+永久删除	Delete permanently
+条目已更新	Entries updated
+知识库	Knowledge library
+搜索当前知识库…	Search this library…
+每份原件对应一个知识包。启用文档解析后可处理 PDF 和 Office。	Each original has one knowledge entry. Enable document processing for PDF and Office files.
+文档解析任务	Document processing
+已继续解析	Processing resumed
+继续	Resume
+已选择	Selected
+移动到目录	Move to folder
+目标目录，斜杠分级	Destination folder, separated by slashes
+移动	Move
+恢复	Restore
+归档	Archive
+来源与历史版本	Source and revisions
+独立笔记	Standalone note
+正在检查…	Checking…
+新的原件路径	New original file location
+来源路径已修复	Source location repaired
+修复路径	Repair location
+解析任务已创建	Processing job created
+重新解析原件	Reprocess original
+恢复这个历史版本？	Restore this revision?
+将建立一个新版本，当前版本仍会保留。	Creates a new revision and retains the current one.
+已恢复	Restored
+全部目录	All folders
+返回当前条目	Back to current entries
+归档条目	Archived entries
+选择条目	Select entry
+来源与版本	Source and revisions
+邮箱工作台	Email workspace
+邮件文件夹	Mail folder
+全部已同步文件夹	All synced folders
+目标文件夹	Destination folder
+选择目标文件夹	Choose a destination folder
+选择邮件	Select message
+IMAP 与 SMTP 认证通过	IMAP and SMTP authentication succeeded
+检查连接	Check connection
+文件夹已更新	Folders updated
+发现文件夹	Discover folders
+邮箱类型	Email provider
+设置说明	Setup guide
+授权码或应用密码	Authorization code or app password
+未选择	Not selected
+目标暂不可用	Target unavailable
+增强：	Enhances: 
+增强以下功能	Enhances these features
+想法已保存	Reflection saved
+角色主观想法	Persona reflections
+记录想法	Add reflection
+想法所属角色	Reflection persona
+参与会话背景 {count} 条	{count} reflections in conversation context
+编辑想法	Edit reflection
+想关注	Focus
+重新关注	Reopen
+已解决	Resolved
+这里还没有想法	No reflections yet
+可以手动记录，也可以在记忆整理中启用主观想法整理。	Add a reflection or enable reflection updates in memory review.
+当前会话背景	Current conversation context
+开启人格记忆注入的会话会使用这里的当前想法。记忆整理可以修订、解决或归档它们。	Conversations with persona injection use these reflections. Memory review can revise, resolve or archive them.
+预览注入内容	Preview injected context
+暂无内容	No content yet
+调整注入与整理	Configure injection and review
+关闭想法编辑	Close reflection editor
+想法类型	Reflection type
+关注领域	Area of interest
+我的看法与原因	Viewpoint and reasoning
+后续想关注什么	What to follow up on
+来源与优先程度	Sources and priority
+来源说明	Source notes
+优先程度	Priority
+保存想法	Save reflection
+角色主动交流	Proactive conversation
+表达方式	Expression
+目标会话	Target conversation
+选择会话	Choose a conversation
+主动交流指引	Proactive conversation guidance
+交流节奏	Timing
+主动交流设置已保存	Proactive conversation settings saved
+运行状态	Status
+调度	Schedule
+最近尝试	Last attempt
+尚未触发	Not triggered yet
+已接入的角色背景	Connected persona context
+近期表达	Recent expressions
+本轮没有表达	No expression this time
+尚无主动表达记录	No proactive expressions yet
+尚未保存，可以重试。	Not saved yet. You can retry.
+暂时无法核对保存结果，请稍后重试。	Unable to check the save result. Try again later.
+格内日程输入	Schedule cell input
+[P1] 14:00–15:00 任务；换行添加子任务	[P1] 14:00–15:00 Task; add lines for subtasks
+Enter 保存 · Shift+Enter 换行	Enter to save · Shift+Enter for a new line
+核对保存结果	Check save result
+取消录入	Cancel entry
+恢复任务	Reopen task
+完成任务	Complete task
+任务设置	Task settings
+删除任务	Delete task
+子任务	Subtask
+已完成 {count} 项	{count} completed
+录入任务	Add task
+长期目标	Long-term goals
+录入	Add
+未关联项目	Unassigned project
+其他	Other
+删除这项任务？	Delete this task?
+该任务及其子任务会一起删除。	Deletes this task and its subtasks.
+项目管理	Manage projects
+录入语法	Input syntax
+在任意格内直接输入	Type directly in any cell
+整理资料	Organize documents
+上午	Morning
+检查结果	Check results
+单行可带时间、时段、优先级和提醒。多行首行是父任务标题，后续每行是子任务。	A line can include time ranges, dayparts, priority and a reminder. For multiple lines, the first is the parent task and the rest are subtasks.
+Enter 保存 · Shift+Enter 换行 · Esc 收起	Enter to save · Shift+Enter for a new line · Esc to close
+上一周	Previous week
+下一周	Next week
+本周	This week
+项目筛选	Filter projects
+全部项目	All projects
+显示已完成	Show completed
+导出三日日程	Export three-day schedule
+已导出到 {path}	Exported to {path}
+正在读取日程	Loading schedule
+日期 / 项目	Date / Project
+整周	Whole week
+待安排	Unscheduled
+今天	Today
+关闭项目管理	Close project manager
+项目已保存	Project saved
+项目名称	Project name
+新增项目	New project
+项目说明	Project description
+保存项目	Save project
+添加项目	Add project
+取消编辑	Cancel editing
+已归档	Archived
+关闭任务设置	Close task settings
+所属项目	Project
+任务设置已保存	Task settings saved
+按时段与交流节奏发起角色会话，可结合当前主观想法和上下文，向桌宠或已绑定通道展示表达。	Starts persona conversations on a schedule, using reflections and context, and presents expressions through the avatar or connected channels.
+连接多个邮箱，按文件夹同步与检索邮件，按需读取正文并管理草稿。	Connects multiple accounts to sync and search folders, read messages on demand and manage drafts.
+增强邮箱工作台：发送、标记、移动和归档前核对审批，保留逐项执行回执。	Enhances email with approval for sending, marking, moving and archiving, with individual action receipts.
+通过 QQ 机器人将消息收发到指定会话，支持网关重连与分段投递回执。	Connects a conversation to a QQ bot, with gateway reconnection and receipts for message segments.
+维护角色自己的看法、好奇与感受，参与记忆整理，并为会话和主动交流提供当前主观状态。	Maintains a persona's viewpoints, curiosity and feelings through review and provides current reflections to conversations.
+向启用人格记忆的会话注入当前想法	Inject current reflections into persona-enabled conversations
+最多注入条数	Maximum reflections
+注入字符上限	Context character limit
+主观想法整理指引	Reflection review guidance
+关注	Concern
+好奇	Curiosity
+感受	Feeling
+全部	All
+当前	Current
+已结束	Resolved
+关系	Relationship
+个人	Personal
+自我	Self
+工作	Work
+QQ 邮箱	QQ Mail
+在邮箱设置中开启 IMAP/SMTP，填写授权码。	Enable IMAP/SMTP in your mailbox settings and enter its authorization code.
+开启两步验证后创建应用密码；部分组织账户不提供此选项。	Create an app password after enabling two-step verification. Some organization accounts do not offer this option.
+学校或企业邮箱	School or business email
+使用邮箱管理方提供的 IMAP、SMTP 地址和客户端密码。	Use the IMAP and SMTP settings and client password provided by your administrator.
+其他 IMAP 邮箱	Other IMAP account
+填写邮箱提供方的服务器设置；仅支持密码或应用密码认证。	Enter your provider's server settings. Supports password or app-password authentication.
+标为已读	Mark as read
+标为未读	Mark as unread
+归档邮件	Archive mail
+移至废纸篓	Move to trash
+原件未变化	Original unchanged
+源文件已变化	Source changed
+源文件已移走	Source moved or missing
+暂不可读取	Temporarily unavailable
+文件超过读取限制	File exceeds read limit
+由来源插件维护	Managed by the source plugin
+解析中	Processing
+仅文献信息	Metadata only
+全文已解析	Full text processed
+部分附件已解析	Some attachments processed
+全部状态	All statuses
+会话工作台	Conversation workspace
+角色与记忆	Persona and memory
+角色设定	Persona profiles
+角色记忆	Persona memory
+主动交流	Proactive conversation
+实时观察	Live observation
+桌宠展示	Desktop avatar
+知识与档案	Knowledge and files
+原件档案	File archive
+图片与表情素材	Image and expression assets
+日程与计划	Schedule and planning
+日历与提醒	Calendar and reminders
+通知与审批	Notifications and approval
+通知中心	Notification center
+操作审批	Action approval
+自动化任务	Automation
+记忆整理	Memory review
+任务调度	Task scheduler
+接入与路由	Connections and routing
+推理后端	Inference backends
+会话通道	Conversation channels
+运行维护	System maintenance
+运行诊断	Diagnostics
+备份与恢复	Backup and restore
+交流与陪伴	Conversation and companionship
+资料与事务	Knowledge and tasks
+配置与维护	Configuration and maintenance
+项目日程视图	Project schedule views
+矩阵	Matrix
+时间轴	Timeline
+项目总览	Project overview
+完成记录	Completion history
+搜索完成记录	Search completion history
+会话状态与上下文	Conversation status and context
+关闭会话状态	Close conversation status
+人格与记忆	Persona and memory
+已连接的功能	Connected features
+没有其他功能绑定此会话	No other features are connected to this conversation
+近期运行	Recent runs
+聊天	Conversation
+观察互动	Observation interaction
+应用请求	Application request
+最近的上下文注入	Recent context injections
+记忆召回	Memory recall
+插件整理建议	Plugin review suggestions
+修订	Revise
+解决	Resolve
+应用整理建议	Apply review suggestions
+普通	Normal
+”及其后续提醒会被移除。	” and its reminders will be removed.
+事件连接失败。	Event connection failed.
+解析失败	Processing failed
+人格	Persona
+邮件	Email
+对话 聊天	Conversation chat
+人格 角色	Persona character
+记忆 召回	Memory recall
+观察 视觉	Observation vision
+桌宠 气泡	Avatar bubble
+主动 交流	Proactive conversation
+文件	Files
+素材	Assets
+主观 想法 感受	Reflections viewpoints feelings
+日历 日程	Calendar schedule
+审批	Approval
+通知	Notifications
+后端 推理 路由 模型	Backend inference routing model
+调度 定时任务	Scheduler scheduled tasks
+通道 QQ	Channels QQ
+备份 恢复	Backup restore
+插件 设置	Plugins settings
+诊断 日志 MCP	Diagnostics logs MCP
+从召回记忆中移除“	Remove “
+”。知识库原文会保留。	” from recalled memory. The knowledge entry is retained.
+后端设置	Backend settings
+插件已停用	Plugin disabled
+插件已启用	Plugin enabled
+观察已暂停	Observation paused
+DSH 的 DeepSeek 官方连接使用 Messages API。官方域名填写 /v1 时，Echo 会自动改用 /anthropic。	The official DeepSeek connection in DSH uses the Messages API. If its official host is entered with /v1, Echo automatically uses /anthropic.
+运行情况	Run status
+任务状态	Task status
+暂无记录	No records yet
+未安排	Not scheduled
+编辑任务	Edit task
+返回任务列表	Back to task list
+查看运行情况	View run status
+观察视图	Observation view
+观察已开启	Observation started
+新增	Add
+已收起桌宠	Avatar hidden
+已显示桌宠	Avatar shown
+核心内存 RSS	Core memory RSS
+JS 堆使用	JavaScript heap used
+活动运行	Active runs
+事件订阅	Event subscriptions
+插件	Plugins
+在意的事	Concerns
+好奇与疑问	Curiosity and questions
+生活	Personal life
+自己	Self
+当前想法	Current reflections
+更在意	Higher
+较低	Lower
+暂存	Deferred
+主动交流设置	Proactive conversation settings
+两次主动交流至少间隔（分钟）	Minimum interval between expressions (minutes)
+用户发言后静默（分钟）	Quiet period after a user message (minutes)
+开始时间	Start time
+结束时间	End time
+[提醒]	[Reminder]
+日程录入	Schedule entry
+项目设置	Project settings
+预计用时（分钟）	Estimated time (minutes)
+实际用时（分钟）	Actual time (minutes)
+角色主观想法	Persona Reflections
+素材导入	Asset import
+原件导入	Original file import
+添加知识库	Add library
+导入素材	Import asset
+查找素材	Search assets
+查找原件	Search originals
+名称或标签	Name or tags
+文件名称	File name
+类型	Type
+大小	Size
+保存时间	Saved on
+下载原件	Download original
+还没有素材	No assets yet
+还没有原件	No original files yet
+导入图片，使用标签查找和预览。	Import images and use tags to find and preview them.
+导入的文件会保留原件，供知识与其他功能引用。	Imported originals are retained for knowledge entries and other features.
+项	items
+知识库名称	Library name
+原件路径	Original file location
+素材名称	Asset name
+留空使用文件名	Leave blank to use the file name
+标签，逗号分隔	Tags, separated by commas
+素材预览	Asset preview
+关闭预览	Close preview
+文献已更新，需重新解析	Reference changed; reprocessing needed
+主动交流消息	Proactive expressions
+记忆整理报告	Memory review reports
+将执行已核对的内容，请确认目标和具体操作。	Executes the reviewed action. Check its destination and contents.
+角色档案	Persona archives
+整理报告	Review reports
+文献库	Reference library
+知识目录	Knowledge folder
+备份应用数据与资料，校验完整性，并恢复到独立目录。	Backs up application data and libraries, verifies integrity and restores to a separate directory.
+保存原件与媒体，记录来源和版本，供知识库及其他功能引用。	Stores original files and media with their sources and versions for knowledge and other features.
+将原件整理为可检索的 Markdown 知识，维护目录、附件、修订历史与来源。	Organizes originals as searchable Markdown knowledge with folders, attachments, revisions and source tracking.
+同步已发送文件夹	Sync the sent folder
+正在打开…	Opening…
+外部附件目录	External attachment directories
+附件位于 .Data 以外时填写，每行一个目录	For attachments outside .Data, enter one directory per line
+添加子任务	Add subtask
+服务器设置	Server settings
+逐项执行结果	Individual action results
+整理邮件	Organize mail
+操作	Operation
+邮件内容	Message
+发送邮件	Send mail
+发件人	From
+收件人	To
+主题	Subject
+正文	Body
+报告会话	Report conversation
+日历条目	Calendar entries
+已同步邮件（按角色）	Synced email (by persona)
+网络连接	Network connection
+直连	Direct
+HTTP(S) 环境代理	HTTP(S) environment proxy
+原件档案保存 PDF、Office、图片等来源文件；知识库保存整理后的正文，并关联这些原件。	The file archive keeps source PDFs, Office documents and images. Knowledge entries contain processed text linked to those originals.
+显示派生文件	Show derived files
+桌宠素材导入	Avatar asset import
+当前使用外部素材目录	Using an external asset directory
+桌宠素材	Avatar assets
+Cute Girl · 内置帧动画	Cute Girl · Bundled animation
+外部素材目录	External asset directory
+帧	frames
+pzUH · CC0-1.0	pzUH · CC0-1.0
+桌宠素材已切换	Avatar assets changed
+正在使用	In use
+使用此素材	Use these assets
+导入桌宠素材	Import avatar assets
+桌宠素材已导入	Avatar assets imported
+图片或 ZIP 素材包	Image or ZIP asset pack
+PNG 帧或图集目录	PNG sequence or atlas folder
+素材来源	Asset source
+桌宠素材来源	Avatar asset source
+帧序列播放速度	Frame sequence FPS
+高级搜索	Advanced search
+向量索引	Vector index
+检索策略	Search strategy
+语义	Semantic
+混合检索	Hybrid
+内容类型	Content type
+全部内容类型	All content types
+语义权重	Semantic weight
+仅当前目录	This folder only
+模型重排	Model reranking
+多检索词融合	Multi-query fusion
+检索词已生成	Search queries generated
+模型扩展检索词	Expand queries with a model
+添加检索词	Add query
+检索词	Query
+权重	Weight
+检索词权重	Query weight
+优先目录	Preferred folder
+可选，相对于当前库	Optional, relative to this library
+目录权重	Folder weight
+重排会额外调用“检索词构造”任务配置的模型，仅在执行搜索时调用。	Reranking makes an extra call to the model configured for query generation, only when you run a search.
+当前库的向量索引	Vector index for this library
+启用语义检索增强后，可在这里建立和维护向量索引。	Enable Knowledge Semantic Search to build and maintain vector indexes here.
+已建片段	Indexed chunks
+缺失片段	Missing chunks
+API 向量	API embeddings
+本地向量	Local embeddings
+建立当前范围的向量索引？	Build the vector index for this scope?
+所选文本片段将发送到向量 API，可能产生费用。	The selected text chunks will be sent to the embedding API and may incur charges.
+仅计算缺失片段，在本机后台执行；可以暂停并继续。	Only missing chunks are computed locally in the background. You can pause and continue later.
+开始向量化	Start indexing
+向量任务已启动	Indexing started
+建立向量索引	Build vector index
+已请求暂停	Pause requested
+暂停向量化	Pause indexing
+配置语义检索增强	Configure semantic search
+收起目录	Collapse folder
+展开目录	Expand folder
+目录	Folders
+全部收起	Collapse all
+知识目录树	Knowledge folder tree
+此库由插件管理，正文与结构通过所属功能修改。	This library is managed by a plugin. Edit its content and structure through the owning feature.
+打开管理入口	Open owning feature
+隐藏目录树	Hide folders
+显示目录树	Show folders
+直接 API	Direct API
+模型 API（语言 / 多模态）	Model API (language / multimodal)
+接入方式	Connection type
+Memory Library	记忆库
+Persona Library	角色资料库
+Observation Archive	观察档案库
+Memory Review Archive	记忆整理档案库
+原库来源已更新，迁移保留了原知识正文和当前原件。	The original source has changed. Migration retained the previous knowledge text and captured the current original.
+默认检索策略	Default search strategy
+保留已加载的本地模型	Keep local model loaded
+开启后复用模型直到退出或停用插件；关闭后空闲两分钟释放。模型首次使用时才加载。	Reuse the loaded model until exit or plugin deactivation. When disabled, release after two idle minutes. Loading starts only on first use.
+帧动画素材	Frame animation asset
+导入帧动画素材	Import frame asset
+选择素材目录	Choose an asset folder
+文本	Text
+图像	Images
+音频	Audio
+视频	Video
+新的连接	New connection
+新的模型	New model
+推理配置	Inference settings
+生成输入	Generation input
+向量输入	Embedding input
+模型	Models
+添加连接	Add connection
+接入器不可用	Adapter unavailable
+连接设置	Connection settings
+连接名称	Connection name
+本地部署	Local deployment
+接入器	Adapter
+连接已有本地 API 服务，或由 Echo 按需加载支持的模型。	Connect to a local API server, or let Echo load a supported model on demand.
+本地运行时已启用	Local runtime enabled
+启用本地模型运行时	Enable local model runtime
+可留空	Optional
+连接已保存	Connection saved
+保存连接	Save connection
+删除此连接？	Delete this connection?
+需先移除连接下的模型配置。	Remove its model configurations first.
+删除连接	Delete connection
+连接已删除	Connection deleted
+Harness 账号	Harness account
+账号状态已更新	Account status updated
+检查登录	Check sign-in
+登录已启动	Sign-in started
+登录	Sign in
+已登录	Signed in
+尚未登录	Not signed in
+打开官方登录页	Open official sign-in page
+模型配置	Model configurations
+添加模型	Add model
+Harness 默认模型	Harness default model
+模型设置	Model settings
+先添加一个连接，再配置模型。	Add a connection before configuring a model.
+模型配置名称	Model configuration name
+所属连接	Connection
+选择连接	Choose a connection
+留空沿用 Harness 默认	Leave empty to use the Harness default
+接入器已停用；配置仍保留，启用插件后可继续使用。	The adapter is disabled. Its configuration is retained and will return when the plugin is enabled.
+文本生成	Text generation
+向量表示（Embedding）	Embeddings
+向量表示能力已停用；原配置和索引保留。	Embeddings are disabled. Model settings and indices are retained.
+生成参数	Generation settings
+向量维度（留空使用模型默认）	Embedding dimensions (optional)
+运行限制	Execution limits
+模型已保存	Model saved
+保存模型	Save model
+删除此模型配置？	Delete this model configuration?
+会清除指向它的默认任务路由；绑定中的会话需先切换。	Default routes using this model will be cleared. Switch bound conversations first.
+删除模型	Delete model
+模型已删除	Model deleted
+当前不可用	Currently unavailable
+向量表示	Embeddings
+任务路由已保存	Task routes saved
+本地模型运行状态	Local model runtime
+状态已更新	Status updated
+空闲模型已释放	Idle models released
+释放空闲模型	Release idle models
+已加载	Loaded
+处理中	Processing
+空闲	Idle
+当前模型不可用	Current model unavailable
+向量模型	Embedding model
+未配置	Not configured
+仅计算缺失片段，使用所选模型执行；可以暂停并继续。	Process only missing segments with the selected model. You can pause and resume.
+Model Embeddings	模型向量表示
+Registers vector representation tasks and validates model inputs and vector spaces. Used by Semantic Search and other optional consumers.	提供向量表示任务，校验输入与向量空间，供语义检索等插件按需使用。
+Local ONNX Runtime	本地 ONNX 模型运行时
+On-demand CPU ONNX embedding models. Reuses or releases workers under an explicit residency limit; no model is loaded at startup.	按需运行本地 ONNX 向量模型，限制常驻数量并支持闲置释放，启动时不加载模型。
+最多保留的本地模型数	Maximum resident local models
+闲置释放秒数	Idle release delay (seconds)
+会话生成	Conversation generation
+记忆检索词构造	Memory query planning
+知识检索词与重排	Knowledge queries and reranking
+语义索引与召回向量	Semantic indexing and retrieval
+凭据引用	Credential reference
+可执行程序	Executable
+专用工作目录	Dedicated working directory
+检索输入格式	Retrieval input format
+API Base URL	API Base URL
+Provider ID	Provider ID
+DSH API protocol	DSH API 协议
+API 模型	API model
+DSH 模型	DSH model
+选择模型	Select a model
+OpenAI Chat Completions	OpenAI 聊天补全协议
+OpenAI Responses	OpenAI Responses 协议
+Anthropic Messages	Anthropic Messages 协议
+上游模型目录可访问（{count} 个模型）	Upstream model catalog reachable ({count} models)
+DSH SDK 握手正常；上游账号未经推理请求验证。	DSH SDK handshake succeeded; upstream credentials were not verified with inference.
+观察任务请在角色配置中编辑	Edit observation tasks in character settings
+连接测试完成	Connection test completed
+测试连接	Test connection
+连接可用	Connection available
+连接不可用	Connection unavailable
+这里配置知识库与语义索引等共享处理的默认后端；会话、观察和记忆整理使用的角色后端在角色配置中绑定。	Set shared defaults for knowledge and semantic indexing. Character settings select backends for chat, observation, and memory review.
+这是知识库导入使用的共享解析默认值；每次导入仍可选择其他已启用的解析器。	This is the shared default for knowledge imports. Each import can use another enabled parser.
+任务配置统一在角色配置中管理	Manage task settings in character configuration
+忽略遮挡的窗口	Windows ignored as occluders
+这些窗口不会遮断白名单画面。按进程名或完整路径匹配，可选填写标题；新观察任务默认包含桌宠和 NVIDIA Overlay 规则，均可编辑、停用或移除。	Matching windows do not block approved content. Match by process name or full path, optionally narrowed by title. New observation tasks include editable Echo avatar and NVIDIA Overlay rules; either can be disabled or removed.
+允许观察的网站浏览器	Browsers allowed for website observation
+浏览器名称	Browser name
+浏览器进程名或完整路径	Browser process name or full path
+进程名或完整路径	Process name or full path
+例如填入窗口所属程序的 exe 名称或完整路径	Enter the window's executable name or full path
+删除遮挡规则	Remove occlusion rule
+窗口标题包含	Window title contains
+可选：只匹配标题包含此文本的窗口	Optional: match only windows whose title contains this text
+＋ 添加遮挡规则	＋ Add occlusion rule
+5 秒选帧 · 四帧拼图 · 两轮上文 · JPEG {quality}	One frame per 5 seconds · four-frame contact sheet · two prior turns · JPEG {quality}
+白名单内容当前被窗口遮挡；如需忽略该窗口，可在任务设置中按进程名或标题添加规则。	Approved content is currently obscured. To ignore a window, add a rule by process name or title in task settings.
+桌宠帧率	Avatar frame rate
+窗口进程或路径	Window process or path
+窗口标题匹配	Window title match
+组图宽度	Contact sheet width
+组图 JPEG 质量	Contact sheet JPEG quality
+ONNX Runtime · CPU	ONNX Runtime · CPU
+OpenAI-compatible API	OpenAI 兼容 API
+Embedded Pi	内置 Pi
+自动选择	Automatic
+不添加格式	No formatting
+BGE 中文检索	BGE Chinese retrieval
+EmbeddingGemma 检索	EmbeddingGemma retrieval
+不思考 / 最低可用	Off / lowest supported
+预期向量维度（可选）	Expected vector dimensions (optional)
+GGUF 模型文件	GGUF model file
+解析提供方	Document parser
+代码解析提取数字文档正文，不加载模型。	Code-based extraction reads digital documents without loading a model.
+API Token（留空保留）	API token (leave blank to keep)
+解析模型	Parsing model
+文档语言	Document language
+启用 OCR	Enable OCR
+在线解析会上传所导入的原件，仅在主动导入时调用。	Online parsing uploads imported originals only when you explicitly import them.
+mineru-kit 可执行文件	mineru-kit executable
+运行时附加参数（每行一项）	Additional runtime arguments (one per line)
+解析层级	Parsing tier
+使用已安装的 MinerU 4.1 命令与本地模型；导出全部页面，不自动下载模型。	Uses an installed MinerU 4.1 CLI and local models. Exports all pages without downloading models.
+解析超时（秒）	Parsing timeout (seconds)
+解析设置已保存	Parsing settings saved
+保存解析设置	Save parsing settings
+解析任务	Parsing tasks
+按需提取文档正文，支持代码解析、MinerU 在线 API 或本地模型，并保留 Markdown 与图片。	Extracts documents on demand using code, the MinerU API or local models, preserving Markdown and images.
+Local Model Runtime	本地模型运行时
+On-demand GGUF and ONNX embedding models, with shared residency limits and no model loaded at startup.	按需运行 GGUF 和 ONNX 向量模型，统一限制常驻数量，启动时不加载模型。
+ONNX 权重文件名	ONNX weights filename
+llama.cpp · GGUF	llama.cpp · GGUF
+llama-server 可执行文件	llama-server executable
+GGUF 多模态投影文件	GGUF multimodal projector
+执行设备	Execution device
+CPU 线程数	CPU threads
+图片 Token 预算	Image token budget
+MinerU · 本地模型	MinerU · Local models
+本地文档正文	Code-based document extraction
+已迁移结构向量	Imported structural vectors
+篇知识	knowledge entries
+模型模板	Model template
+自定义	Custom
+手动登记	Manually registered
+记忆所属角色	Memory persona
+记忆分类	Memory category
+核心记忆	Core memories
+其他记忆	Other memories
+暂无核心记忆	No core memories yet
+暂无其他记忆	No other memories yet
+程序路径或文件名	Executable path or filename
+BGE Small · Chinese	BGE Small · 中文
+视频采样帧率	Video sampling FPS
+EmbeddingGemma 2	EmbeddingGemma 2
+所有角色	All characters
+关联会话	Linked conversations
+还没有关联会话。	No linked conversations yet.
+关联观察任务	Linked observation tasks
+还没有关联观察任务。	No linked observation tasks yet.
+新观察任务	New observation task
+＋ 新观察任务	＋ New observation task
+观察任务	Observation tasks
+还没有观察任务。	No observation tasks yet.
+任务名称	Task name
+移除观察任务	Remove observation task
+移除任务会停止采集，已有观察记录仍可归档。	Removing the task stops capture and keeps previous observations available for archiving.
+移除任务	Remove task
+观察任务已移除	Observation task removed
+角色列表	Character list
+管理角色设定，按会话选择是否注入。	Manage character profiles and choose which conversations use them.
+上次互动已生成回复。	Last interaction generated a reply.
+上次互动由角色主动跳过。	The character skipped the last interaction.
+上次互动的模型返回为空，没有生成气泡。	The last interaction returned an empty reply, so no bubble was created.
+上次互动未完成，请查看运行诊断。	The last interaction failed. See runtime diagnostics.
+采样暂缓	Sampling temporarily paused
+没有可见的白名单内容	No visible allowlisted content
+授权场景已变化	The authorized screen area changed
+窗口切换中	Windows are switching
+采集期间窗口发生变化	Windows changed during capture
+当前不是可交互桌面	The desktop is currently unavailable for capture
+白名单程序窗口当前被其他窗口遮挡	The allowed application window is covered
+运行中	Running
+等待触发	Waiting
+需要检查	Needs attention
+没有可选项	No options available
+新建任务	New task
+选择任务类型	Choose a task type
+无法读取任务类型	Could not load task types
+任务类型	Task type
+全部任务	All tasks
+启用任务	Enable task
+任务已保存	Task saved
+任务已发起	Task started
+运行一次	Run once
+已有运行记录会保留。	Existing run records will be kept.
+任务已移除	Task removed
+下次执行	Next run
+最近执行	Last run
+还没有自动化任务	No automation tasks yet
+高级启动设置	Advanced launch settings
+添加此连接的模型	Add a model for this connection
+Codex 模型	Codex model
+读取模型中	Loading models
+刷新模型列表	Refresh model list
+手动填写模型 ID	Enter a model ID manually
+Codex 上下文上限	Codex context limit
+使用模型默认上限	Use the model default
+保存后在 Echo 的 Codex 会话启动或恢复时生效。	Applies the next time Echo starts or resumes a Codex session.
+会话通道与自动化	Conversation channels and automation
+收发通道	Message channels
+可发起对话	Can start a conversation
+读取历史	Reads conversation history
+接收报告	Receives reports
+已停用	Disabled
+导入方式	Import mode
+保存并解析	Save and extract
+只保存原件	Save original only
+使用默认解析器	Use the default extractor
+原件已保存	Original saved
+整理记录	Review history
+状态动画	Activity animations
+空闲动作	Idle animation
+生成中动作	Working animation
+气泡动作	Speaking animation
+任务总览	Task overview
+调度记录	Schedule history
+会话材料范围	Conversation sources
+使用会话的纳入整理开关	Use each conversation’s Review setting
+只读取所选会话	Only selected conversations
+所选会话	Selected conversations
+可选材料来源	Optional sources
+可选整理目标	Optional review targets
+整理触发方式	Review trigger
+整理小时	Review hour
+整理分钟	Review minute
+整理间隔（对话轮数）	Turns between reviews
+整理每段字符上限	Characters per review batch
+报告接收会话	Report destination
+进度兜底等待（分钟）	Fallback report delay (minutes)
+自动纳入非核心记忆	Auto-apply non-core memories
+会话整理指引	Conversation review guidance
+材料整理指引	Material review guidance
+通用整理指引	General review guidance
+整理指引	Review guidance
+此角色的全部任务	All tasks for this character
+只读取所选任务	Only selected tasks
+空闲时在屏幕底部漫游	Roam along the bottom when idle
+会话工具权限	Conversation tool permissions
+Codex 文件权限	Codex file access
+只读沙箱	Read-only sandbox
+专用工作目录可写	Dedicated workspace is writable
+可写模式需要在连接中设置独立的专用工作目录。	Set a separate working directory in the connection before enabling writes.
+需要批准的操作	Actions requiring approval
+自动拒绝	Decline automatically
+在会话中询问	Ask in the conversation
+Pi 的 Echo 工具	Echo tools in Pi
+禁用工具	Disable tools
+允许只读工具	Allow read-only tools
+使用只读工具前询问	Ask before using a read-only tool
+文件与终端权限由 DSH SDK 的运行配置约束。	File and terminal access follow the DSH SDK runtime configuration.
+宿主审批	Host approval
+仅允许这一次	Allow once
+宿主需要确认	The host needs your input
+自定义回答	Custom answer
+提交回答	Submit answers
+Codex · 网络访问	Codex · Network access
+Codex · 执行命令	Codex · Run a command
+Codex · 修改文件	Codex · File changes
+Codex · 访问权限	Codex · Access permissions
+任务范围	Task scope
+所选任务	Selected tasks
+会话项目目录	Conversation project folder
+保存项目目录	Save project folder
+可写模式需要设置会话项目目录或连接的专用工作目录。	Writable mode requires a conversation project folder or a dedicated connection working directory.
+逐次批准 Pi 写入项目文件	Approve each Pi project file edit
+当前使用 sdk-minimal，其原生终端没有文件沙箱。项目会话可在接入设置中选择完整 SDK。	The sdk-minimal profile runs an unsandboxed terminal. Select the full SDK in the connection settings for project sessions.
+读取工具中	Loading tools
+检查 Echo 工具	Check Echo tools
+Codex 尚未发现 Echo 工具。	Codex has not discovered Echo tools.
+添加条目	Add entry
+起点与能力	Template and capabilities
+记忆与资料	Memory and resources
+运行方式	Runtime
+行为与任务	Behavior and tasks
+检查并启用	Review and activate
+角色配置	Character configuration
+编辑角色	Edit character
+创建角色	Create character
+角色配置步骤	Character setup steps
+导入角色包	Import character package
+请先启用所需插件	Enable the required plugins first
+管理插件	Manage plugins
+角色名称	Character name
+角色人设	Persona
+表达风格	Expression style
+QQ 回复风格	QQ reply style
+桌宠气泡风格	Desktop bubble style
+表情使用偏好	Sticker preferences
+留空沿用默认风格	Leave blank to use the default style
+管理资料库	Manage libraries
+主会话运行后端	Main conversation backend
+稍后连接	Connect later
+辅助推理用途	Supporting inference tasks
+使用全局配置	Use global configuration
+任务委派	Project delegation
+管理推理连接	Manage inference connections
+添加任务类型	Task type to add
+添加任务	Add task
+创建后启用	Enable after creation
+未命名角色	Unnamed character
+启用能力	Enabled capabilities
+暂无	None
+上一步	Back
+下一步	Next
+角色配置已保存	Character configuration saved
+角色包已导出	Character package exported
+导出角色包	Export character package
+配置角色	Configure character
+完成角色配置后开始交流	Configure this character to start a conversation
+等待执行	Queued
+执行中	Running
+等待确认	Awaiting confirmation
+已交付	Delivered
+执行失败	Execution failed
+已停止	Stopped
+交办项目任务	Delegate project work
+工作目标	Work objective
+验收要求	Acceptance criteria
+任务已受理	Task accepted
+交办任务	Delegate task
+最近检查点	Latest checkpoint
+打开工作会话	Open worker conversation
+停止	Stop
+核对运行结果	Reconcile execution
+补充任务说明	Follow-up instructions
+已继续任务	Task resumed
+继续任务	Continue task
+群聊	Group conversations
+群聊设置	Group settings
+创建群聊	Create group
+群聊名称	Group name
+成员	Members
+共同背景	Shared context
+请谁回应	Responding characters
+发送	Send
+选择或创建一个群聊	Select or create a group
+角色与群聊	Characters and groups
+设置	Settings
+待确认	Pending confirmation
+角色能力	Character capabilities
+主会话	Main conversation
+主观想法	Reflections
+Project Delegation	项目任务委派
+角色委派项目工作，跟踪执行、确认、检查点与结果回流。	Characters delegate project work with execution, confirmations, checkpoints and results.
+Character Group Conversations	多角色群聊
+以明确署名组织多角色交流、共享背景与协作。	Attributed conversations, shared context and collaboration between characters.
+允许观察的来源	Allowed observation sources
+来源类型	Source type
+程序进程	Application process
+域名或程序路径	Domain or program path
+观察提示词	Observation instructions
+互动提示词	Interaction instructions
+前文轮数	Previous observation rounds
+最短互动间隔（秒）	Minimum interaction interval (seconds)
+继续创建草稿	Continue a saved draft
+选择草稿	Select draft
+内置素材	Bundled asset
+核对角色包	Review character package
+任务模板	Task templates
+素材大小	Asset size
+包含角色设定、任务提示词及所选素材。请确认这些内容适合分享。	Includes persona text, task prompts and selected assets. Check that these contents are suitable for sharing.
+核对并恢复群聊	Reconcile group conversation
+允许 Codex / Pi 修改项目文件	Allow Codex / Pi to modify project files
+DSH 的文件权限由所选预设控制，审批请求仍会显示在 Echo。	The selected DSH preset controls file permissions. Approval requests still appear in Echo.
+Project results	项目成果
+Role knowledge	角色知识
+可用知识库	Available knowledge libraries
+在角色的「配置角色」中调整此能力。	Adjust this capability in the character configuration.
+添加 Worker	Add Worker
+执行完成	Execution complete
+执行 Worker	Worker
+待验收	Awaiting review
+验收通过	Accepted
+需要返工	Needs revision
+交付证据	Delivery evidence
+文件已核验	File verified
+超出项目范围	Outside project
+文件缺失	File missing
+验收意见	Review notes
+每条消息最多附加 4 个文件。	Attach up to four files per message.
+附件不能超过 8 MB	Attachments must not exceed 8 MB
+移除附件	Remove attachment
+添加附件	Add attachment
+引用项目文件	Reference project file
+正在添加…	Adding…
+项目文件	Project file
+附加引用	Attach reference
+请查看附件。	Please review the attachments.
+本会话模型	Conversation model
+选择模型	Select model
+本会话思考强度	Conversation reasoning
+发送方式	Send behavior
+排队下一条	Queue next turn
+补充当前任务	Steer current task
+已排队	Queued
+补充已接受	Steering accepted
+正在投递	Submitting
+投递结果待核对	Submission unconfirmed
+投递失败	Submission failed
+补充指令	Send steering
+排队发送	Queue message
+允许 Pi 终端命令	Allow Pi terminal commands
+需同时允许项目写入与逐次审批；命令以本机用户权限运行，项目目录不是终端沙箱。	Requires project writes and per-command approval. Commands run with the local user's permissions; the project directory is not a terminal sandbox.
+执行过程	Execution activity
+进展说明	Progress
+命令	Command
+文件改动	File changes
+工具调用	Tool call
+思考摘要	Reasoning summary
+执行计划	Execution plan
+宿主子代理	Native subagent
+Token 用量	Token usage
+过长输出已截断	Long output was truncated
+显示更多	Show more
+等待宿主事件	Waiting for host events
+此轮没有详细执行记录	No detailed activity for this turn
+Worker 名称	Worker name
+适用工作	Suitable tasks
+Worker 工作提示词	Worker instructions
+委派策略	Delegation policy
+主角色委派提示词	Lead delegation instructions
+任务结束后由主角色接棒	Return control to the lead after completion
+接棒与验收提示词	Handoff and acceptance instructions
+Worker 配置	Worker templates
+优先委派	prefer
+群聊上下文	Group context
+群聊协作提示词	Group collaboration instructions
+新增共享记录窗口	New shared message window
+已核对，不重发	Reviewed without resending
+运行配置由角色管理	Runtime configuration belongs to the character
+工作空间与权限	Workspace and permissions
+Current Concerns	在意的事
+关注已保存	Concern saved
+不再作为当前关注？	Let this concern fade?
+这条内容将淡出当前会话背景，已有聊天和记忆保留。	This item will leave the current context. Existing conversations and memories remain.
+淡出关注	Let it fade
+添加关注	Add a concern
+近期惦记、想主动关心或接着聊的事。长期感受和稳定偏好仍放在记忆里。	Things the character currently cares about or wants to revisit. Lasting feelings and preferences belong in memory.
+编辑关注	Edit concern
+想接着关注	What to follow up on
+暂时没有在意的事	No current concerns
+在意的内容	What matters
+来源与依据	Sources and basis
+维护角色近期在意、想主动关心和接着聊的事；与长期记忆分工，参与记忆整理和主动交流。	Keep current concerns and topics to revisit, alongside long-term memory and memory review.
+向启用人格记忆的会话注入当前关注	Include current concerns in conversations with persona and memory enabled
+Current concerns	在意的事
+检测间隔（分钟）	Check interval (minutes)
+开口概率策略	Proactive probability policy
+每日随机额度	Random daily allowance
+每次独立概率	Independent chance per check
+单次命中概率（%）	Chance per check (%)
+每天最多尝试开口次数	Maximum proactive attempts per day
+每天 0 次的权重	Weight for 0 daily attempts
+每天 1 次的权重	Weight for 1 daily attempt
+每天 2 次的权重	Weight for 2 daily attempts
+每天 3 次的权重	Weight for 3 daily attempts
+对话与观察避让范围	Conversation and observation quiet scope
+所有 Echo 会话与观察	All Echo conversations and observation tasks
+当前角色	Current character
+Email Triggers	邮件触发提醒
+增强邮件同步：按邮箱、发件人和主题筛选新邮件，合并通知或触发角色提醒；历史回填不触发。	Extend email sync with filtered new-mail notifications or character reminders. Historical imports do not trigger alerts.
+新邮件触发提醒	New-mail reminders
+新邮件提醒	New-mail reminder
+监听邮箱	Monitored accounts
+发件人邮箱或 @域名（每行一个）	Sender address or @domain (one per line)
+主题关键词（每行一个）	Subject keywords (one per line)
+排除词（发件人或主题）	Excluded sender or subject terms
+匹配条件组合	Match conditions
+任一填写条件命中	Any configured condition
+所有填写条件命中	All configured conditions
+仅匹配同步时未读的邮件	Only mail unread at sync time
+仅匹配收件文件夹	Only incoming mail folders
+提醒方式	Reminder action
+程序通知（不调用模型）	Notification without model inference
+由角色判断并提醒	Let the character assess and respond
+合并提醒间隔（分钟）	Reminder batching interval (minutes)
+待提醒线索最长保留（小时）	Maximum pending age (hours)
+邮件提醒提示词	Email reminder instructions
+邮件提醒	Email reminder
+邮件提醒信号	Email reminder signal
+在意 关心 话题	Concerns care topics
+提醒所有新邮件（忽略发件人与主题条件）	Notify on all new mail (ignore sender and subject conditions)
+工作台	Workbench
+公共推理用途	Shared inference defaults
+消息渠道连接	Messaging connections
+管理消息渠道连接	Manage messaging connections
+可用消息渠道	Available messaging channels
+内建模块	Built-in modules
+自动化信号	Automation signal
+自动化触发	Automation trigger
+ChatStick	聊天表情
+为角色配置带有语义的聊天表情，可随回复展示或经已绑定渠道投递。	Configure character stickers that can appear in replies or be delivered through a bound channel.
+添加聊天表情	Add sticker
+编辑表情	Edit sticker
+表情编号	Sticker key
+表情名称	Sticker name
+适用语境	When to use it
+表情图片	Sticker image
+允许角色使用	Allow character to use this sticker
+这个角色还没有聊天表情。	This character has no chat stickers yet.
+移除聊天表情	Remove sticker
+图片不能超过 8 MB。	Images must be 8 MB or smaller.
+桌宠大小	Avatar size
+气泡停留时间（秒）	Bubble duration (seconds)
+整理报告指引	Review report instructions
+已登记的触发来源	Registered trigger sources
+主动交流机会	Proactive conversation opportunity
+实时观察线索	Live observation signal
+新邮件线索	New email signal
+待完成的记忆整理报告	Pending memory review report
+内建持久调度；统一时钟、逐次回执、未知执行不重放。	Built-in scheduling with a shared clock, run receipts, and reconciliation for unknown outcomes.
+DSH SDK 初始化正常；未发送推理请求。	DSH SDK initialized; no inference request was sent.
+使用共享默认向量模型	Use the shared default embedding model
+跟随角色主模型	Use the character's main model
+文档解析连接	Document parsing connections
+在这里管理共享解析连接；默认解析器与每次导入的解析方式在知识库中选择。	Manage shared parsing connections here. Select the default parser and per-import processing in the library.
+API 凭据已保存	API credential saved
+尚未配置 API 凭据	No API credential configured
+5 秒选帧 · 四帧拼图 · {history} 轮上文 · JPEG {quality}	5-second selection · four-frame grid · {history} previous summaries · JPEG {quality}
+共享语义向量	Shared embeddings
+角色记忆向量	Character memory embeddings
+自动适配	Automatic
+插件页面当前不可用。	This plugin page is unavailable.
+插件表单没有返回有效数据。	The plugin did not return valid form data.
+页面未声明此操作。	This operation is not available to this page.
+页面请求超过大小限制。	The page request exceeds the size limit.
+在独立窗口打开	Open in a separate window
+最高	Maximum
+当前模型不支持	Unsupported by this model
+保留原设置，请选择当前模型支持的强度。	Your saved setting is retained. Choose a level supported by this model.
+支持项来自宿主模型目录	Options provided by the host model catalog
+支持项来自上游模型目录	Options provided by the upstream model catalog
+未提供思考支持项，可按接口文档手动设置。	Reasoning options are unavailable. Configure them using the API documentation.
+刷新思考支持项	Refresh reasoning options
+视觉识别思考强度	Visual recognition reasoning
+观察互动思考强度	Observation reply reasoning
+
+续跑模型	Resume model
+沿用任务模型	Use the task model
+
+Codex Worker	Codex Worker
+DeepSeek Harness Worker	DeepSeek Harness Worker
+将项目任务委派给独立的 Codex 会话；主会话继续由 Pi 调度。	Delegate project tasks to a dedicated Codex session while Pi manages the main conversation.
+将项目任务委派给独立的 DeepSeek Harness 会话；主会话继续由 Pi 调度。	Delegate project tasks to a dedicated DeepSeek Harness session while Pi manages the main conversation.
+主会话模型	Main conversation model
+可用工具	Available tools
+工具清单	Tool catalog
+需要审批	Approval required
+
+只读	Read only
+来源读取器与浏览器	Source readers and browsers
+来源读取器	Source reader
+UI Automation document	UI Automation document
+Application window	Application window
+
+Pi 工具权限	Pi tool permissions
+允许写入并逐次审批	Allow writes with per-call approval
+
+输出长度参数	Output token parameter
+
+权限在角色配置中管理	Manage permissions in character settings
+逐次审批	Ask each time
+工具已关闭	Tools disabled
+停止执行	Stop execution
+发送消息	Send message
+
+新的服务	New service
+模型服务	Model services
+启用对应插件后即可配置服务。	Enable the corresponding extension to configure its services.
+向量服务	Embedding services
+执行配置	Execution profiles
+添加服务	Add service
+本地	Local
+外部执行器	External executor
+在线 API	Online API
+添加服务后选择要使用的模型。	Add a service, then choose its models.
+服务设置	Service settings
+服务名称	Service name
+服务位置	Service location
+服务类型	Service type
+服务已保存	Service saved
+保存服务	Save service
+选择可用模型	Choose available models
+删除服务	Delete service
+角色资料	Character profile
+模型与权限	Model and permissions
+检查并创建	Review and create
+读取	Read
+修改	Modify
+调用	Use
+管理模型服务	Manage model services
+所需能力已停用，任务配置仍保留。	The required capability is disabled. Task settings are retained.
+扩展能力	Extension capabilities
+通道与表达	Channels and expression
+配置概览	Configuration overview
+在下方任务中配置触发条件和执行参数。	Configure triggers and execution options in the tasks below.
+插件不可用，原配置保留	Extension unavailable; settings retained
+角色设置分类	Character settings categories
+内置执行器	Built-in executor
+工具权限	Tool permissions
+逐次批准项目文件写入	Approve project file changes individually
+允许终端命令	Allow terminal commands
+扩展	Extensions
+语言模型	Language model
+执行器不可用	Executor unavailable
+执行模型	Execution model
+跟随角色默认	Use character default
+请在执行器插件中添加可用的执行配置。	Add an execution profile in the executor extension.
+将项目任务委派给独立的 DeepSeek Harness 会话。	Delegate project tasks to dedicated DeepSeek Harness sessions.
+整理执行器	Review executor
+视觉模型	Vision model
+任务执行器	Task executor
+允许修改项目文件	Allow project file changes
+模型生成检索词	Generate search terms with a model
+
+使用主会话模型	Use main conversation model
+
+配置模型服务	Configure model services
+请在角色配置中选择语言模型。	Choose a language model in character settings.
+请先选择语言模型。	Choose a language model first.
+
+插件排序	Extension order
+按功能分类	By category
+按加载依赖	By dependency
+资料与检索	Files and knowledge
+记忆与行为	Memory and behavior
+消息与沟通	Communication
+任务与执行	Tasks and execution
+桌面陪伴	Desktop companion
+系统维护	System
+其他扩展	Other extensions
+
+在自动化任务中配置触发条件和执行参数。	Configure triggers and execution options under Automation.
+
+接口兼容选项	API compatibility
+使用此模型的配置	Configurations using this model
+请先解除角色、会话和任务对此模型的引用。	Remove character, conversation and task references before deleting this model.
+
+文件管理保存 PDF、Office、图片等来源文件；知识库保存整理后的正文，并关联这些原件。	File Management stores source documents and media. Knowledge entries contain processed text linked to the originals.
+语义索引模型	Embedding models
+重排模型	Reranker models
+Codex 账号	Codex account
+相关性重排	Relevance reranking
+语言与视觉模型	Language and vision models
+模型分类	Model categories
+当前数据目录	Current data directory
+迁移包含会话、设置、凭据与受管文件；外部资料和项目保留原位置。	Migration includes conversations, settings, credentials and managed files. External libraries and projects stay in place.
+新的数据目录	New data directory
+检查迁移	Check migration
+待复制	To copy
+个文件	files
+完整重启后复制并校验，成功后切换位置。原数据保留，可回退；当前位置不立即改变。	Copy and verify on a full restart, then switch locations. Original data is retained for rollback; the current location does not change immediately.
+迁移应用数据？	Migrate application data?
+登记迁移	Schedule migration
+已登记，下次完整重启时迁移	Migration scheduled for the next full restart
+安装插件包	Install plugin package
+插件包（.echo-plugin）	Plugin package (.echo-plugin)
+检查插件包	Inspect plugin package
+所需权限	Required permissions
+待安装依赖	Missing dependencies
+安装此插件包？	Install this plugin package?
+插件可运行本机代码。文件校验保证包的完整性，不证明发布者身份。	Plugins can run native code. File verification confirms integrity, not publisher identity.
+信任并安装	Trust and install
+插件包已安装，更新在完整重启后生效	Package installed. Updates take effect after a full restart.
+已配置，留空保留	Configured; leave blank to keep
+正在检查凭据	Checking credentials
+输入凭据	Enter credential
+凭据来源	Credential source
+持续关注	Ongoing concerns
+开发者：加载目录	Developer: load a directory
+模型在「模型服务」中统一登记，再在下方选择用途。	Register models in Model Services, then select their uses below.
+暂时没有持续关注	No ongoing concerns
+Embedding Models	语义索引模型
+File Management	文件管理
+Ongoing Concerns	持续关注
+Retrieval Enhancement	检索增强
+按需提供查询优化、语义检索和结果重排；向量索引仅在启用语义检索时使用。	Optional query optimization, semantic retrieval and reranking. Vector indexes are used only for semantic retrieval.
+结果重排方式	Result reranking method
+使用模型优化召回查询	Optimize recall queries with a model
+参考最近消息数	Recent messages to consider
+检索查询字数上限	Maximum query characters
+查询构造思考强度	Query reasoning effort
+查询构造提示词	Query construction prompt
+使用已启用的语义检索	Use available semantic retrieval
+查询优化	Query optimization
+结果重排模型	Result reranking model
+Clock	时钟
+Application Storage	应用存储
+Built-in components	内置组件
+应用时钟、时区与定时唤醒。任务可单独指定时区。	Application clock, time zone and scheduled wakeups. Tasks can override the time zone.
+应用时区（system 跟随系统）	Application time zone (system follows the OS)
+管理应用数据位置、完整性与受控迁移；外部资料目录和项目保持独立。	Application data location, integrity and controlled migration. External libraries and projects remain independent.
+使用 ChatGPT 登录	Sign in with ChatGPT
+
+隐藏桌宠	Hide desktop avatar
+
+语言模型重排	Language-model reranking
+
+专用重排模型	Dedicated reranker
+跟随模型	Use model default
+
+留空沿用执行器默认	Leave blank to use the executor default
+创建角色后，可在这里绑定消息通道。	After creating the character, bind messaging channels here.
+待执行迁移	Pending migration
+已取消数据迁移	Data migration cancelled
+取消迁移	Cancel migration
+上次迁移未完成，仍使用原数据目录。	The last migration did not complete. The original data directory is still in use.
+回退插件版本？	Roll back this plugin?
+完整重启后使用上一安装版本，插件配置保留。	The previous installed version takes effect on a full restart. Plugin settings are retained.
+登记回退	Schedule rollback
+已登记插件回退，完整重启后生效	Plugin rollback scheduled for the next full restart
+回退到上一版本	Roll back to the previous version
+
+编辑通道绑定	Edit channel binding
+添加通道绑定	Add channel binding
+通道类型	Channel type
+Desktop bubble	桌宠气泡
+
+多个状态可同时生效，优先播放优先级较高的动画。	States can coexist. The highest-priority active animation takes precedence.
+动画	Animation
+搜索任务类型	Search task types
+持续方式	Task lifetime
+一次性任务	One-off task
+持续任务	Ongoing task
+任务上下文	Task context
+延续工作会话	Continue the work conversation
+每次独立执行	Start a fresh conversation each time
+暂停任务	Pause task
+结束任务	End task
+历次运行	Run history
+共享资料	Shared reference material
+讨论规则	Discussion rules
+附加只读目录（每行一个）	Additional read-only directories (one per line)
+附加可写目录（每行一个）	Additional writable directories (one per line)
+任务	Tasks
+角色关切	Character concerns
+暂时没有角色关切	No character concerns yet
+交给子任务执行，并保留工作记录和成果。	Delegate work and retain its conversation and results.
+配置自动化任务	Configure an automation
+在角色配置中选择任务类型、触发条件与执行参数。	Choose task types, trigger conditions and execution settings in character configuration.
+当前任务	Current tasks
+历史	History
+暂无历史任务	No task history yet
+暂无任务	No tasks yet
+Character Concerns	角色关切
+检索增强不可用时	When retrieval enhancement is unavailable
+召回查询方式	Recall query method
+记忆检索方式	Memory retrieval method
+原文	Original text
+建议内容	Proposed content
+依据	Evidence
+延续任务笔记	Continue task notes
+每次独立整理	Independent review each time
+允许的记忆操作	Allowed memory operations
+普通记忆维护指引	Ordinary memory maintenance guidance
+核心记忆提案指引	Core memory proposal guidance
+允许角色自主委派	Allow autonomous delegation
+执行补充指引	Additional execution guidance
+附加工作目录	Additional work directories
+每天最多尝试开口次数	Maximum conversation opportunities per day
+避让条件	Avoidance conditions
+本地关键词提取	Local keyword extraction
+模型构造查询	Model-assisted query construction
+关键词检索	Keyword retrieval
+混合检索	Hybrid retrieval
+语义检索	Semantic retrieval
+使用关键词检索	Use keyword retrieval
+报告错误	Report an error
+新增普通记忆	Add ordinary memories
+修订普通记忆	Update ordinary memories
+合并普通记忆	Merge ordinary memories
+归档普通记忆	Archive ordinary memories
+删除普通记忆	Delete ordinary memories
+提交核心记忆审批	Submit core memory proposals
+已验收的任务成果	Accepted task results
+主会话执行	Main conversation activity
+子任务执行	Worker activity
+气泡展示	Bubble display
+空闲	Idle
+拖动	Dragging
+漫游	Roaming
+等待确认	Awaiting confirmation
+目录	Directory
+预览整理指引	Preview review instructions
+
+任务列表	Task list
+下落	Falling
+落地	Landing
+
+Task Delegation	任务委派
+角色委派工作，跟踪执行、确认、检查点与结果回流。	Delegate work and track execution, approvals, checkpoints and results.
+可选。补充专业方法或执行约束；任务目标和验收要求在每次委派时提供。	Optional specialist methods or constraints. Each delegation supplies its own goal and acceptance criteria.
+
+日程已改期	Schedule moved
+已撤销改期	Move undone
+撤销改期	Undo move
+支持的输入	Supported inputs
+思考能力	Reasoning capabilities
+手动声明支持的思考级别	Declare supported reasoning levels
+仅在上游未提供元数据时，按接口文档填写。角色与任务分别选择实际使用的强度。	Use the API documentation when upstream metadata is unavailable. Characters and tasks select their own reasoning level.
+暂无角色档案	No character archives yet
+继续阅读	Continue reading
+个人知识库	Personal Knowledge
+浏览插件管理的资料库	Browse plugin-managed libraries
+召回记忆	Recall memory
+设定与档案	Profile & archives
+可选依赖：	Optional dependencies:
+可选依赖	Optional dependencies
+加载更早日期	Load earlier dates
+加载后续日期	Load later dates
+起始日期	Start date
+显示当前范围的已完成条目	Show completed items in this range
+开启思考	Thinking on
+支持情况未确认	Support unconfirmed
+支持项来自已核对的接口文档	Capabilities from verified API documentation
+支持项来自所选兼容方案	Capabilities from the selected compatibility profile
+当前模型未出现在上游目录中	This model is not listed in the upstream catalog
+读取模型支持项失败	Could not read model capabilities
+上游未提供思考能力元数据	Upstream provides no reasoning capability metadata
+Task System	任务系统
+管理任务委派、工作会话、运行记录、成果与验收。	Manage task delegation, worker sessions, execution records, results and acceptance.
+Knowledge System	知识系统
+统一文档库、来源、附件、版本、解析流程与内容检索。	Document libraries, provenance, attachments, versions, parsing and retrieval.
+Character System	角色系统
+管理角色身份、人设、权限、主会话与功能配置。	Manage character identities, profiles, permissions, main conversations and features.
+提供语义与混合检索、查询优化和结果重排，使用共享模型与索引。	Semantic and hybrid search, query optimization and reranking with shared models and indexes.
+Model Services	模型服务
+管理模型资源与本地运行额度；模型按需加载，凭据由应用存储保护。	Manage model resources and local runtime limits; models load on demand and credentials remain protected.
+结束日期（可选）	End date (optional)
+更换头像	Change portrait
+导入头像	Import portrait
+移除头像	Remove portrait
+头像图片	Portrait image
+请选择小于 5 MB 的头像图片。	Choose a portrait image smaller than 5 MB.
+图片读取失败	Could not read the image
+
+角色已停用	Character disabled
+停用角色	Disable character
+启用角色	Enable character
+任务、会话和桌宠已暂停，配置与历史保留。	Tasks, conversations and avatar are paused. Settings and history are preserved.
+启用角色后继续交流	Enable this character to continue chatting
+从示例开始	Start with examples
+两位风格互补的伙伴，以及她们的双人工作室。	Two complementary companions and their shared studio.
+收起	Collapse
+查看示例	View examples
+角色 · 记忆 · 桌宠 · 自动化	Character · Memory · Avatar · Automation
+包含可编辑的记忆整理、主动交流和实时观察任务。任务与桌宠初始关闭，可在角色配置中分别启用。	Includes editable memory review, proactive chat and observation tasks. Tasks and avatars start off; enable each in character settings.
+创建时启用所需插件；不会发送消息或采集屏幕。	Creating examples enables their plugins, without sending messages or capturing the screen.
+打开示例角色	Open example characters
+创建两个角色及群聊	Create characters and group
+单次输出上限（tokens）	Maximum output tokens
+沉静细致，擅长梳理计划与核对细节。	Calm and meticulous, with a talent for planning and checking details.
+活泼好奇，喜欢探索新点子与一起实践。	Lively and curious, eager to explore ideas and try them together.
+
+自动化消息的输出位置在各任务中设置。	Choose automation output destinations in each task.
+输出插件或目标当前不可用。	The output plugin or destination is unavailable.
+输出位置	Output destinations
+同一结果分别投递，投递失败不会重新生成回复。	One result is delivered to each destination. A delivery failure never regenerates the reply.
+不主动展示，只保留任务结果。	Keep the task result without presenting it.
+等待投递	Pending delivery
+投递中	Sending
+已进入渠道队列	Queued by channel
+已送达	Delivered
+未投递	Not delivered
+结果与投递	Results and delivery
+重试投递	Retry delivery
+核对投递	Inspect delivery
+仅保留结果	Result only
+添加自动化	Add automation
+任务类别	Task categories
+委派任务	Delegated work
+暂无自动化	No automations
+通知收件箱	Notification inbox
+桌宠气泡	Avatar bubble
+桌宠未显示，气泡会短暂排队。	The avatar is hidden. Bubbles will queue briefly.
+
+已结束跟进	Follow-up closed
+已核对，结束跟进	Reviewed; close follow-up
+组图张数	Frames per batch
+1 张 · 单图	1 frame · single image
+4 张 · 2×2	4 frames · 2×2
+9 张 · 3×3	9 frames · 3×3
+组图超时（秒）	Batch timeout (seconds)
+单帧宽度（像素）	Frame width (pixels)
+张数越少，识别越频繁；张数越多，等待越长、图片越大。	Fewer frames mean more frequent recognition; more frames mean longer waits and larger images.
+从第一张开始计时，超时丢弃未完成组图；单张模式无需等待。	Starts with the first frame and discards incomplete batches on expiry; single-image mode has no batch wait.
+5 秒选帧 · {frames} 张组图 · {history} 轮上文 · JPEG {quality}	5-second selection · {frames} frames · {history} previous rounds · JPEG {quality}
+当前组图	Current batch
+超时丢弃组数	Expired batches
+还没有完成的观察。	No completed observations yet.
+只采集白名单可见区域；本地检测、五秒选帧，支持单图与组图识别。默认关闭。	Captures visible allowlisted content only, with local detection, five-second frame selection and single-image or mosaic recognition. Off by default.
+语言与视觉模型	Language and vision model
+使用同一多模态模型体验各项功能，默认关闭思考；本地语义检索使用随客户端提供的 BGE。	Use one multimodal model across features, with reasoning off by default. Local semantic search uses the bundled BGE model.
+启用通用插件和角色工具权限；邮箱、QQ 与屏幕观察需要自行配置账号或授权。	Enables general plugins and character tools. Email, QQ and screen observation require your account or capture configuration.
+更新两位示例角色的人设、提示词、功能和模型配置？已有会话与记忆会保留。	Update both example characters' personas, prompts, features and model settings? Existing conversations and memories will be preserved.
+更新示例配置	Update example setup
+执行配置名称	Execution profile name
+执行配置	Execution profile
+添加执行配置	Add execution profile
+移除执行配置	Remove execution profile
+添加目录	Add directory
+移除目录	Remove directory
+保存可复用的模型、指引、目录和权限；交办任务时才启动执行。	Save reusable model, guidance, workspace and permission settings. Execution starts only when a task is assigned.
+整理笔记	Review notes
+选择是否带入上次整理笔记；材料仍按增量读取。	Choose whether to carry forward prior review notes; source material is still read incrementally.
+手动委派子任务	Delegate a subtask manually
+任务目标	Task goal
+工作目录	Working directory
+本次执行设置	Execution settings for this task
+本次执行时限（分钟）	Execution timeout (minutes)
+本次允许修改文件	Allow file changes for this task
+本次请求终端命令	Request terminal access for this task
+不允许	Not allowed
+逐次确认	Confirm each operation
+允许写入	Allow writes
+本次应用工具权限	Application tools for this task
+子任务补充指引	Additional subtask instructions
+委派子任务	Delegate subtask
+打开子任务会话	Open subtask conversation
+手动委派	Delegate manually
+活跃	Active
+非活跃	Inactive
+允许主角色委派子任务	Allow the main character to delegate subtasks
+额外允许的执行模型	Additional allowed execution models
+子任务可访问的目录	Directories available to subtasks
+子任务可用的应用工具	Application tools available to subtasks
+允许子任务请求终端命令	Allow subtasks to request terminal access
+同时执行上限	Concurrent execution limit
+单轮执行时限上限（分钟）	Maximum execution timeout (minutes)
+主角色委派指引	Delegation instructions for the main character
+子任务结束后由主角色接棒	Return completed subtasks to the main character
+接棒与验收指引	Handoff and acceptance instructions
+主会话模型始终可用；这里只选择允许主角色为子任务使用的其他模型。	The main conversation model is always available. Select additional models the character may use for subtasks.
+主角色可在这些目录内为每个子任务选择工作位置；勾选写入才允许修改。	The character may choose a working directory within these roots for each subtask. Writes require explicit permission.
+每个子任务只取得本次请求的工具权限，不能超出角色和应用的授权。	Each subtask receives only the tools requested for that task, within the character and application permissions.
+执行时仍需确认；终端不是仅限目录的沙箱。	Execution still requires approval. Terminal commands are not sandboxed to these directories.
+暂无非活跃子任务	No inactive subtasks
+暂无子任务	No subtasks
+上移	Move up
+下移	Move down
+邮件提醒规则	Mail reminder rules
+从上到下使用第一条命中的规则。没有命中的邮件不提醒。匹配词每行一个。	The first matching rule applies. Unmatched mail is not flagged. Enter one term per line.
+添加规则	Add rule
+移除规则	Remove rule
+规则名称	Rule name
+处理结果	Outcome
+匹配方式	Match type
+不提醒	Do not remind
+主题包含	Subject contains
+发件人地址等于	Sender address equals
+发件人域名	Sender domain
+发件人域名包含	Sender domain contains
+主题含稿件编号	Subject contains manuscript reference
+匹配词	Match terms
+例外发件人（每行一个）	Sender exceptions (one per line)
+可访问邮箱	Accessible mailboxes
+邮件筛选方式	Mail selection
+只接收应用标记为提醒的邮件	Use application reminder rules
+使用此任务的发件人与主题条件	Use task-specific sender and subject filters
+跳过此任务的发件人与主题条件	Skip task-specific sender and subject filters
+
+未命名规则	Untitled rule
+推理测试完成	Generation test finished
+测试推理	Test generation
+流式回复和工具调用均已验证。	Streaming and tool calls verified.
+流式回复已验证，模型未完成测试工具调用。	Streaming verified; the model did not complete the test tool call.
+模型上下文窗口（tokens，可选）	Model context window (tokens, optional)
+允许委派本机完全访问	Allow delegating full local access
+主会话可为具体子任务授予当前系统账户可用的文件访问。	The main conversation can grant a specific subtask file access as the current system account.
+主会话上下文	Main conversation context
+压缩触发上限（tokens）	Compaction threshold (tokens)
+压缩后保留原文（%）	Recent text retained after compaction (%)
+保留比例按有效上下文上限计算，完整聊天记录保留。	The retention percentage uses the effective context limit. The full transcript is retained.
+在这里选择角色工具。对外 MCP 在应用设置中单独管理。	Choose character tools here. External MCP access is managed separately in app settings.
+可委派	May delegate
+子任务授权与审批	Subtask access and approvals
+本任务使用本机完全访问	Use full local access for this task
+主会话代审	Let the main conversation review
+主会话代审记录	Main conversation approval history
+已批准	Approved
+项目文件权限，应用工具另行授权	Project file permissions. Application tools have separate grants.
+本机完全访问	Full local access
+文件工具已关闭	File tools off
+工作区读写	Workspace read and write
+文件修改需审批	File changes require approval
+文件只读	Files read-only
+固定前缀	Fixed prefix
+工具定义	Tool definitions
+会话历史	Conversation history
+本轮临时内容	Current-turn context
+参考记忆	Recalled memory
+常驻委派指引	Standing delegation instructions
+本轮委派信息	Current-turn delegation data
+表情目录	Sticker catalog
+角色关注	Character concerns
+渠道约定	Channel instructions
+滚动摘要	Rolling summary
+用户消息	User messages
+角色回复	Character replies
+导入记录	Imported records
+本轮工具调用与结果	Current tool calls and results
+压缩会话时保留，随角色和插件设置更新。	Retained during compaction and refreshed with character and plugin settings.
+压缩会话时保留，随可用工具更新。	Retained during compaction and updated with the available tools.
+旧内容可归入摘要或移出输入，原始记录保留。	Older content may be summarized or omitted from input. Original records are retained.
+仅注入本轮，留档的内容之后归入历史。	Used for the current turn. Saved entries become part of history.
+系统提示词	System prompt
+对话消息	Conversation messages
+平均生成速度包含模型等待时间，工具执行单独计时。	Average generation speed includes model wait time and excludes tool execution.
+{steps} 步	{steps} steps
+显示最近一轮的输入用量，缓存命中率按模型请求汇总。	Last turn input usage. Cache hit rate is aggregated across model requests.
+缓存命中 {percent}	Cache hits {percent}
+查看上下文明细	View context breakdown
+上下文用量	Context usage
+上下文已用	Context used
+下一轮完成后显示上下文构成。	Context breakdown appears after the next completed turn.
+Pi 文件工具权限	Pi file tool permissions
+此会话将以当前系统账户权限访问本机文件，修改与终端命令仍需确认。	This conversation can access files as the current system account. Edits and terminal commands still require confirmation.
+文件修改审批	File edit approval
+已授权范围内免审批	Allow edits within the authorized scope
+Echo 工具权限	Echo tool permissions
+沿用原会话权限	Use existing conversation permissions
+允许已授权的 Echo 工具	Allow granted Echo tools
+角色工具授权与文件权限分别设置。业务审批由对应工具处理。	Character tool grants are separate from file access. Each tool handles its own business approvals.
+知识分组	Knowledge groups
+成员快照	Membership snapshot
+设置外部 MCP 客户端可以调用的工具。角色工具在角色配置中授权。	Choose tools available to external MCP clients. Grant character tools in character settings.
+本次续跑输出上限（tokens）	Output limit for this retry (tokens)
+沿用任务预算	Use task budget
+不单独授权	No separate grant
+读写	Read and write
+目录授权覆盖子目录。主会话与子任务的授权可以分别设置。	A directory grant covers its subdirectories. Set main and subtask access independently.
+整理默认输出上限（0 为自动）	Default review output limit (0 for automatic)
+API 协议	API protocol
+子任务审批交给	Subtask approvals handled by
