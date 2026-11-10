@@ -26,3 +26,23 @@ test('release privacy checks reject runtime data and synthetic private-role text
     },
   );
 });
+
+test('public audit refuses excluded names, compiled identifiers, renamed databases and unapproved media', async (t) => {
+  const cases: [string, string | Buffer, RegExp][] = [
+    ['fixture-extension.js', 'export {};', /excluded release content in path/],
+    ['workbench.js', 'const bundled = "fixture-extension";', /excluded release content/],
+    ['launcher.exe', Buffer.concat([Buffer.from([0]), Buffer.from('fixture-extension', 'utf16le')]), /in executable/],
+    ['cache.bin', Buffer.from('SQLite format 3\0'), /embedded database/],
+    ['library.enl', 'synthetic data', /runtime\/private data path/],
+    ['example.webp', 'unapproved image', /unapproved public media asset/],
+    ['extra.zip', 'uninspected archive', /unapproved embedded archive/],
+  ];
+  for (const [file, body, reason] of cases) {
+    const root = await temporary(t);
+    await writeFile(join(root, file), body);
+    await assert.rejects(
+      auditReleaseTree(root, undefined, { forbidden: /fixture-extension/i, approvedAssets: new Set() }),
+      reason,
+    );
+  }
+});

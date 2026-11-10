@@ -17,7 +17,10 @@
     "test": "tsx --test --test-concurrency=4 --test-timeout=20000 tests/*.test.ts",
     "desktop": "cd apps/desktop && tauri dev",
     "desktop:build": "tsx scripts/build-desktop.ts",
-    "verify": "pnpm run check && pnpm run test && pnpm run build"
+    "verify": "pnpm run check && pnpm run test && pnpm run build",
+    "release:public": "tsx scripts/release-public.ts prepare",
+    "release:publish": "tsx scripts/release-public.ts publish",
+    "release:private": "tsx scripts/release.ts"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "^1.5.0",

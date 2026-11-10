@@ -188,3 +188,22 @@ pnpm exec tsx scripts/desktop-smoke.ts
 - `scripts/proactive-ui-smoke.ts` passed with zero model calls. Shared embedding selection is in the Embeddings plugin settings; role editing has no role-specific embedding selector. Role task settings and shared workspace pages remain in their respective configuration areas.
 - Memory query planning, semantic query planning and embedding routes are shared application routes. Memory records and recall results remain character-scoped. Knowledge MCP search exposes the application-selected policy; ranking controls stay in the workbench advanced search.
 - Legacy role-level retrieval routes and obsolete retrieval settings in character packages are ignored/removed on read or import. The MCP caller's tool permissions remain Harness/application scoped; they are not a per-character ACL.
+
+## Maintainer release commands
+
+Run pnpm release:public in the configured public checkout. It checks the committed
+source and every unpublished ancestor, builds and extracts the Windows installer,
+then writes the source archive, installer, checksums and a local verification receipt to
+dist/release/public/<version>. Use pnpm release:publish from the same clean commit.
+It repeats the artifact checks before pushing the public branch and version tag, then
+publishes the verified files. Use a new version for each release.
+
+Run pnpm release:private in the configured private checkout. Its portable app and
+installer are written to dist/release/private/<version>. The application reads role
+configuration, credentials and knowledge from its separate local data directory.
+
+The maintainer policy lives outside both repositories. The default is
+~/.echo/echo-release-policy.local.json, with ECHO_RELEASE_POLICY available for a
+different location. It specifies both checkout paths, the GitHub repository, absolute
+7-Zip and GitHub CLI paths, the private runtime reference, excluded markers and
+approved public media hashes. Keep the policy and reference local.

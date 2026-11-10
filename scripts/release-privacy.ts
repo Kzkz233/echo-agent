@@ -1,4 +1,4 @@
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { open, readFile, readdir, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { homedir } from 'node:os';
@@ -73,25 +73,35 @@ export async function privateReference(directory?: string): Promise<PrivateRefer
 export async function auditReleaseTree(
   root: string,
   reference: PrivateReference = { names: [], text: [], assets: new Set() },
+  rules: { forbidden?: RegExp; forbiddenBinary?: RegExp; approvedAssets?: ReadonlySet<string> } = {},
 ) {
-  const home = [homedir(), homedir().replaceAll('\\', '/'), homedir().replaceAll('\\', '\\\\')];
+  const home = [homedir(), homedir().replaceAll('\\', '/'), homedir().replaceAll('\\', '\\\\')].map(s => s.toLowerCase());
+  const containsHome = (value: string) => {
+    const normalized = value.toLowerCase();
+    return home.some(prefix => normalized.includes(prefix));
+  };
   const findings: { file: string; reason: string }[] = [];
   let files = 0;
   async function walk(directory: string) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
-      const path = join(directory, entry.name),
-        name = relative(root, path).replaceAll('\\', '/');
+      const path = join(directory, entry.name);
+      const name = relative(root, path).replaceAll('\\', '/');
+      const firstParty = !/(^|\/)(node_modules|licenses|\$PLUGINSDIR)\//i.test(name);
+      const issue = (reason: string) => findings.push({ file: name, reason });
+      if (rules.forbidden?.test(name)) {
+        findings.push({ file: '(withheld)', reason: 'excluded release content in path' });
+        continue;
+      }
       if (entry.isSymbolicLink()) {
-        findings.push({ file: name, reason: 'symbolic link' });
+        issue('symbolic link');
         continue;
       }
       if (
-        /(^|\/)(?:\.env|echo\.sqlite(?:-wal|-shm)?|credentials|Vault|observations|avatar-assets|private)(?:\/|$)/i.test(
-          name,
-        ) &&
-        !name.startsWith('node_modules/')
+        /(?:^|\/)\.env(?:[./]|$)|\.(?:db3?|sqlite3?(?:-wal|-shm)?|enl[xw]?|jsonl|ndjson|key|pem|pfx)$/i.test(name) ||
+        (firstParty &&
+          /(?:^|\/)(?:credentials|vaults?|libraries|observations|avatar-assets|private|harnesses|backups|exports|test-results|connection\.json|instance\.lock)(?:\/|$)/i.test(name))
       ) {
-        findings.push({ file: name, reason: 'runtime/private data path' });
+        issue('runtime/private data path');
         continue;
       }
       if (entry.isDirectory()) {
@@ -100,45 +110,59 @@ export async function auditReleaseTree(
       }
       if (!entry.isFile()) continue;
       files++;
-      const firstParty = !name.startsWith('node_modules/') && !name.startsWith('licenses/');
-      const textual =
-        /\.(?:ts|tsx|rs|js|mjs|json|md|txt|ya?ml|toml|ps1|cmd)$/i.test(name) ||
-        entry.name === '.npmrc';
-      if (textual && firstParty) {
-        const contents = await readFile(path, 'utf8'),
-          compact = normalize(contents);
-        if (home.some((prefix) => contents.includes(prefix)))
-          findings.push({ file: name, reason: 'local user path' });
-        if (
-          /(?:sk-[A-Za-z0-9]{30,}|-----BEGIN (?:RSA |OPENSSH )?PRIVATE KEY-----|_authToken\s*=\s*[^$\s]+)/.test(
-            contents,
-          )
-        )
-          findings.push({ file: name, reason: 'credential-like content' });
-        if (
-          reference.names.some((name) => contents.includes(name)) ||
-          reference.text.some((text) => compact.includes(text))
-        )
-          findings.push({ file: name, reason: 'private character content' });
-        if (reference.mailAddresses?.some(address => contents.toLowerCase().includes(address)))
-          findings.push({ file: name, reason: 'private mail address' });
+      if (!firstParty) continue;
+      if (rules.approvedAssets && /\.(?:zip|7z|rar|gz|tgz|tar|bak|pdf|docx|xlsx|pptx|ris|map)$/i.test(name)) {
+        issue('unapproved embedded archive or document');
+        continue;
       }
-      if (
-        firstParty &&
-        reference.assets.size &&
-        /\.(png|webp|jpe?g|json)$/i.test(name) &&
-        (await stat(path)).size < 50000000
-      )
-        if (reference.assets.has(digest(await readFile(path))))
-          findings.push({ file: name, reason: 'private character asset' });
+      const prefix = Buffer.alloc(16);
+      const handle = await open(path, 'r');
+      try {
+        await handle.read(prefix, 0, prefix.length, 0);
+      } finally {
+        await handle.close();
+      }
+      if (prefix.toString() === 'SQLite format 3\0') {
+        issue('embedded database');
+        continue;
+      }
+      const textual =
+        /\.(?:ts|tsx|rs|js|mjs|cjs|json|md|txt|ya?ml|toml|ps1|cmd|html|css|svg|xml)$/i.test(name) ||
+        entry.name === '.npmrc';
+      if (textual) {
+        const contents = await readFile(path, 'utf8');
+        const compact = normalize(contents);
+        if (containsHome(contents) || /[a-z]:[\\/]+Users[\\/]+(?!Public[\\/]+)[\w.-]+[\\/]/i.test(contents))
+          issue('local user path');
+        if (rules.forbidden?.test(contents)) issue('excluded release content');
+        if (/(?:sk-[A-Za-z0-9]{30,}|-----BEGIN (?:RSA |OPENSSH )?PRIVATE KEY-----|_authToken\s*=\s*[^$\s]+)/.test(contents))
+          issue('credential-like content');
+        if (reference.names.some(value => contents.includes(value)) || reference.text.some(value => compact.includes(value)))
+          issue('private character content');
+        if (reference.mailAddresses?.some(address => contents.toLowerCase().includes(address)))
+          issue('private mail address');
+      }
+      const forbiddenBinary = rules.forbiddenBinary ?? rules.forbidden;
+      if (forbiddenBinary && /\.(?:exe|dll)$/i.test(name)) {
+        const binary = await readFile(path);
+        const strings = [binary.toString('utf8'), binary.toString('utf16le'), binary.subarray(1).toString('utf16le')];
+        if (strings.some(value => forbiddenBinary.test(value) || containsHome(value)))
+          issue('excluded content or local user path in executable');
+      }
+      const media = /\.(?:png|webp|jpe?g|ico|gif|svg|bmp|mp[34]|wav|webm|ogg)$/i.test(name);
+      if ((rules.approvedAssets && media) ||
+          (reference.assets.size && (media || /\.json$/i.test(name)) && (await stat(path)).size < 50000000)) {
+        const hash = digest(await readFile(path));
+        if (reference.assets.has(hash)) issue('private character asset');
+        if (rules.approvedAssets && media && !rules.approvedAssets.has(hash)) issue('unapproved public media asset');
+      }
     }
   }
   await walk(root);
   if (findings.length) throw Error('Release privacy audit failed: ' + JSON.stringify(findings));
   return {
     files,
-    privateReferenceUsed:
-      reference.names.length > 0 || reference.text.length > 0 || reference.assets.size > 0,
+    privateReferenceUsed: reference.names.length > 0 || reference.text.length > 0 || reference.assets.size > 0,
     findings: 0,
   };
 }
