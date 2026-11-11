@@ -1,5 +1,25 @@
 [
   [
+    "查看条目",
+    "View entry"
+  ],
+  [
+    "导入位置",
+    "Import location"
+  ],
+  [
+    "根目录",
+    "Root folder"
+  ],
+  [
+    "目标目录",
+    "Destination folder"
+  ],
+  [
+    "模型输出",
+    "Model output"
+  ],
+  [
     "提供方不可用",
     "(provider unavailable)"
   ],

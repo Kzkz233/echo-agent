@@ -284,14 +284,16 @@ export class Knowledge {
       return { ...doc, source: physical, revision: doc.revision + 1 };
     });
   }
-  async queueImport(vaultId: string, source: string, requestId: string, parserProvider?: string) {
+  async queueImport(vaultId: string, source: string, requestId: string, parserProvider?: string, targetFolder?: string) {
     this.files.assertWrite(vaultId);
+    const folder = targetFolder === undefined ? undefined : logicalEntryPath(targetFolder);
     const findPrior = () => {
       const prior = this.store.document<any>('knowledge-jobs', requestId);
       if (!prior) return;
       invariant(
         prior.vaultId === vaultId &&
           prior.requestedSource === source &&
+          prior.folder === folder &&
           (!parserProvider || prior.parserProvider === parserProvider),
         'idempotency_conflict',
         '导入编号对应其他文件或解析器',
@@ -322,6 +324,7 @@ export class Knowledge {
       revision: existing?.revision ?? 0,
       state: 'queued',
       parserProvider: selected,
+      folder,
       createdAt: new Date().toISOString(),
     };
     this.store.put('knowledge-jobs', job.id, job);
@@ -362,6 +365,7 @@ export class Knowledge {
           sourceHash: job.original.hash,
           sourceFileId: job.original.id,
           revision: job.revision,
+          path: job.folder === undefined ? undefined : [job.folder, job.documentId + '.md'].filter(Boolean).join('/'),
         },
       );
       job = {
@@ -709,9 +713,10 @@ export class Knowledge {
             source: z.string(),
             requestId: id,
             parserProvider: id.optional(),
+            folder: z.string().max(1000).optional(),
           }),
           'knowledge.write',
-          (v) => this.queueImport(v.vaultId, v.source, v.requestId, v.parserProvider),
+          (v) => this.queueImport(v.vaultId, v.source, v.requestId, v.parserProvider, v.folder),
           false,
         );
         op(

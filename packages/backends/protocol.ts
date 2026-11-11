@@ -75,9 +75,10 @@ export async function modelProtocol(profile: Profile, override?: string) {
     reasoning: Boolean(reasoning),
     ...(support?.wireValues ? { thinkingLevelMap: support.wireValues } : {}),
     input: profile.vision ? ['text', 'image'] : ['text'],
-    contextWindow: typeof profile.modelOptions.contextWindowTokens === 'number'
-      ? profile.modelOptions.contextWindowTokens
-      : profile.contextChars,
+    contextWindow:
+      typeof profile.modelOptions.contextWindowTokens === 'number'
+        ? profile.modelOptions.contextWindowTokens
+        : profile.contextChars,
     maxTokens: profile.maxOutputTokens,
     ...(api === 'openai-completions'
       ? {
@@ -94,11 +95,24 @@ export async function modelProtocol(profile: Profile, override?: string) {
           },
         }
       : {}),
-    ...(api === 'openai-responses' ? { compat: { supportsMidConvoSystemMessages: true } } : {}),
+    ...(api === 'openai-responses'
+      ? {
+          compat: {
+            supportsMidConvoSystemMessages: true,
+            // DeepSeek treats developer messages as user input, not system rules.
+            // Preserve the authority of persona and channel instructions in thinking mode.
+            ...(style === 'deepseek' ? { supportsDeveloperRole: false } : {}),
+          },
+        }
+      : {}),
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
   };
   const onPayload: SimpleStreamOptions['onPayload'] = (payload) => {
-    if (api === 'openai-responses' && effort === 'off' && (style === 'effort' || style === 'deepseek')) {
+    if (
+      api === 'openai-responses' &&
+      effort === 'off' &&
+      (style === 'effort' || style === 'deepseek')
+    ) {
       const wire = support?.wireValues?.off;
       if (wire !== null) return { ...(payload as object), reasoning: { effort: wire ?? 'none' } };
     }

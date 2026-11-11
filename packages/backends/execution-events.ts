@@ -161,6 +161,10 @@ export function dshEvent(event: any): ExecutionUpdate | undefined {
     };
 }
 export function piEvent(event: any): ExecutionUpdate | undefined {
+  if (event.type === 'message_end' && event.message.role === 'assistant') {
+    const text = (event.message.content ?? []).filter((part: any) => part.type === 'text').map((part: any) => part.text).join('');
+    if (text) return { id: 'message-' + event.message.timestamp, kind: 'message', title: '模型输出', state: 'completed', text };
+  }
   if (event.type.startsWith('tool_execution_'))
     return {
       id: String(event.toolCallId),

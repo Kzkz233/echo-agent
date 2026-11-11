@@ -4,18 +4,19 @@ import {
   type TranscriptContext,
 } from '@earendil-works/pi-ai';
 
-/** Anthropic's 2023 Messages protocol has no in-transcript system role.
- * Keep application events at their chronological position in marked transport
- * envelopes, rather than hoisting them ahead of the user request. The canonical
- * Echo message remains a system event; this is only the protocol representation. */
+/** Keep application events chronological without presenting them as human speech.
+ * Anthropic's 2023 protocol has no in-transcript system role. Responses-compatible
+ * gateways can treat a trailing system update as history rather than a new input.
+ * The canonical Echo message remains a system event; only its wire carrier changes. */
 export function protocolTranscript(
   context: TranscriptContext,
   protocol: string,
 ): TranscriptContext {
-  if (
-    protocol !== 'anthropic-messages' ||
-    !context.messages.some((message, index) => index > 0 && message.role === 'system')
-  )
+  const anthropic = protocol === 'anthropic-messages';
+  const lastIndex = context.messages.length - 1;
+  const wrap = (index: number) =>
+    index > 0 && (anthropic || (protocol === 'openai-responses' && index === lastIndex));
+  if (!context.messages.some((message, index) => message.role === 'system' && wrap(index)))
     return context;
   const initial = context.messages[0]?.role === 'system' ? context.messages[0] : undefined;
   const tools = getCurrentTools(context.messages);
@@ -34,8 +35,8 @@ export function protocolTranscript(
     ...context,
     messages: [
       header,
-      ...context.messages.slice(initial ? 1 : 0).map((message) =>
-        message.role !== 'system'
+      ...context.messages.slice(initial ? 1 : 0).map((message, index) =>
+        message.role !== 'system' || !wrap(index + (initial ? 1 : 0))
           ? message
           : {
               role: 'user' as const,

@@ -110,68 +110,101 @@ for (const protocol of generationProtocol.options)
       ];
       let requests = 0;
       for (const backend of backends) {
-        for (const source of ['observation', 'care', 'mail', 'handoff', 'human']) {
-          const request: GenerateRequest = {
-            profile: profileSchema.parse({
-              id: 'fixture',
-              name: 'Fixture',
-              kind: 'pi',
-              protocol,
-              endpoint: `http://127.0.0.1:${(server.address() as any).port}/v1`,
-              model: 'fixture',
-              reasoningStyle: 'deepseek',
-            }),
-            reasoning: 'off',
-            requestId: source,
-            signal: AbortSignal.timeout(6000),
-            messages: [
-              { role: 'system', text: 'STABLE_PERSONA' },
-              { id: 'prior-human', role: 'user', text: 'OLD_USER_REQUEST' },
-              { id: 'prior-reply', role: 'assistant', text: 'OLD_ASSISTANT_REPLY' },
-              {
-                id: 'turn-context',
-                role: 'system',
-                context: 'turn',
-                text: 'CURRENT_CHANNEL_CONTRACT echo_respond',
+        for (const effort of ['off', 'high'] as const) {
+          for (const source of ['observation', 'care', 'mail', 'handoff', 'human']) {
+            const items: any[] = [];
+            let deliveries = 0;
+            const request: GenerateRequest = {
+              profile: profileSchema.parse({
+                id: 'fixture',
+                name: 'Fixture',
+                kind: 'pi',
+                protocol,
+                endpoint: `http://127.0.0.1:${(server.address() as any).port}/v1`,
+                model: 'fixture',
+                reasoningStyle: 'deepseek',
+              }),
+              reasoning: effort,
+              requestId: source,
+              signal: AbortSignal.timeout(6000),
+              messages: [
+                { role: 'system', text: 'STABLE_PERSONA' },
+                { id: 'prior-human', role: 'user', text: 'OLD_USER_REQUEST' },
+                { id: 'prior-reply', role: 'assistant', text: 'OLD_ASSISTANT_REPLY' },
+                {
+                  id: 'turn-context',
+                  role: 'system',
+                  context: 'turn',
+                  text: 'CURRENT_CHANNEL_CONTRACT echo_respond',
+                },
+                {
+                  id: 'current',
+                  role: source === 'human' ? 'user' : 'system',
+                  text: 'CURRENT_' + source.toUpperCase() + '_EVENT',
+                },
+              ],
+              respond: () => {
+                deliveries++;
+                return { accepted: true };
               },
-              {
-                id: 'current',
-                role: source === 'human' ? 'user' : 'system',
-                text: 'CURRENT_' + source.toUpperCase() + '_EVENT',
-              },
-            ],
-            respond: () => ({ accepted: true }),
-            replyTargets: ['core.chat'],
-          };
-          await backend.generate(request);
-          assert.equal(
-            bodies.length,
-            ++requests,
-            'No supplemental generation should be introduced',
-          );
-          const body = bodies.at(-1),
-            input = body.input ?? body.messages;
-          assert(
-            JSON.stringify(input.at(-1)).includes('CURRENT_' + source.toUpperCase() + '_EVENT'),
-            'Current ' + source + ' event was hoisted ahead of the prior user request',
-          );
-          const wire = JSON.stringify(input);
-          if (backend.kind === 'pi')
-            assert(
-              JSON.stringify(body.tools).includes('echo_respond'),
-              'Reply tool must be declared on the wire',
-            );
-          assert(
-            wire.indexOf('CURRENT_CHANNEL_CONTRACT') > wire.indexOf('OLD_ASSISTANT_REPLY'),
-            'Current channel contract was hoisted into the historical prefix',
-          );
-          if (protocol === 'openai-responses')
+              onItem: (item) => items.push(item),
+              replyTargets: ['core.chat'],
+            };
+            await backend.generate(request);
+            assert.equal(deliveries, 0, 'Ordinary model text is never forwarded');
+            if (backend.kind === 'pi')
+              assert(
+                items.some((item) => item.kind === 'message' && item.text === 'Synthetic reply'),
+                'Workbench must retain raw model output, including protocol failures',
+              );
             assert.equal(
-              body.reasoning?.effort,
-              'none',
-              'Explicit off must not fall back to the upstream default',
+              bodies.length,
+              ++requests,
+              'No supplemental generation should be introduced',
             );
-          else assert.equal(body.thinking?.type, 'disabled');
+            const body = bodies.at(-1),
+              input = body.input ?? body.messages;
+            assert(
+              JSON.stringify(input.at(-1)).includes('CURRENT_' + source.toUpperCase() + '_EVENT'),
+              'Current ' + source + ' event was hoisted ahead of the prior user request',
+            );
+            const wire = JSON.stringify(input);
+            if (protocol === 'openai-responses') {
+              assert.equal(
+                input[0].role,
+                'system',
+                'DeepSeek must not downgrade the stable prompt into developer/user input',
+              );
+              if (source !== 'human') {
+                assert.equal(input.at(-1).role, 'user');
+                assert(JSON.stringify(input.at(-1)).includes('<echo_application_event>'));
+              }
+              const contract = input.find((message: any) =>
+                JSON.stringify(message).includes('CURRENT_CHANNEL_CONTRACT'),
+              );
+              assert.equal(
+                contract.role,
+                'system',
+                'Per-turn channel rules must keep system authority',
+              );
+            }
+            if (backend.kind === 'pi')
+              assert(
+                JSON.stringify(body.tools).includes('echo_respond'),
+                'Reply tool must be declared on the wire',
+              );
+            assert(
+              wire.indexOf('CURRENT_CHANNEL_CONTRACT') > wire.indexOf('OLD_ASSISTANT_REPLY'),
+              'Current channel contract was hoisted into the historical prefix',
+            );
+            if (protocol === 'openai-responses')
+              assert.equal(
+                body.reasoning?.effort,
+                effort === 'off' ? 'none' : 'high',
+                'The selected effort must reach the upstream unchanged',
+              );
+            else assert.equal(body.thinking?.type, effort === 'off' ? 'disabled' : 'enabled');
+          }
         }
       }
     },

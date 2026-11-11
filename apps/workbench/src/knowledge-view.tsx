@@ -46,6 +46,7 @@ export function KnowledgeView({
     [source, setSource] = useState(''),
     [importMode, setImportMode] = useState('parse'),
     [importParser, setImportParser] = useState(''),
+    [importFolder, setImportFolder] = useState(''),
     [path, setPath] = useState(''),
     [query, setQuery] = useState(''),
     [kind, setKind] = useState(''),
@@ -217,6 +218,7 @@ export function KnowledgeView({
   const openPanel = (next: string) =>
     requestNavigation(() => {
       setDraft(undefined);
+      if (next === 'import') setImportFolder(folder);
       setPanel(next);
     });
   useEffect(() => {
@@ -515,6 +517,22 @@ export function KnowledgeView({
           </p>
           <div className="form-grid">
             <PathInput label={t('材料文件路径')} value={source} onChange={setSource} />
+            {importMode === 'parse' && (
+              <label className="field">
+                <span>{t('目标目录')}</span>
+                <input
+                  aria-label={t('目标目录')}
+                  value={importFolder}
+                  onChange={(event) => setImportFolder(event.target.value)}
+                  list="knowledge-import-folders"
+                  placeholder={t('根目录')}
+                />
+                <datalist id="knowledge-import-folders">
+                  {folders.map((path) => <option key={path} value={path} />)}
+                </datalist>
+                <small>{libraryLabel(activeVault, data.plugins)} / {importFolder || t('根目录')}</small>
+              </label>
+            )}
             <label className="field">
               <span>{t('导入方式')}</span>
               <select value={importMode} onChange={(event) => setImportMode(event.target.value)}>
@@ -556,6 +574,7 @@ export function KnowledgeView({
                       source,
                       requestId: crypto.randomUUID(),
                       parserProvider: importParser || undefined,
+                      folder: importFolder,
                     });
                     await load();
                     if (item?.state === 'completed')
@@ -780,7 +799,21 @@ export function KnowledgeView({
                     )[j.state],
                   )}
                   {j.error && <small className="warning">{j.error}</small>}
+                  {j.state === 'completed' && <small>
+                    {t('导入位置')} · {items.find((item) => item.id === j.documentId && item.vaultId === j.vaultId)?.logicalPath?.split('/').slice(0, -1).join(' / ') || t('根目录')}
+                  </small>}
                 </span>
+                {j.state === 'completed' && (
+                  <Button secondary onClick={() => {
+                    const item = items.find((item) => item.id === j.documentId && item.vaultId === j.vaultId);
+                    if (item) {
+                      setFolder(item.logicalPath?.split('/').slice(0, -1).join('/') || '');
+                      setHits(undefined);
+                      setArchive(false);
+                    }
+                    void read({ id: j.documentId, vaultId: j.vaultId });
+                  }}>{t('查看条目')}</Button>
+                )}
                 {['paused', 'failed'].includes(j.state) && (
                   <Button
                     secondary
