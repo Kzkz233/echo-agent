@@ -1,5 +1,49 @@
 # Model context
 
+## Message headers
+
+Canonical message bodies stay unchanged. Model inputs also carry a typed
+`messageContext` snapshot, rendered at the backend boundary as:
+
+```text
+[current_time: 2026-11-11T20:20:18+08:00 | timezone: Asia/Shanghai]
+[time: 2026-11-11T20:18:32+08:00 | sender: user | channel: QQ]
+Message body
+```
+
+Field names are fixed English. `channel` and `task` are optional, independent
+labels; an observation event has a task, not an invented inbound chat channel.
+Headers are context, never permissions or a replacement for native message roles.
+One message time is exposed: a validated platform send time when supplied, otherwise
+the application's acceptance time. Queued inputs keep that acceptance time rather
+than acquiring a new timestamp when execution starts. Domain times (capture windows,
+email dates, task details) remain in the body.
+
+The current clock is sampled once when preparing each conversation turn and saved
+with that input. Old snapshots are not recomputed on replay, including after a UI
+language or application timezone change. The stable prefix contains only the fixed
+interpretation rules. Ordinary chat and avatar delivery never display these headers.
+Older records are interpreted conservatively from saved metadata, without rewriting
+the database or inventing unknown origins. Automatic compaction keeps its existing
+policy and reuses the common rendering for its source text and budget accounting.
+
+Plugins may fill the optional `messageOrigin` on a router submission, or register a
+source descriptor at `core.message.sources@1` using `contributeMessageSource` from
+`packages/kernel/message-context.ts`. Providers need `context.contribute`, use their
+own namespace, and return optional `sender`, `channel`, and `task` strings. A
+submission selects the descriptor with `messageOrigin.sourceId`; it is resolved
+once and snapshotted with the message. Unloading removes the source provider but
+does not change previous headers. Channels and automation reuse their registered
+adapter/signal labels automatically. This extension describes provenance only;
+task prompts and content still use the existing message/context mechanisms.
+
+Generation adapters receive `ModelInput.messageContext` and must call the shared
+`materializeMessage` helper from `packages/contracts/message-context.ts` before
+serializing text to a model or native host. The helper is idempotent and does not
+mutate the original input. All first-party API, Pi, Codex and DSH adapters use it.
+
+## Assembly
+
 Echo assembles conversational model input in four sections:
 
 1. Stable context, in one leading `system` message.

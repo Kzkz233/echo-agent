@@ -223,6 +223,7 @@ export class Groups {
             conversationId,
             requestId: turn.id + '.' + member,
             source: 'group',
+            messageOrigin: { channel: group.name, sender: 'system' },
             text: [
               ...(sync?.contextHash === contextHash
                 ? []

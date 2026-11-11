@@ -35,6 +35,9 @@ import {
 import type { ReplyImage } from '../contracts/index.ts';
 import { compactConversation, eligibleHistory } from './compaction.ts';
 import { estimateTokens, type ContextDetail } from '../contracts/generation-metrics.ts';
+import { messageContextRules, renderMessageText, type MessageOrigin } from '../contracts/message-context.ts';
+import { captureMessageContext, storedMessageContext, messageSourcePoint } from './message-context.ts';
+import { configuredTimezone } from './time.ts';
 
 type Submission = {
   conversationId: string;
@@ -49,6 +52,7 @@ type Submission = {
   localOnly?: boolean;
   workSession?: true;
   delivery?: DeliveryPlan;
+  messageOrigin?: MessageOrigin;
 };
 export class Router {
   readonly inference: InferenceCatalog;
@@ -131,10 +135,12 @@ export class Router {
       () => {},
     );
     core.define(contextPoint);
+    core.define(messageSourcePoint);
     this.context(
       {
         id: 'core',
         blocks: [
+          { id: 'core.message-context', layer: 'stable' },
           {
             id: 'core.presentation',
             layer: 'turn',
@@ -142,8 +148,9 @@ export class Router {
           },
         ],
         prepare: ({ conversation, presentation, replyStyles }) => {
+          const base = { 'core.message-context': [{ text: messageContextRules }] };
           if (replyStyles?.length) {
-            return { 'core.presentation': [{ text: [
+            return { ...base, 'core.presentation': [{ text: [
               presentation === 'external' ? '本轮通过消息渠道回复。' : presentation === 'bubble' ? '本轮显示在桌宠小气泡。' : '',
               '发给渠道的内容必须用 echo_respond 提交。普通正文只属于执行过程。messages 的每项是一条独立消息，普通换行留在同一项内。progress 是可选的中途说明，final 是正式交付。',
               '需要回复时，给每个已选目标分别提交 final，共用同一次工作的结果。',
@@ -151,7 +158,7 @@ export class Router {
               ...replyStyles.map(({ id, label, text }) => `${id}（${label}）${text ? '：' + text : ''}`),
             ].filter(Boolean).join('\n') }] };
           }
-          if (!presentation) return { 'core.presentation': [] };
+          if (!presentation) return { ...base, 'core.presentation': [] };
           const expression = this.store.document<Persona>(
             'personas',
             conversation.personaId,
@@ -162,7 +169,7 @@ export class Router {
                 (expression?.external ?? '')
               : '本轮显示在桌宠小气泡。' +
                 (expression?.bubble ?? '');
-          return { 'core.presentation': [{ text: '[Echo 本轮展示约定] ' + text }] };
+          return { ...base, 'core.presentation': [{ text: '[Echo 本轮展示约定] ' + text }] };
         },
       },
       core,
@@ -476,11 +483,15 @@ export class Router {
       ...input,
       createdAt: new Date().toISOString(),
     };
+    const messageContext = await captureMessageContext(this.capabilities, {
+      role: 'user', source: 'human', time: receipt.createdAt, timezone: configuredTimezone(this.store),
+      origin: { channel: input.workSession ? 'Role workbench' : 'App chat' }, preparedAt: receipt.createdAt,
+    }, roleSignal);
     this.store.saveReceipt(key, receipt);
     try {
       await backend.steer({
         requestId: run.requestId,
-        text: [input.text, content.text].filter(Boolean).join('\n\n'),
+        text: renderMessageText({ text: [input.text, content.text].filter(Boolean).join('\n\n'), messageContext }),
         images: content.images,
       });
       roleSignal.throwIfAborted();
@@ -491,7 +502,7 @@ export class Router {
           'human',
           input.text,
           run.id,
-          { steer: true, attachments, ...(input.workSession ? { workSession: true } : {}) },
+          { steer: true, attachments, messageContext, ...(input.workSession ? { workSession: true } : {}) },
         );
         this.store.saveReceipt(key, { ...receipt, state: 'accepted' });
         return message;
@@ -649,22 +660,25 @@ export class Router {
     }
   }
   private effective(messages: Message[], limit: number, tokenLimit = Infinity) {
+    const timezone = configuredTimezone(this.store);
     let size = 0;
     let tokens = 0;
     const selected: Message[] = [];
     for (const m of [...messages].reverse()) {
       if (!eligibleHistory(m)) continue;
-      if (size + m.text.length > limit) break;
+      const text = renderMessageText({ text: m.text, messageContext: storedMessageContext(m, timezone) });
+      if (size + text.length > limit) break;
       if (tokenLimit !== Infinity) {
-        tokens += estimateTokens(m.text) + 4;
+        tokens += estimateTokens(text) + 4;
         if (tokens > tokenLimit) break;
       }
-      size += m.text.length;
+      size += text.length;
       selected.unshift(m);
     }
     return selected;
   }
   private async input(messages: Message[]): Promise<ModelInput[]> {
+    const timezone = configuredTimezone(this.store);
     return Promise.all(
       messages
         .filter((m) => !m.meta.presentationOnly && !(m.source === 'import' && typeof m.meta.knowledgeVersion === 'string'))
@@ -678,6 +692,7 @@ export class Router {
             role: m.role,
             text: [m.text, content.text].filter(Boolean).join('\n\n'),
             images: content.images,
+            messageContext: storedMessageContext(m, timezone),
           };
         }),
     );
@@ -749,7 +764,7 @@ export class Router {
       '此模型未启用生成能力',
     );
     invariant(
-      messages.reduce((n, m) => n + m.text.length, 0) <= profile.contextChars,
+      messages.reduce((n, m) => n + renderMessageText(m).length, 0) <= profile.contextChars,
       'context_limit',
       '任务内容超过此后端的上下文字符预算，请调整预算或分段。',
     );
@@ -832,7 +847,7 @@ export class Router {
         '此会话含图片，请选择支持图片输入的目标模型。',
       );
       invariant(
-        history.reduce((n, m) => n + m.text.length, 0) <= profile.contextChars,
+        history.reduce((n, m) => n + renderMessageText(m).length, 0) <= profile.contextChars,
         'migration_context_limit',
         '完整历史超过目标后端预算；未截断或切换，请先调整预算。',
       );
@@ -926,6 +941,7 @@ export class Router {
             : []),
           ...(input.localOnly || existing?.meta.localOnly ? [Boolean(input.localOnly)] : []),
           ...(input.workSession || existing?.meta.workSession ? [Boolean(input.workSession)] : []),
+          ...((input.messageOrigin ?? existing?.meta.messageOrigin) ? [input.messageOrigin ?? existing?.meta.messageOrigin] : []),
         ]),
       )
       .digest('hex');
@@ -990,6 +1006,18 @@ export class Router {
     const combined = AbortSignal.any([controller.signal,this.characterSignal(conversation.personaId),...(signal?[signal]:[])]);
     let run: Run | undefined;
     try {
+      const preparedAt = new Date().toISOString();
+      const messageContext = await captureMessageContext(this.capabilities, {
+        role: source === 'human' ? 'user' : 'system', source,
+        time: this.store.receipt('input-' + input.requestId)?.createdAt ?? preparedAt,
+        timezone: configuredTimezone(this.store), preparedAt,
+        origin: {
+          ...(source === 'human' && !input.origin ? { channel: input.bubble ? 'Desktop pet' : input.workSession ? 'Role workbench' : 'App chat' } : {}),
+          ...(input.triggerKind ? { task: input.triggerKind } : {}),
+          ...input.messageOrigin,
+        },
+      }, combined);
+      const currentText = renderMessageText({ text: input.text, messageContext });
       const delivery = input.delivery ?? ((input.bubble || (conversation.kind === 'main' && source === 'human')) && !input.origin && !input.workSession
         ? await this.planLocalReply?.(conversation.id, Boolean(input.bubble), combined)
         : undefined);
@@ -1032,12 +1060,12 @@ export class Router {
         backend,
         profile,
         recent,
-        base: prefix + '\n' + input.text,
+        base: prefix + '\n' + currentText,
         generate: source === 'human',
         signal: combined,
       });
       const summary = compacted.summary;
-      let budget = profile.contextChars - prefix.length - input.text.length - summary.length;
+      let budget = profile.contextChars - prefix.length - currentText.length - summary.length;
       const historyTokenBudget = compacted.tokenBudget === undefined
         ? Infinity
         : compacted.tokenBudget - (summary ? estimateTokens(summary) + 4 : 0);
@@ -1055,7 +1083,7 @@ export class Router {
         const available =
           profile.contextChars -
           prefix.length -
-          input.text.length -
+          currentText.length -
           summary.length -
           context.turn.reduce((size, item) => size + item.text.length, 0);
         budget = Math.min(budget, available);
@@ -1078,7 +1106,7 @@ export class Router {
       }
       const turnSize = context.turn.reduce((size, item) => size + item.text.length, 0);
       invariant(
-        prefix.length + input.text.length + summary.length + turnSize <= profile.contextChars,
+        prefix.length + currentText.length + summary.length + turnSize <= profile.contextChars,
         'context_limit',
         '当前输入与固定上下文超过此后端的字符预算，未发送模型请求。',
       );
@@ -1099,6 +1127,7 @@ export class Router {
           ...(input.workSession ? { workSession: true } : {}),
           origin: input.origin,
           triggerKind: input.triggerKind,
+          ...(input.messageOrigin ? { messageOrigin: input.messageOrigin } : {}),
           ...(input.localOnly ? { localOnly: true } : {}),
         },
       };
@@ -1132,6 +1161,7 @@ export class Router {
             ...(input.origin ? { origin: input.origin } : {}),
             ...(input.triggerKind ? { triggerKind: input.triggerKind } : {}),
             ...(attachments.length ? { attachments } : {}),
+            messageContext,
           },
         );
         this.store.createRun(run!);
@@ -1160,18 +1190,18 @@ export class Router {
         if (summary) add('history', 'summary', summary, 4);
         historyInput.forEach((message, index) => {
           const stored = history[index];
-          add('history', stored.meta.memoryVersion ? 'memory.recall' : stored.source, message.text, 4);
+          add('history', stored.meta.memoryVersion ? 'memory.recall' : stored.source, renderMessageText(message), 4);
         });
         for (const item of context.turn) add('turn', item.source, item.text, 4);
-        add(current.role === 'user' ? 'history' : 'turn', current.source, currentInput.text, 4);
+        add(current.role === 'user' ? 'history' : 'turn', current.source, renderMessageText(currentInput), 4);
       }
       invariant(
-        messages.reduce((n, m) => n + m.text.length, 0) <= profile.contextChars,
+        messages.reduce((n, m) => n + renderMessageText(m).length, 0) <= profile.contextChars,
         'context_limit',
         '消息与附件超过当前上下文预算，未发送模型请求。',
       );
       if (compacted.inputLimit !== undefined) {
-        const contextInputTokens = messages.reduce((n, m) => n + estimateTokens(m.text) + 4, 0);
+        const contextInputTokens = messages.reduce((n, m) => n + estimateTokens(renderMessageText(m)) + 4, 0);
         invariant(
           contextInputTokens <= compacted.inputLimit,
           'context_limit',
@@ -1304,6 +1334,11 @@ export class Router {
       ...(reply.image ? { image: reply.image } : {}),
       ...meta,
       ...(parts?.length ? { replyParts: parts } : {}),
+      messageContext: {
+        time: new Date().toISOString(), timezone: configuredTimezone(this.store),
+        sender: this.store.document<Persona>('personas', this.store.conversation(run.conversationId)!.personaId)?.name ?? 'assistant',
+        ...(target ? { channel: target.label.slice(0, 160) } : {}),
+      },
     });
     for (const stage of this.deliveryStages) stage(message, run);
     return message;

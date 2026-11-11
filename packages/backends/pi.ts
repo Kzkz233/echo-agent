@@ -16,6 +16,7 @@ import { piEvent } from './execution-events.ts';
 import type { SteerRequest } from '../contracts/execution.ts';
 import { isStableContext } from './turn-context.ts';
 import { protocolTranscript } from './transcript.ts';
+import { materializeMessage } from '../contracts/message-context.ts';
 import { estimateTokens, type ContextBreakdown, type ContextDetail } from '../contracts/generation-metrics.ts';
 
 type CacheUsage = {
@@ -91,6 +92,7 @@ export class PiBackend implements Backend {
     ];
   }
   async generate(request: GenerateRequest): Promise<GenerateResult> {
+    request = { ...request, messages: request.messages.map(materializeMessage) };
     const [
       { Agent },
       { createModels, createProvider, createInitialSystemMessage, getSystemMessageText, getCurrentTools },

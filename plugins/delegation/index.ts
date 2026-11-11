@@ -479,6 +479,7 @@ export class Delegations {
           requestId: task.id + '.attempt.' + task.attempt,
           text,
           source: 'delegation',
+          messageOrigin: { task: task.goal.slice(0, 160) },
           reasoning: task.template.reasoning,
         },
         life,
@@ -622,6 +623,7 @@ export class Delegations {
               conversationId,
               requestId,
               source: 'handoff',
+              messageOrigin: { sender: 'subtask', task: batch.length === 1 ? batch[0].goal.slice(0, 160) : 'Subtask results' },
               ...(delivery ? { delivery: { ...delivery, source: 'handoff' } } : {}),
               text: [
                 config.reportPrompt,

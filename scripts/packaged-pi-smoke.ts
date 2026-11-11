@@ -21,6 +21,10 @@ const model = createServer(async (req, res) => {
   const frame = (delta: object, finish: string) => res.write('data: ' + JSON.stringify({
     id: 'fixture', choices: [{ index: 0, delta, finish_reason: finish }] }) + '\n\n');
   if (!input.messages.some((message: any) => message.role === 'tool')) {
+    const user = input.messages.find((message: any) => message.role === 'user');
+    assert.match(JSON.stringify(user), /\[time: /);
+    assert.match(JSON.stringify(user), /sender: user/);
+    assert.match(JSON.stringify(user), /current_time: /);
     assert(input.tools.some((tool: any) => tool.function.name === 'read'));
     frame({ role: 'assistant', tool_calls: [{ index: 0, id: 'native-read', type: 'function',
       function: { name: 'read', arguments: '{"path":"README.txt"}' } }] }, 'tool_calls');

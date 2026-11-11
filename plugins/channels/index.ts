@@ -57,7 +57,7 @@ export class Channels {
     return this.store.documents<Binding>('channel-bindings');
   }
   async receive(
-    input: { adapter: string; peer: string; remoteMessageId: string; text: string },
+    input: { adapter: string; peer: string; remoteMessageId: string; text: string; sentAt?: string; sender?: string },
     owner?: string,
   ) {
     invariant(this.ctx, 'plugin_disabled', 'Channels disabled');
@@ -118,6 +118,7 @@ export class Channels {
         source: 'human',
         bubble: binding.alsoBubble,
         origin: { bindingId: binding.id, remoteMessageId: input.remoteMessageId },
+        messageOrigin: { channel: provider.label.slice(0, 160), ...(input.sentAt ? { time: input.sentAt } : {}), ...(input.sender ? { sender: input.sender } : {}) },
         delivery,
       });
     this.store.put('channel-inbound', requestId, {
@@ -382,6 +383,8 @@ export class Channels {
             peer: z.string(),
             remoteMessageId: z.string().min(1).max(300),
             text: z.string().trim().min(1).max(100000),
+            sentAt: z.iso.datetime({ offset: true }).optional(),
+            sender: z.string().trim().min(1).max(160).optional(),
           }),
           output: z.unknown(),
           run: (v, c) => this.receive(v, c.pluginId),

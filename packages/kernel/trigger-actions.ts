@@ -173,6 +173,7 @@ export class TriggerActions {
         reasoning: input.reasoning,
         localOnly: input.localOnly,
         triggerKind: input.kind,
+        messageOrigin: { task: source.label.slice(0, 160) },
       },
       signal,
     );

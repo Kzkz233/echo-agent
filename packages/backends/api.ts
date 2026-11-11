@@ -9,6 +9,7 @@ import {
 import { readModelListing, selectedReasoning, effectiveReasoning } from './model-metadata.ts';
 import { endpoint, modelApiKey, modelListRequest, modelProtocol } from './protocol.ts';
 import { protocolTranscript } from './transcript.ts';
+import { materializeMessage } from '../contracts/message-context.ts';
 export { endpoint } from './protocol.ts';
 
 export type SecretResolver = (reference: string) => Promise<string | undefined>;
@@ -109,6 +110,7 @@ export class ApiBackend implements Backend {
     return { ok: true, verified: 'generation', toolCall: true };
   }
   async generate(request: GenerateRequest): Promise<GenerateResult> {
+    request = { ...request, messages: request.messages.map(materializeMessage) };
     const { profile } = request;
     invariant(profile.model, 'missing_model', '请填写模型名称。');
     const key = await this.secrets(profile.apiKeyRef);

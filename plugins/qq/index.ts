@@ -232,6 +232,8 @@ export class QQ {
             adapter: 'qq.bot',
             peer,
             remoteMessageId: msg.messageId,
+            ...(Number.isFinite(Date.parse(msg.timestamp)) ? { sentAt: new Date(msg.timestamp).toISOString() } : {}),
+            ...(msg.senderName?.trim() ? { sender: msg.senderName.trim().slice(0, 160) } : {}),
             text: msg.content.replace(/<@!?\d+>/g, '').trim(),
           },
           internal,

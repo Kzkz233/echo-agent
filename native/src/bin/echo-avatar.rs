@@ -332,7 +332,7 @@ mod desktop {
             StretchDIBits(
                 dc,
                 right - dip(s, 18.) - dw,
-                dip(s, 42.),
+                dip(s, 18.),
                 dw,
                 dh,
                 0,
@@ -374,7 +374,7 @@ mod desktop {
             } else {
                 measured.bottom
             };
-            let h = (content + dip(s, 86.)).clamp(dip(s, 100.), dip(s, 320.));
+            let h = (content + dip(s, 62.)).clamp(dip(s, 76.), dip(s, 296.));
             if IsWindowVisible(s.composer).as_bool() {
                 let _ = GetWindowRect(s.composer, &mut rect);
             }
@@ -961,18 +961,6 @@ mod desktop {
                     caption(
                         s,
                         dc,
-                        &s.conversation_title,
-                        RECT {
-                            left: dip(s, 18.),
-                            top: dip(s, 13.),
-                            right: rect.right - dip(s, 18.),
-                            bottom: dip(s, 33.),
-                        },
-                        COLORREF(0x00a39083),
-                    );
-                    caption(
-                        s,
-                        dc,
                         if s.english {
                             "Click to reply"
                         } else {
@@ -989,7 +977,7 @@ mod desktop {
                     SetTextColor(dc, COLORREF(0x00473225));
                     let old = SelectObject(dc, s.font.into());
                     rect.left += dip(s, 18.);
-                    rect.top += dip(s, 42.);
+                    rect.top += dip(s, 18.);
                     rect.right -= dip(s, 18.) + bubble_image_column(s);
                     rect.bottom -= dip(s, 36.);
                     let mut text = utf(&s.text);

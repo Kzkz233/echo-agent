@@ -151,6 +151,7 @@ export type ModelInput = {
   text: string;
   images?: ImageInput[];
   context?: 'turn';
+  messageContext?: import('./message-context.ts').MessageContext;
 };
 export type AgentPrincipal = {
   conversationId: string;

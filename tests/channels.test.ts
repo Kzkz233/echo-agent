@@ -119,6 +119,8 @@ test('channel-origin input generates once, returns only to its source, and never
     peer: 'owner',
     remoteMessageId: 'remote-one',
     text: 'Hello from a channel',
+      sentAt: '2026-11-11T11:45:21Z',
+      sender: 'Fixture user',
   };
   await Promise.all([
     scope.call('channels.receive', input, internal),
@@ -126,6 +128,9 @@ test('channel-origin input generates once, returns only to its source, and never
   ]);
   await until(() => presented === 1);
   assert.equal(fake.calls.length, 1);
+    assert.equal(fake.calls[0].messages.at(-1)?.messageContext?.channel, 'Synthetic');
+    assert.equal(fake.calls[0].messages.at(-1)?.messageContext?.sender, 'Fixture user');
+    assert.equal(fake.calls[0].messages.at(-1)?.messageContext?.time, input.sentAt);
   assert.equal(app.store.allMessages(c.id).filter((m) => m.role === 'user').length, 1);
   await app.router.send({ conversationId: c.id, requestId: 'web-input', text: 'Hello from web' });
   assert.equal(presented, 1);

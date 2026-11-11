@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { materializeMessage } from '../contracts/message-context.ts';
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { readFile, writeFile, rm } from 'node:fs/promises';
@@ -665,6 +666,7 @@ export class DshBackend implements Backend {
     }
   }
   async createSession(_profile: Profile, history: ModelInput[]) {
+    history = history.map(materializeMessage);
     const id = randomUUID();
     this.store.put('dsh-sessions', id, { seed: history, admitted: false });
     return id;
@@ -673,6 +675,7 @@ export class DshBackend implements Backend {
     this.store.put('dsh-archived', sessionId, { at: new Date().toISOString() });
   }
   async generate(request: GenerateRequest): Promise<GenerateResult> {
+    request = { ...request, messages: request.messages.map(materializeMessage) };
     invariant(!request.permissions?.readRoots?.length && !request.permissions?.writeRoots?.length,
       'dsh_workspace_roots', '此 DSH 适配器暂不支持附加目录授权，请使用一个工作目录或选择内置执行器。');
     let progressAt = Date.now(), waitingForHuman = 0;

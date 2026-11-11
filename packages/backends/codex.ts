@@ -1,4 +1,5 @@
 import { mkdirSync } from 'node:fs';
+import { materializeMessage } from '../contracts/message-context.ts';
 import { isStableContext, textWithTurnContext } from './turn-context.ts';
 import { join } from 'node:path';
 import {
@@ -272,6 +273,7 @@ export class CodexBackend implements Backend {
     return result;
   }
   async createSession(profile: Profile, history: ModelInput[], signal: AbortSignal) {
+    history = history.map(materializeMessage);
     signal.throwIfAborted();
     invariant(!this.closing, 'backend_closed', 'Codex 后端已关闭');
     const id = 'codex-' + randomUUID();
@@ -341,6 +343,7 @@ export class CodexBackend implements Backend {
     return this.use(request.profile, () => this.generateRequest(request));
   }
   private async generateRequest(request: GenerateRequest): Promise<GenerateResult> {
+    request = { ...request, messages: request.messages.map(materializeMessage) };
     invariant(!request.permissions?.readRoots?.length,'codex_read_roots','此 Codex 适配器暂不支持限定附加只读目录，请使用宿主沙箱设置或选择内置执行器。');
     const writable = request.permissions?.codex.sandbox === 'workspace-write';
     const configured =
