@@ -178,6 +178,25 @@ test('legacy events retain their role and are not mislabeled as human messages',
   assert(!storedMessageContext(stored, 'Asia/Shanghai')?.channel);
 });
 
+test('adding provenance cannot replay or conflict with a request accepted before provenance was supplied', async (t) => {
+  const app = await setup(t, []),
+    c = conversation(app),
+    fake = new FakeBackend();
+  app.router.backends.set('api', fake);
+  const input = {
+    conversationId: c.id,
+    requestId: 'legacy-request',
+    source: 'trigger' as const,
+    text: 'Original request',
+  };
+  const first = await app.router.send(input);
+  assert.equal(first.state, 'succeeded');
+  assert.equal(first.meta.messageOrigin, undefined);
+  const replay = await app.router.send({ ...input, messageOrigin: { task: 'New source label' } });
+  assert.equal(replay.id, first.id);
+  assert.equal(fake.calls.length, 1);
+});
+
 test('API and Pi send the same headers to a real loopback protocol endpoint without changing model roles', async (t) => {
   const app = await setup(t, []),
     payloads: any[] = [];

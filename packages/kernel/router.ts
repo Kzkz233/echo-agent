@@ -941,7 +941,8 @@ export class Router {
             : []),
           ...(input.localOnly || existing?.meta.localOnly ? [Boolean(input.localOnly)] : []),
           ...(input.workSession || existing?.meta.workSession ? [Boolean(input.workSession)] : []),
-          ...((input.messageOrigin ?? existing?.meta.messageOrigin) ? [input.messageOrigin ?? existing?.meta.messageOrigin] : []),
+          ...((!existing || existing.meta.messageOrigin) && (input.messageOrigin ?? existing?.meta.messageOrigin)
+            ? [input.messageOrigin ?? existing?.meta.messageOrigin] : []),
         ]),
       )
       .digest('hex');
