@@ -82,6 +82,27 @@ try {
   Invoke-EchoFixture 'characters.setActive' @{personaId='installer-fixture';enabled=$false;revision=0} | Out-Null
   Invoke-EchoFixture 'plugins.enable' @{id='care';enabled=$true} | Out-Null
   Invoke-EchoFixture 'automation.save' @{type='care.rules';id='installer-care';settings=@{name='Synthetic legacy care';enabled=$false;conversationId=$role.mainConversationId;mode='probability';probability=17}} | Out-Null
+  # User-installed code and encrypted MCP credentials are data, never installer resources.
+  $extensionRoot = Join-Path $dataDirectory 'extensions-manual\fixture'
+  New-Item -ItemType Directory -Path $extensionRoot -Force | Out-Null
+  [IO.File]::WriteAllText((Join-Path $extensionRoot 'echo-plugin.json'),(@{apiVersion=1;id='installer-extension';name='Installer extension fixture';description='Synthetic independent extension';version='1.0.0';permissions=@('installer-extension.read');command='node';args=@('entry.mjs')} | ConvertTo-Json -Depth 10))
+  $extensionCode = @'
+import readline from 'node:readline';
+for await (const line of readline.createInterface({input:process.stdin})) {
+ const m=JSON.parse(line);let result;
+ if(m.method==='echo/initialize')result={operations:[{name:'installer-extension.read',description:'Fixture',inputSchema:{type:'object'},permission:'installer-extension.read'}]};
+ else if(m.method==='echo/invoke')result={marker:'SYNTHETIC_USER_EXTENSION'};
+ else continue;
+ console.log(JSON.stringify({jsonrpc:'2.0',id:m.id,result}));
+}
+'@
+  [IO.File]::WriteAllText((Join-Path $extensionRoot 'entry.mjs'),$extensionCode)
+  Invoke-EchoFixture 'plugins.install' @{directory=$extensionRoot;confirmed=$true} | Out-Null
+  Invoke-EchoFixture 'plugins.enable' @{id='installer-extension';enabled=$true} | Out-Null
+  Invoke-EchoFixture 'external-mcp.save' @{id='deepseek-search';config=@{kind='deepseek';enabled=$false;token='synthetic-installer-credential'}} | Out-Null
+  $beforeMcp = @((Invoke-EchoFixture 'system.bootstrap').externalMcpServers | Where-Object id -eq 'deepseek-search')[0] | ConvertTo-Json -Depth 20 -Compress
+  $beforePermissions = $role.permissions | ConvertTo-Json -Depth 20 -Compress
+  $extensionHash = (Get-FileHash -LiteralPath (Join-Path $extensionRoot 'entry.mjs') -Algorithm SHA256).Hash
   $beforeMessages = (Invoke-EchoFixture 'conversations.messages' @{id=$role.mainConversationId}).messages | ConvertTo-Json -Depth 60 -Compress
   Stop-EchoFixture
   Install-EchoFixture $installerPath $true
@@ -93,6 +114,10 @@ try {
         $doctor.backend -ne 'ready' -or $doctor.dataDirectory -ne $dataDirectory) { throw 'Installed CLI did not connect to the upgraded runtime' }
   }
   $after = Invoke-EchoFixture 'persona.character.read' @{id='installer-fixture'}
+  if (($after.permissions | ConvertTo-Json -Depth 20 -Compress) -ne $beforePermissions) { throw 'Role permissions changed during upgrade' }
+  if ((Invoke-EchoFixture 'installer-extension.read').marker -ne 'SYNTHETIC_USER_EXTENSION' -or (Get-FileHash -LiteralPath (Join-Path $extensionRoot 'entry.mjs') -Algorithm SHA256).Hash -ne $extensionHash) { throw 'User extension was changed or did not reload' }
+  $afterMcp = @((Invoke-EchoFixture 'system.bootstrap').externalMcpServers | Where-Object id -eq 'deepseek-search')[0] | ConvertTo-Json -Depth 20 -Compress
+  if ($afterMcp -ne $beforeMcp) { throw 'External MCP configuration or encrypted credential was changed' }
   if ($after.persona.prompt -ne 'SYNTHETIC_INSTALLER_SENTINEL' -or $after.activity.enabled) { throw 'Role changed during upgrade' }
   $review = @($after.tasks | Where-Object id -eq 'installer-review')[0]
   if ($review.settings.enabled -or $review.settings.mode -ne 'turns' -or $review.settings.rounds -ne 99 -or $review.settings.contextMode -ne 'fresh' -or ($review.settings.memoryOperations -join ',') -ne 'add,update') { throw 'Task settings changed during upgrade' }
@@ -110,9 +135,9 @@ try {
   $remove = Start-Process -FilePath $uninstaller -ArgumentList @('/S',('_?='+$installation)) -WindowStyle Hidden -PassThru
   if (-not $remove.WaitForExit(300000) -or $remove.ExitCode -ne 0) { throw 'Uninstaller failed' }
   if (Test-Path -LiteralPath (Join-Path $installation 'echo-desktop.exe')) { throw 'Installed executable remains after uninstall' }
-  if (-not (Test-Path -LiteralPath (Join-Path $dataDirectory 'echo.sqlite')) -or (Get-Content -LiteralPath (Join-Path $dataDirectory 'retention-marker.txt') -Raw) -ne 'SYNTHETIC_INSTALLER_DATA') { throw 'Uninstall removed the independent data directory' }
+  if (-not (Test-Path -LiteralPath (Join-Path $dataDirectory 'echo.sqlite')) -or (Get-Content -LiteralPath (Join-Path $dataDirectory 'retention-marker.txt') -Raw) -ne 'SYNTHETIC_INSTALLER_DATA' -or (Get-FileHash -LiteralPath (Join-Path $extensionRoot 'entry.mjs') -Algorithm SHA256).Hash -ne $extensionHash) { throw 'Uninstall removed user data or extensions' }
   if (Test-Path -LiteralPath ('HKCU:\'+$registryRelative)) { throw 'Uninstall registration remains' }
-  $result=@{cleanInstall=$true;upgrade=($beforeVersion -ne $afterVersion);sameVersionRepair=($beforeVersion -eq $afterVersion);beforeVersion=$beforeVersion;afterVersion=$afterVersion;registryLocatedInstall=$true;cliReady=($doctor.backend -eq 'ready');roleAndTasksPreserved=$true;canonicalTaskMigrationPreserved=$true;historyPreserved=$true;uninstall=$true;independentDataPreserved=$true;realModelCalls=0;resources=$resources}
+  $result=@{cleanInstall=$true;upgrade=($beforeVersion -ne $afterVersion);sameVersionRepair=($beforeVersion -eq $afterVersion);beforeVersion=$beforeVersion;afterVersion=$afterVersion;registryLocatedInstall=$true;cliReady=($doctor.backend -eq 'ready');roleAndTasksPreserved=$true;permissionsPreserved=$true;userExtensionReloaded=$true;externalMcpAndCredentialPreserved=$true;canonicalTaskMigrationPreserved=$true;historyPreserved=$true;uninstall=$true;independentDataPreserved=$true;realModelCalls=0;resources=$resources}
   $reportPath=[IO.Path]::GetFullPath($Report)
   New-Item -ItemType Directory -Path (Split-Path -Parent $reportPath) -Force | Out-Null
   $result | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $reportPath -Encoding utf8

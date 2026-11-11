@@ -1,4 +1,5 @@
 import { CredentialInput } from './credential-input.tsx';
+import { connectionForPurpose, modelDisplayName } from '../../../packages/contracts/model-services.ts';
 import { useEffect } from 'react';
 import { useRef, useState } from 'react';
 import { z } from 'zod';
@@ -97,14 +98,10 @@ function BackendServices({
           : adapter.owner === owner;
   const selectedAdapters = allAdapters.filter(accepts);
   const visibleConnections = data.connections.filter(
-    (connection: any) =>
-      selectedAdapters.some((adapter: any) => adapter.id === connection.adapterId) &&
-      (purpose === 'generation' || connection.config.protocol !== 'anthropic-messages') &&
-      (purpose === 'generation' ||
-        !data.inference.models.some((model: any) => model.connectionId === connection.id) ||
-        data.inference.models.some(
-          (model: any) => model.connectionId === connection.id && model[purpose]?.enabled,
-        )),
+    (connection: any) => {
+      const adapter = selectedAdapters.find((adapter: any) => adapter.id === connection.adapterId);
+      return adapter && connectionForPurpose(connection, adapter, data.inference.models, purpose);
+    },
   );
   const visibleModels = data.inference.models.filter(
     (model: ModelProfile) =>
@@ -136,6 +133,7 @@ function BackendServices({
       id: crypto.randomUUID(),
       name: t('新的服务'),
       adapterId: a.id,
+      purposes: [purpose],
       deployment: a.workerOnly ? 'harness' : mode === 'local' ? 'local' : 'cloud',
       config: {
         ...defaults(a.connectionSchema),
@@ -341,7 +339,7 @@ function BackendServices({
                           className={tab === 'models' && model.id === item.id ? 'selected' : ''}
                           onClick={() => pickModel(item)}
                         >
-                          {item.model || item.name}
+                          {modelDisplayName(item)}
                         </button>
                       ))}
                     <button className="text-button" onClick={() => pickModel(createModel(entry))}>

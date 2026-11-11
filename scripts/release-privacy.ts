@@ -111,7 +111,7 @@ export async function auditReleaseTree(
       if (!entry.isFile()) continue;
       files++;
       if (!firstParty) continue;
-      if (rules.approvedAssets && /\.(?:zip|7z|rar|gz|tgz|tar|bak|pdf|docx|xlsx|pptx|ris|map)$/i.test(name)) {
+      if (rules.approvedAssets && /\.(?:zip|7z|rar|gz|tgz|tar|bak|pdf|docx|xlsx|pptx|ris|map|echo-plugin)$/i.test(name)) {
         issue('unapproved embedded archive or document');
         continue;
       }

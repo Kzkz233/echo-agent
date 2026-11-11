@@ -9970,5 +9970,29 @@
   [
     "编辑关注 ",
     "Edit concern "
+  ],
+  [
+    "正在读取素材",
+    "Loading material"
+  ],
+  [
+    "卸载此扩展？",
+    "Uninstall this extension?"
+  ],
+  [
+    "扩展接口和页面将移除，配置与数据保留。",
+    "Extension tools and pages will be removed. Settings and data will be retained."
+  ],
+  [
+    "卸载扩展",
+    "Uninstall extension"
+  ],
+  [
+    "扩展已卸载，数据已保留",
+    "Extension uninstalled. Data retained."
+  ],
+  [
+    "请粘贴本地文件路径。",
+    "Paste the local file path."
   ]
 ]

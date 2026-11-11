@@ -137,6 +137,8 @@ async function run() {
       );
       for (const row of rows('extensions'))
         db.prepare('DELETE FROM documents WHERE namespace=? AND id=?').run('extensions', row.id);
+      for (const row of rows('module-extensions'))
+        db.prepare('DELETE FROM documents WHERE namespace=? AND id=?').run('module-extensions', row.id);
       set('restore.info', {
         source: base,
         at: new Date().toISOString(),

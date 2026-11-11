@@ -1131,6 +1131,7 @@ function App() {
                       page + ':' + (extensionPage.placement === 'character' ? (role?.id ?? '') : '')
                     }
                     page={extensionPage}
+                    navigate={setPage}
                     personaId={extensionPage.placement === 'character' ? role?.id : undefined}
                     act={act}
                     popout={() => void popoutPlugin().catch((error) => setError(error.message))}
@@ -1771,6 +1772,10 @@ function Plugins() {
               )}
             </div>
             <p>{t(plugin.description)}</p>
+            {plugin.distribution === 'local' && <div className="form-actions"><Button secondary onClick={async () => {
+              if (await confirmAction({ title: t('卸载此扩展？'), description: t('扩展接口和页面将移除，配置与数据保留。'), confirmLabel: t('卸载扩展') }))
+                await act(() => rpc('plugins.package.uninstall', { id: selected, confirmed: true }), t('扩展已卸载，数据已保留'));
+            }}>{t('卸载扩展')}</Button></div>}
             {data.extensionPackages?.find((entry: any) => entry.id === selected)
               ?.rollbackVersion && (
               <div className="form-actions">

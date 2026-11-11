@@ -386,6 +386,9 @@ export class Characters {
       });
       await this.savePersona(draft.persona);
       this.store.put('characters', roleId, role);
+      // Suspend role-owned displays/tasks during every configuration transaction,
+      // including edits whose extension configuration itself did not change.
+      this.events.emit('characters.updated', { personaId: roleId });
       const existing = this.store.conversation(conversationId);
       this.store.saveConversation({
         id: conversationId,

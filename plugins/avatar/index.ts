@@ -66,7 +66,7 @@ export function avatarPlugin(
           return (await context.capabilities.invoke('avatar.renderers@1', cfg.renderer, {
             personaId,
           })) as {
-            kind: 'frames';
+            kind: string;
             directory: string;
           };
         },
@@ -180,6 +180,19 @@ export function avatarPlugin(
         output: z.array(z.string()),
         run: async ({ personaId }) => {
           const profile = roleAvatar(store, personaId);
+          if (
+            profile.renderer !== 'frames' &&
+            context?.capabilities
+              .list('avatar.renderers@1')
+              .some((p) => p.id === profile.renderer && p.state === 'active')
+          ) {
+            const selected = (await context.capabilities.invoke(
+              'avatar.renderers@1',
+              profile.renderer,
+              { personaId },
+            )) as any;
+            if (selected.clips?.length) return selected.clips;
+          }
           const root =
             profile.assetDirectory ||
             (existsSync(join(project, 'dist/web/assets/cute-girl/manifest.json'))
@@ -228,8 +241,11 @@ export function avatarPlugin(
       registry.register({
         name: 'avatar.setVisible',
         description: '临时显示或收起所有已配置桌宠，不改变角色启用和桌宠配置',
-        owner: 'avatar', permission: 'avatar.write', mcp: false,
-        input: z.object({ visible: z.boolean() }), output: z.object({ visible: z.boolean() }),
+        owner: 'avatar',
+        permission: 'avatar.write',
+        mcp: false,
+        input: z.object({ visible: z.boolean() }),
+        output: z.object({ visible: z.boolean() }),
         run: async ({ visible }) => {
           store.set('avatar.hidden', !visible);
           await native.update();
@@ -400,10 +416,84 @@ export function avatarPlugin(
         description:
           'Optional character renderer; bubbles, input and conversation ownership remain in Avatar',
         input: z.object({ personaId: id.optional() }),
-        output: z.object({ kind: z.literal('frames'), directory: z.string().min(1) }),
+        output: z.object({
+          kind: z.string().min(1),
+          directory: z.string().min(1),
+          executable: z.string().optional(),
+          clips: z.array(z.string()).optional(),
+          stateClips: z.record(z.string(), z.string()).optional(),
+        }),
         providePermission: 'avatar.renderer',
         consumePermission: 'avatar.render',
         cardinality: 'one',
+      });
+      ctx.capabilities.define({
+        id: 'avatar.materials@1',
+        description: 'Optional renderer material libraries and import controls',
+        input: z.object({}),
+        output: z.object({
+          renderer: id,
+          family: id,
+          directoryField: id,
+          configurationField: id.optional(),
+          label: z.string(),
+          format: z.string(),
+          builtinLabel: z.string(),
+          hint: z.string().optional(),
+          preview: z.boolean().default(false),
+          fps: z.boolean().default(false),
+        }),
+        providePermission: 'avatar.renderer',
+        consumePermission: 'avatar.render',
+        cardinality: 'many',
+      });
+      registry.register({
+        name: 'avatar.materials',
+        description: '读取已注册渲染器的素材管理方式',
+        owner: 'avatar',
+        permission: 'avatar.read',
+        mcp: false,
+        input: z.object({}),
+        output: z.array(z.unknown()),
+        run: async () =>
+          Promise.all(
+            ctx.capabilities
+              .list('avatar.materials@1')
+              .filter((p) => p.state === 'active')
+              .map(async (p) => {
+                const material = (await ctx.capabilities.invoke(p.point, p.id, {})) as any;
+                invariant(
+                  material.family === p.owner && material.renderer.startsWith(p.owner + '.'),
+                  'avatar_material_owner',
+                  '素材管理必须使用提供者自己的接口',
+                );
+                return material;
+              }),
+          ),
+      });
+      registry.register({
+        name: 'avatar.rendererInfo',
+        description: '读取所选渲染器的动画与状态映射',
+        owner: 'avatar',
+        permission: 'avatar.read',
+        mcp: false,
+        input: z.object({ renderer: z.string(), personaId: id.optional() }),
+        output: z.object({
+          clips: z.array(z.string()),
+          stateClips: z.record(z.string(), z.string()),
+        }),
+        run: async ({ renderer, personaId }) => {
+          if (
+            !ctx.capabilities
+              .list('avatar.renderers@1')
+              .some((p) => p.id === renderer && p.state === 'active')
+          )
+            return { clips: [], stateClips: {} };
+          const result = (await ctx.capabilities.invoke('avatar.renderers@1', renderer, {
+            personaId,
+          })) as any;
+          return { clips: result.clips ?? [], stateClips: result.stateClips ?? {} };
+        },
       });
       ctx.capabilities.subscribe(() => {
         void native.update().catch(() => {});
@@ -444,8 +534,7 @@ export function avatarPlugin(
             }
           }
           if (
-            (e.type === 'settings.changed' &&
-              e.data.pluginId === 'avatar') ||
+            (e.type === 'settings.changed' && e.data.pluginId === 'avatar') ||
             e.type === 'preferences.changed' ||
             e.type === 'characters.updated' ||
             e.type === 'character.activity.changed' ||

@@ -10,5 +10,5 @@ export type StoragePaths = z.infer<typeof storagePathSchema>;
 export const coreStoragePaths: StoragePaths[] = [
   { table: 'documents', collection: 'profiles', pointers: ['/model', '/options/projector', '/options/modelPath', '/options/tokenizerFile', '/options/modelFile'] },
   { table: 'documents', collection: 'connections', pointers: ['/config/cwd', '/config/command', '/config/args/*'] },
-  ...['extensions', 'extension-rollback'].map((collection) => ({ table: 'documents' as const, collection, pointers: ['/directory', '/manifest/command', '/manifest/args/*'] })),
+  ...['extensions', 'module-extensions', 'extension-rollback'].map((collection) => ({ table: 'documents' as const, collection, pointers: ['/directory', '/manifest/command', '/manifest/args/*'] })),
 ];

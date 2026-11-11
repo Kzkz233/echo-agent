@@ -17,9 +17,16 @@ async function run() {
     return readFile(path);
   };
   const petFile = info.isFile() && basename(path).toLowerCase() === 'pet.json';
+  const verifyFormat = (text: Buffer) => {
+    let metadata: any; try { metadata = JSON.parse(text.toString('utf8')); } catch { return; }
+    if (typeof metadata?.format === 'string' && metadata.format !== 'frame-atlas-v1')
+      throw Error('素材格式与帧动画不匹配，请使用对应渲染器的素材导入');
+  };
   if (info.isDirectory() || petFile) {
     const directory = petFile ? resolve(path, '..') : path;
     const names = await readdir(directory, { withFileTypes: true });
+    if (!names.some(n => ['manifest.json','pet.json'].includes(n.name)))
+      for (const file of names.filter(n => n.isFile() && n.name.endsWith('.json'))) await read(join(directory, file.name)).then(verifyFormat);
     if (
       names.some((n) => n.name === 'pet.json') &&
       !names.some((n) => n.name === 'manifest.json')
@@ -48,6 +55,7 @@ async function run() {
     const extracted = materialArchive(await read(path));
     const keys = Object.keys(extracted),
       manifests = keys.filter((k) => /(^|\/)(manifest|pet)\.json$/.test(k));
+    if (!manifests.length) for (const key of keys.filter(k => k.endsWith('.json'))) verifyFormat(Buffer.from(extracted[key]));
     if (manifests.length > 1) throw Error('压缩包包含多个素材包，请分别导入');
     const prefix = manifests[0]?.slice(0, manifests[0].lastIndexOf('/') + 1) ?? '';
     for (const key of keys) {

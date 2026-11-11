@@ -5,8 +5,19 @@ import { avatarStateClip } from '../../../packages/contracts/avatar.ts';
 export function AvatarBehavior({ personaId, config, providers, onChange }: any) {
   const [clips, setClips] = useState<string[]>(['idle', 'walk', 'jump']);
   const [states, setStates] = useState<any[]>([]);
+  const [stateClips, setStateClips] = useState<Record<string, string>>({});
   useEffect(() => {
     let active = true;
+    setStateClips({});
+    if (config.renderer && config.renderer !== 'frames')
+      void rpc('avatar.rendererInfo', { renderer: config.renderer, personaId })
+        .then((info) => {
+          if (active) {
+            setStateClips(info.stateClips);
+            if (info.clips.length) setClips(info.clips);
+          }
+        })
+        .catch(() => {});
     if (personaId)
       void rpc<string[]>('avatar.clips', { personaId })
         .then((items) => {
@@ -55,7 +66,7 @@ export function AvatarBehavior({ personaId, config, providers, onChange }: any) 
           <div className="state-animation-grid">
             {states.map((state) => {
               const rule = config.stateRules?.[state.id] ?? {};
-              const clip = avatarStateClip(state,config);
+              const clip = rule.clip ?? stateClips[state.id] ?? avatarStateClip(state, config);
               const patch = (value: any) =>
                 onChange({
                   stateRules: { ...config.stateRules, [state.id]: { ...rule, ...value } },

@@ -24,7 +24,7 @@ export const avatarConfigSchema = z.object({
   scale: z.number().min(0.4).max(2).default(1),
   fps: z.number().int().min(1).max(30).default(10),
   bubbleSeconds: z.number().int().min(5).max(120).default(25),
-});
+}).passthrough();
 export type AvatarConfig = z.infer<typeof avatarConfigSchema>;
 
 function configuredAvatar(store: Store): AvatarConfig {

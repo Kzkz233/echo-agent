@@ -1,3 +1,4 @@
+import { modelDisplayName } from '../../../packages/contracts/model-services.ts';
 import { AvatarBehavior } from './avatar-behavior.tsx';
 import { PortraitEditor } from './character-portrait.tsx';
 import { lazy, useEffect, useRef, useState } from 'react';
@@ -775,7 +776,7 @@ export function CharacterWizard({
         <dt>{t('角色功能')}</dt>
         <dd>{draft.features.map((id) => t(feature(id)?.name ?? id)).join(' · ')}</dd>
         <dt>{t('主会话模型')}</dt>
-        <dd>{model?.model || model?.name || t('稍后连接')}</dd>
+        <dd>{model ? modelDisplayName(model) : t('稍后连接')}</dd>
         <dt>{t('自动化任务')}</dt>
         <dd>
           {draft.tasks
@@ -884,6 +885,7 @@ export function CharacterWizard({
         .filter(
           (item: any) =>
             draft.features.includes(item.id) &&
+            item.presentation?.editor !== 'avatar-materials' &&
             (item.presentation?.section ?? 'extensions') === section &&
             (item.fields.length ||
               item.presentation?.editor ||
@@ -946,14 +948,16 @@ export function CharacterWizard({
                         style={{ maxHeight: 160, objectFit: 'contain' }}
                       />
                     }
-                    onSelect={(value: any) =>
+                    onSelect={(value: any) => {
+                      const { extensionConfiguration, ...avatar } = value;
                       change({
                         configurations: {
                           ...draft.configurations,
-                          avatar: { ...draft.configurations.avatar, ...value },
+                          avatar: { ...draft.configurations.avatar, ...avatar },
+                          ...(extensionConfiguration ? { [extensionConfiguration.id]: { ...draft.configurations[extensionConfiguration.id], [extensionConfiguration.field]: extensionConfiguration.value } } : {}),
                         },
-                      })
-                    }
+                      });
+                    }}
                   />
                   <AvatarBehavior
                     personaId={personaId}

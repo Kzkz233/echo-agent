@@ -38,6 +38,11 @@ export const connectionSchema = z
     id,
     name: z.string().min(1).max(100),
     adapterId: id,
+    purposes: z
+      .array(z.enum(['generation', 'embedding', 'reranking']))
+      .min(1)
+      .max(3)
+      .optional(),
     deployment: z.enum(['cloud', 'local', 'remote', 'harness']).default('cloud'),
     config: z.record(z.string(), z.unknown()).default({}),
   })

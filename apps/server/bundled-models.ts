@@ -9,7 +9,7 @@ export async function ensureStarterModels(app: Application, languageModel: strin
     .models()
     .find(
       (m) =>
-        m.model === 'Xenova/bge-small-zh-v1.5' &&
+        (m.model === 'Xenova/bge-small-zh-v1.5' || m.model.replaceAll('\\', '/').endsWith('/Xenova/bge-small-zh-v1.5')) &&
         m.embedding.enabled &&
         catalog
           .connections()

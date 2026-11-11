@@ -1,3 +1,4 @@
+import { modelDisplayName } from '../../../packages/contracts/model-services.ts';
 import { useEffect, useState } from 'react';
 import { rpc } from './client.ts';
 import { t } from './i18n.ts';
@@ -153,13 +154,13 @@ export function ModelChoice({
           </option>
           {candidates.map((profile: any) => (
             <option key={profile.id} value={profile.id}>
-              {profile.model || profile.name}
+              {modelDisplayName(profile)}
               {profile.connectionName ? ' · ' + profile.connectionName : ''}
             </option>
           ))}
           {value && !candidates.some((profile: any) => profile.id === value) && (
             <option value={value} disabled>
-              {selected?.model || selected?.name || value} · {t('当前不可用')}
+              {selected ? modelDisplayName(selected) : value} · {t('当前不可用')}
             </option>
           )}
         </select>

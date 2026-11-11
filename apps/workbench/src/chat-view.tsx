@@ -1,3 +1,4 @@
+import { modelDisplayName } from '../../../packages/contracts/model-services.ts';
 import { CharacterPortrait } from './character-portrait.tsx';
 import { inferenceTasks } from '../../../packages/contracts/inference.ts';
 import { locale, statusText } from './i18n.ts';
@@ -525,7 +526,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                     {persona?.name ?? 'Echo'}
                     <span>·</span>
                     <span className="chat-model-info" title={backend?.name}>
-                      {backend?.model || backend?.name || t('尚未选择后端')}
+                      {backend ? modelDisplayName(backend) : t('尚未选择后端')}
                     </span>
                   </small>
                 </div>

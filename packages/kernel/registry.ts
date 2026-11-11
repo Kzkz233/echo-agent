@@ -366,6 +366,7 @@ export type ConversationReference = {
   taskId?: string;
 };
 export type Plugin = {
+  api?: { version: number; value: object };
   /** Application-owned assembly metadata, never supplied by an installed extension. */
   component?: string;
   internalComponent?: boolean;
@@ -437,6 +438,7 @@ export class PluginManager {
         invariant(
           entry.collection === manifest.id ||
             entry.collection.startsWith(manifest.id + '.') ||
+            entry.collection.startsWith(manifest.id + '-') ||
             entry.collection === 'character-settings.' + manifest.id,
           'storage_owner',
           '插件只能声明自己数据的迁移路径',
@@ -622,6 +624,14 @@ export class PluginManager {
     this.intent.set(id, false);
     await this.enqueue(async () => {
       await this.deactivate(id);
+      await this.reconcile();
+    });
+  }
+  async removeLocal(id: string) {
+    invariant(this.plugins.get(id)?.distribution === 'local', 'extension_owner', '只能卸载独立安装的扩展');
+    await this.disable(id);
+    await this.enqueue(async () => {
+      this.plugins.delete(id); this.intent.delete(id); this.states.delete(id);
       await this.reconcile();
     });
   }

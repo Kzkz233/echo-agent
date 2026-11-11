@@ -1457,6 +1457,7 @@
 .plugin-webview { width: 100%; min-height: 65vh; border: 1px solid var(--border, #e4e6ed); border-radius: 12px; background: white; }
 .plugin-page > .page-title { margin-bottom: 24px; }
 .plugin-page .form-actions { margin-top: 24px; }
+.plugin-page-full .plugin-webview { border: 0; border-radius: 0; height: calc(100vh - 190px); min-height: 500px; background: transparent; }
 .extension-window.workbench { grid-template-columns: minmax(0, 1fr); }
 .extension-window > .sidebar { display: none; }
 .composer-controls > .field { margin: 0; }

@@ -230,6 +230,7 @@ export function UiProvider({ busy, children }: { busy: boolean; children: ReactN
   const guard = useRef((key: symbol, label?: string) => {
     if (label) guards.current.set(key, label);
     else guards.current.delete(key);
+    void (window as any).Echo?.host?.('dirty', { dirty: guards.current.size > 0 }).catch(() => {});
   }).current;
   const finish = (answer: boolean) => {
     resolver.current?.(answer);
@@ -372,7 +373,7 @@ export function PathInput({
   ...props
 }: any) {
   const [issue, setIssue] = useState('');
-  const desktop = '__TAURI_INTERNALS__' in window;
+  const desktop = '__TAURI_INTERNALS__' in window || Boolean((window as any).Echo?.host);
   return (
     <div className="path-input-wrap">
       <div className="path-input">
@@ -392,10 +393,11 @@ export function PathInput({
             aria-label={t('浏览') + (label ?? '')}
             onClick={async () => {
               try {
-                const dialog = await import('@tauri-apps/plugin-dialog');
-                const path = save
-                  ? await dialog.save({ title: label, defaultPath: value || undefined })
-                  : await dialog.open({
+                const bridge = (window as any).Echo;
+                const dialog = bridge ? undefined : await import('@tauri-apps/plugin-dialog');
+                const path = bridge ? await bridge.host('pickPath', { label, value, save, directory }) : save
+                  ? await dialog!.save({ title: label, defaultPath: value || undefined })
+                  : await dialog!.open({
                       directory,
                       multiple: false,
                       title: label,

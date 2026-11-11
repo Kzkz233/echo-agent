@@ -295,7 +295,9 @@ export class Application {
       this.clock,
       this.triggerActions,
     );
-    this.extensions = new Extensions(this.store, this.plugins);
+    this.extensions = new Extensions(this.store, this.plugins, {
+      store: this.store, events: this.events,
+    });
     this.externalMcp = new ExternalMcp(this.store, this.secrets, this.registry,
       (caller, permission) => Boolean(caller.conversationId && caller.personaId && echoToolPermissions(
         this.store, false, { conversationId: caller.conversationId, personaId: caller.personaId },
@@ -382,7 +384,7 @@ export class Application {
         ),
     );
     try {
-      app.extensions.load();
+      await app.extensions.load();
       const defaults = [
         'knowledge',
         'persona',
@@ -1055,6 +1057,9 @@ export class Application {
     op('frontend.pages', '读取已启用插件的页面', z.object({}), 'system.read', () =>
       this.frontend.pages(),
     );
+    op('plugins.package.uninstall', '卸载独立扩展并保留配置与数据', z.object({ id, confirmed: z.literal(true) }), 'system.write', async (v) => {
+      const result = await this.extensions.uninstall(v.id); this.events.emit('plugins.changed', {}); return result;
+    });
     op('frontend.content', '打开插件页面', z.object({ id }), 'system.read', (v) =>
       this.frontend.content(v.id),
     );

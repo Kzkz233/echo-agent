@@ -303,6 +303,7 @@ export class Agenda {
   }
   plugin(): Plugin {
     return {
+      api: { version: 1, value: this },
       manifest: defineManifest(manifest),
       references: (id) => [
         ...(this.config().conversationId === id

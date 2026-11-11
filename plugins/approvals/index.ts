@@ -155,6 +155,7 @@ export class Approvals {
   }
   plugin(): Plugin {
     return {
+      api: { version: 1, value: this },
       manifest: defineManifest(manifest),
       activate: (ctx) => {
         this.ctx = ctx;

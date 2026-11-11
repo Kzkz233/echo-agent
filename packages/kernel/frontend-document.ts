@@ -21,7 +21,19 @@ export function extensionDocument(html: string, bridge: string, context: object)
           parent.postMessage({ type: 'echo:call', bridge, id, operation, input }, '*');
         });
       },
+      host(method: string, input: unknown = {}) {
+        const id = ++sequence;
+        return new Promise((resolve, reject) => {
+          const timer = setTimeout(() => { calls.delete(id); reject(Error('Echo page request timed out')); }, 30000);
+          calls.set(id, { resolve, reject, timer });
+          parent.postMessage({ type: 'echo:host', bridge, id, method, input }, '*');
+        });
+      },
     }) });
+    addEventListener('message', (event) => {
+      if (event.source === parent && event.data?.bridge === bridge && event.data?.type === 'echo:event')
+        dispatchEvent(new CustomEvent('echo-event', { detail: event.data.event }));
+    });
   };
   return '<!doctype html><meta charset="utf-8"><script>(' + install.toString() + ')(' +
     JSON.stringify(bridge) + ',' + JSON.stringify(context) + ');</script>' + html;

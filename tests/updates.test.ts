@@ -137,6 +137,9 @@ async function transactionFixture(t: Parameters<typeof temporary>[0]) {
   await appTree(appRoot, before);
   await mkdir(dataRoot);
   await writeFile(join(dataRoot, 'private-data.txt'), 'unchanged');
+  await mkdir(join(dataRoot, 'extensions/user-extension'), { recursive: true });
+  await writeFile(join(dataRoot, 'extensions/user-extension/entry.mjs'), '// user-owned extension');
+  await writeFile(join(dataRoot, 'external-mcp-fixture.json'), '{"enabled":false,"credential":"synthetic"}');
   const id = randomUUID(),
     transaction = join(updateRoot(appRoot), id);
   const manifest = await appTree(join(transaction, 'candidate/app'), after);
@@ -182,6 +185,8 @@ test('successful update preserves data, the shortcut name, uninstaller and previ
   assert.equal(await readFile(join(transaction, 'previous/Echo.exe'), 'utf8'), before.buildId);
   assert.equal(await readFile(join(plan.appRoot, 'uninstall.exe'), 'utf8'), 'uninstaller');
   assert.equal(await readFile(join(plan.dataRoot, 'private-data.txt'), 'utf8'), 'unchanged');
+  assert.equal(await readFile(join(plan.dataRoot, 'extensions/user-extension/entry.mjs'), 'utf8'), '// user-owned extension');
+  assert.equal(await readFile(join(plan.dataRoot, 'external-mcp-fixture.json'), 'utf8'), '{"enabled":false,"credential":"synthetic"}');
   assert.equal(
     (await jsonFile<any>(join(updateRoot(plan.appRoot), 'rollback.json'))).transaction,
     plan.id,
@@ -207,6 +212,7 @@ test('failed startup automatically restores the previous program and keeps new d
   assert.equal(await readFile(join(plan.appRoot, 'Echo.exe'), 'utf8'), before.buildId);
   assert.equal(await readFile(join(transaction, 'failed-app/Echo.exe'), 'utf8'), after.buildId);
   assert.equal(await readFile(join(plan.dataRoot, 'new-message.txt'), 'utf8'), 'retained');
+  assert.equal(await readFile(join(plan.dataRoot, 'extensions/user-extension/entry.mjs'), 'utf8'), '// user-owned extension');
 });
 test('a failed trial that is still running keeps both app trees intact instead of moving open binaries', async (t) => {
   const { plan, transaction, host } = await transactionFixture(t);

@@ -8,7 +8,7 @@ import { Events } from '../../packages/kernel/events.ts';
 import { z } from 'zod';
 import { displayAvatar } from './profiles.ts';
 import { avatarStateClip } from '../../packages/contracts/avatar.ts';
-export type AvatarRenderer = { kind: 'frames'; directory: string; issue?: string };
+export type AvatarRenderer = { kind: string; directory: string; issue?: string; executable?: string; clips?: string[]; stateClips?: Record<string, string> };
 export class NativeAvatar {
   private client?: StdioRpc;
   private generation = 0;
@@ -17,6 +17,7 @@ export class NativeAvatar {
   private closed = true;
   private instance = '';
   private configured = '';
+  private binary = '';
   private activeConversation = '';
   private working?: boolean;
   private activitySignature = '';
@@ -86,9 +87,12 @@ export class NativeAvatar {
       await this.stop();
       return;
     }
-    const binary = join(dirname(this.helper), 'echo-avatar.exe');
+    const selected = await this.renderer?.();
+    const binary = selected?.executable ?? join(dirname(this.helper), 'echo-avatar.exe');
     if (!existsSync(binary)) throw Error('原生桌宠程序未构建');
+    if (this.client && binary !== this.binary) await this.stop();
     if (!this.client) {
+      this.binary = binary;
       this.instance = randomUUID();
       const client = new StdioRpc(binary, [], this.project, undefined, async (method, params) => {
         if (method !== 'avatar.reply' || this.closed || this.client !== client)
@@ -131,7 +135,6 @@ export class NativeAvatar {
       : existsSync(join(this.project, 'dist/web/assets/cute-girl/manifest.json'))
         ? join(this.project, 'dist/web/assets/cute-girl')
         : join(this.project, 'apps/workbench/public/assets/cute-girl');
-    const selected = await this.renderer?.();
     if (this.closed || !this.client) return;
     if (selected) directory = selected.directory;
     const target =
@@ -146,7 +149,7 @@ export class NativeAvatar {
       stateRules: ((await this.states?.()) ?? []).map((state) => ({
         id: state.id,
         priority: cfg.stateRules[state.id]?.priority ?? state.priority,
-        clip: avatarStateClip(state, { ...cfg, renderer: selected?.kind ?? 'frames' }),
+        clip: cfg.stateRules[state.id]?.clip ?? selected?.stateClips?.[state.id] ?? avatarStateClip(state, cfg),
         fallback: state.fallback,
       })),
       roam: cfg.roam,

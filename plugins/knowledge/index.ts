@@ -510,6 +510,7 @@ export class Knowledge {
   }
   plugin(): Plugin {
     return {
+      api: { version: 1, value: this },
       config: { schema: configuration },
       manifest: defineManifest(packageManifest),
       activate: ({ registry, capabilities, dispose, signal }) => {
