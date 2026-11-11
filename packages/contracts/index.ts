@@ -45,7 +45,7 @@ export const profileSchema = z.object({
     .min(1)
     .max(7)
     .optional(),
-  maxOutputTokens: z.number().int().min(64).max(131072).default(2048),
+  maxOutputTokens: z.number().int().min(64).max(131072).default(65536),
   contextChars: z.number().int().min(4000).max(4000000).default(120000),
   command: z.string().default('codex'),
   args: z.array(z.string()).default(['app-server']),
@@ -58,7 +58,7 @@ export const profileSchema = z.object({
   vision: z.boolean().default(false),
   modelOptions: z.record(z.string(), z.unknown()).default({}),
   embeddingDimensions: z.number().int().positive().optional(),
-  timeoutMs: z.number().int().min(1000).max(1800000).default(120000),
+  timeoutMs: z.number().int().min(1000).max(1800000).default(300000),
 });
 export type Profile = z.infer<typeof profileSchema>;
 export type Task = string;
@@ -157,6 +157,7 @@ export type AgentPrincipal = {
   personaId: string;
 };
 export type GenerateRequest = {
+  allowSilence?: boolean;
   profile: Profile;
   messages: ModelInput[];
   contextDetails?: ContextDetail[];

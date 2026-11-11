@@ -145,7 +145,7 @@ export function registerInferenceAdapters(
       connectionSchema: z.toJSONSchema(connectionSchema),
       modelSchema: z.toJSONSchema(z.object(kind === 'codex' ? { contextWindowTokens: z.number().int().min(8000).max(2000000).optional() } :
         ['api', 'pi'].includes(kind) ? { maxTokensField: z.enum(['auto', 'max_tokens', 'max_completion_tokens']).default('auto'),
-          contextWindowTokens: z.number().int().min(1024).max(2000000).optional() } : {}).strict()),
+          contextWindowTokens: z.number().int().min(1024).max(2000000).optional() } : { contextWindowTokens: z.number().int().min(8000).max(2000000).optional() }).strict()),
       connectionFields: fields,
       modelFields: ['api', 'pi'].includes(kind) ? [{ key: 'maxTokensField', label: '输出长度参数', type: 'select',
         options: ['auto', 'max_tokens', 'max_completion_tokens'], optionLabels: {

@@ -10008,6 +10008,10 @@
     "Update example writing"
   ],
   [
+    "等待浏览器登录",
+    "Waiting for browser sign-in"
+  ],
+  [
     "更新未改动的示例人设和提示词。保留你编辑过的内容，以及模型、权限、任务和已有记录。",
     "Update unchanged example personas and prompts. Keep your edits, models, permissions, tasks and existing records."
   ]

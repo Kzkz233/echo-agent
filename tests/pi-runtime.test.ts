@@ -267,9 +267,9 @@ test('Pi compatible APIs use max_tokens without OpenAI storage parameters and al
       signal: AbortSignal.timeout(5000),
       toolPolicy: 'none',
     });
-  assert.equal(bodies[0].max_tokens, 2048);
+  assert.equal(bodies[0].max_tokens, 65536);
   assert.equal(bodies[0].max_completion_tokens, undefined);
-  assert.equal(bodies[1].max_completion_tokens, 2048);
+  assert.equal(bodies[1].max_completion_tokens, 65536);
   assert.equal(bodies[1].max_tokens, undefined);
   assert(bodies.every((body) => !('store' in body)));
 });
@@ -378,7 +378,7 @@ test('Review uses Pi or an explicit Worker while observation keeps its plain API
   );
 });
 
-test('Review sizes the default DeepSeek output budget and honors a run override', async (t) => {
+test('Review preserves model output budgets independently of thinking and honors task overrides', async (t) => {
   const app = await setup(t), pi = new FakeBackend();
   app.router.useConversationRuntime(app.api, pi);
   seedProfile(app, profileSchema.parse({
@@ -392,7 +392,7 @@ test('Review sizes the default DeepSeek output budget and honors a run override'
   await app.router.infer(inferenceTasks.review, messages, signal, 'inherit', undefined, 'deepseek', {
     maxOutputTokens: 16384,
   });
-  assert.deepEqual(pi.calls.map(({ profile }) => profile.maxOutputTokens), [65536, 8192, 131072, 16384]);
+  assert.deepEqual(pi.calls.map(({ profile }) => profile.maxOutputTokens), [65536, 65536, 65536, 16384]);
   assert.deepEqual(pi.calls.map(({ reasoning }) => reasoning), ['inherit', 'off', 'max', 'inherit']);
 });
 

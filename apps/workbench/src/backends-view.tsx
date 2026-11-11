@@ -1,4 +1,5 @@
 import { CredentialInput } from './credential-input.tsx';
+import { openCodexLogin } from './account-login.ts';
 import { connectionForPurpose, modelDisplayName } from '../../../packages/contracts/model-services.ts';
 import { useEffect } from 'react';
 import { useRef, useState } from 'react';
@@ -172,6 +173,25 @@ function BackendServices({
     [catalogIssue, setCatalogIssue] = useState(''),
     [catalogLoading, setCatalogLoading] = useState(false),
     [runtime, setRuntime] = useState<any>();
+  useEffect(() => {
+    if (!auth?.loginId || auth.account) return;
+    let alive = true;
+    let checking = false;
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if (Date.now() - started > 15 * 60000) {
+        clearInterval(timer);
+        if (alive) setAuth((value: any) => ({ ...value, loginId: undefined, authUrl: undefined }));
+        return;
+      }
+      if (checking) return;
+      checking = true;
+      void rpc('connections.authenticate', { id: connection.id, action: 'status' }).then((status) => {
+        if (alive && status.account) setAuth(status);
+      }).catch(() => {}).finally(() => { checking = false; });
+    }, 2500);
+    return () => { alive = false; clearInterval(timer); };
+  }, [connection.id, auth?.loginId, Boolean(auth?.account)]);
   const connectionBase = useRef(connection),
     modelBase = useRef(model),
     confirm = useConfirm();
@@ -599,13 +619,13 @@ function BackendServices({
                               secondary
                               onClick={() =>
                                 act(
-                                  async () =>
-                                    setAuth(
-                                      await rpc('connections.authenticate', {
-                                        id: connection.id,
-                                        action: 'login',
-                                      }),
-                                    ),
+                                  async () => {
+                                    const login = await rpc('connections.authenticate', {
+                                      id: connection.id, action: 'login',
+                                    });
+                                    setAuth(login);
+                                    if (login.authUrl) await openCodexLogin(login.authUrl).catch(() => {});
+                                  },
                                   t('登录已启动'),
                                 )
                               }
@@ -615,12 +635,15 @@ function BackendServices({
                           </div>
                           {auth && (
                             <p>
-                              {auth.account ? t('已登录') : t('尚未登录')}
+                              {auth.account ? t('已登录') : auth.authUrl ? t('等待浏览器登录') : t('尚未登录')}
                               {auth.authUrl && (
                                 <>
                                   {' '}
                                   ·{' '}
-                                  <a href={auth.authUrl} target="_blank" rel="noreferrer">
+                                  <a href={auth.authUrl} target="_blank" rel="noreferrer" onClick={(event) => {
+                                    event.preventDefault();
+                                    void act(() => openCodexLogin(auth.authUrl));
+                                  }}>
                                     {t('打开官方登录页')}
                                   </a>
                                 </>
@@ -916,7 +939,7 @@ function BackendServices({
                                   }
                                 />
                               </label>
-                              {modelAdapter.family === 'api' && (
+                              {(modelAdapter.family === 'api' || modelAdapter.engine === 'dsh') && (
                                 <label className="field">
                                   <span>{t('模型上下文窗口（tokens，可选）')}</span>
                                   <input type="number" min={1024} max={2000000}

@@ -113,6 +113,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
     creating = useRef(false);
   const inspectDialog = useRef<HTMLDialogElement>(null);
   const scroller = useRef<HTMLDivElement>(null),
+    messageContent = useRef<HTMLDivElement>(null),
     input = useRef<HTMLTextAreaElement>(null);
   current.current = selected;
   const stored = data.conversations.find((c: Conversation) => c.id === selected);
@@ -247,12 +248,28 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
     window.addEventListener('echo-event', listener);
     return () => window.removeEventListener('echo-event', listener);
   }, [selected, load, surface, resetPacing]);
-  useEffect(() => {
-    if (stick.current && scroller.current) {
+  useLayoutEffect(() => {
+    stick.current = true;
+    setNewMessages(false);
+  }, [selected, surface]);
+  useLayoutEffect(() => {
+    if (stick.current && scroller.current && selected === loadedConversation) {
       scroller.current.scrollTop = scroller.current.scrollHeight;
       setNewMessages(false);
     }
-  }, [messages, stream, busy, reveals]);
+  }, [messages, stream, busy, reveals, selected, loadedConversation, surface]);
+  useEffect(() => {
+    const el = scroller.current, content = messageContent.current;
+    if (!el || !content) return;
+    // Markdown, execution panels and images can grow after their first render.
+    // Follow their final geometry only while the reader remains at the bottom.
+    const observer = new ResizeObserver(() => {
+      if (stick.current && current.current === loadedConversation) el.scrollTop = el.scrollHeight;
+    });
+    observer.observe(content);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [selected, loadedConversation, surface]);
   const create = async () => {
     if (creating.current) return;
     creating.current = true;
@@ -735,6 +752,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                 if (stick.current) setNewMessages(false);
               }}
             >
+              <div ref={messageContent} className="message-list-content">
               {older && (
                 <div className="load-older">
                   <Button
@@ -924,6 +942,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                   </div>
                 </article>
               ))}
+              </div>
             </div>
             {newMessages && (
               <button

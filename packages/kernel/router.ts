@@ -709,19 +709,20 @@ export class Router {
       signal,
     );
     const review = task === inferenceTasks.review;
-    const effort = !override || override === 'inherit' ? profile.reasoning : override;
-    const deepSeekReviewDefault =
-      review && (profile.reasoningStyle === 'deepseek' || profile.reasoningSupport?.style === 'deepseek')
-        ? (effort === 'off' ? 8192 : effort === 'max' ? 131072 : 65536)
-        : undefined;
+    // Thinking effort and output length are independent. Inherit the saved model
+    // budget unless this task explicitly overrides it; never silently shrink a
+    // non-thinking Review to 8K or enlarge an intentional user limit.
+    const requestedOutput = limits?.maxOutputTokens ?? profile.maxOutputTokens;
     const contextWindow = profile.modelOptions.contextWindowTokens;
-    const availableOutput = deepSeekReviewDefault !== undefined && typeof contextWindow === 'number'
-      ? contextWindow - messages.reduce((sum, message) => sum + estimateTokens(message.text) + 4, 256)
-      : undefined;
-    const automaticOutput = deepSeekReviewDefault === undefined || availableOutput === undefined
-      ? deepSeekReviewDefault
-      : Math.min(deepSeekReviewDefault, Math.max(64, availableOutput));
-    const maxOutputTokens = limits?.maxOutputTokens ?? automaticOutput;
+    const availableOutput =
+      typeof contextWindow === 'number'
+        ? contextWindow -
+          messages.reduce((sum, message) => sum + estimateTokens(message.text) + 4, 256)
+        : undefined;
+    const maxOutputTokens =
+      availableOutput === undefined
+        ? requestedOutput
+        : Math.min(requestedOutput, Math.max(64, availableOutput));
     if (maxOutputTokens !== undefined) {
       invariant(
         Number.isInteger(maxOutputTokens) && maxOutputTokens >= 64 && maxOutputTokens <= 131072,
@@ -1222,6 +1223,7 @@ export class Router {
           reasoning: input.reasoning ?? conversation.reasoning,
           signal: combined,
           ...(targets.length ? { respond, replyTargets: targets.map(({ id }) => id) } : {}),
+          allowSilence: ['observation', 'care'].includes(source),
           ...(['human', 'delegation', 'group', 'handoff'].includes(source)
             ? {
                 permissions: conversation.permissions,

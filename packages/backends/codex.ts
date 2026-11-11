@@ -22,6 +22,7 @@ import type { SteerRequest } from '../contracts/execution.ts';
 import { readReasoningSupport } from './model-metadata.ts';
 import { reasoningLevels } from '../contracts/reasoning.ts';
 import { z } from 'zod';
+import { resolveCodexCommand } from './codex-command.ts';
 import type { Operation } from '../kernel/registry.ts';
 import type { AgentPrincipal } from '../contracts/index.ts';
 type ManagedSession = {
@@ -183,9 +184,10 @@ export class CodexBackend implements Backend {
       for (const key of Object.keys(environment))
         if (key.startsWith('CODEX_') || ['OPENAI_API_KEY', 'OPENAI_BASE_URL'].includes(key))
           delete environment[key];
+      const launch = await resolveCodexCommand(profile.command, profile.args, { env: environment });
       const rpc: StdioRpc = new StdioRpc(
-        profile.command,
-        profile.args,
+        launch.command,
+        launch.args,
         profile.cwd || home,
         {
           ...environment,
@@ -444,6 +446,7 @@ export class CodexBackend implements Backend {
       sync.prefix = prefixHash;
       this.store.put('codex-context', sessionId, sync);
     }
+    let progressAt = Date.now();
     let nativeRunId: string | undefined,
       text = '';
     const hostRequests = new Map<string | number, AbortController>();
@@ -466,6 +469,7 @@ export class CodexBackend implements Backend {
           (params.turnId ?? params.turn.id) !== nativeRunId)
       )
         return;
+      progressAt = Date.now();
       if (method === 'turn/started' && !nativeRunId) nativeRunId = params.turn?.id;
       const item = codexEvent(method, params);
       if (item) request.onItem?.(item);
@@ -492,9 +496,22 @@ export class CodexBackend implements Backend {
             );
       }
     });
-    const timer = setTimeout(
-      () => reject(new EchoError('codex_timeout', 'Codex 尚未确认完成；请核对运行。', true)),
-      request.profile.timeoutMs,
+    const started = Date.now();
+    const timer = setInterval(
+      () => {
+        if (
+          (!hostRequests.size && Date.now() - progressAt >= request.profile.timeoutMs) ||
+          Date.now() - started >= 1800000
+        )
+          reject(
+            new EchoError(
+              'codex_timeout',
+              'Codex 长时间没有进展或已达到执行时限；请核对运行。',
+              true,
+            ),
+          );
+      },
+      Math.min(1000, request.profile.timeoutMs / 4),
     );
     const abort = () => {
       if (nativeRunId)
@@ -545,6 +562,7 @@ export class CodexBackend implements Backend {
           };
         } finally {
           hostRequests.delete(id);
+          progressAt = Date.now();
         }
       }
       const controller = new AbortController();
@@ -559,6 +577,7 @@ export class CodexBackend implements Backend {
         );
       } finally {
         hostRequests.delete(id);
+        progressAt = Date.now();
       }
     });
     try {
@@ -593,6 +612,7 @@ export class CodexBackend implements Backend {
         ...(execution.effort ? { effort: execution.effort } : {}),
       });
       nativeRunId = response.turn?.id;
+      progressAt = Date.now();
       const acknowledged = [...turn, ...(last.role === 'system' ? [last] : [])].flatMap((m) => m.id ? [m.id] : []);
       if (acknowledged.length) {
         sync.sent.push(...acknowledged);
@@ -628,7 +648,7 @@ export class CodexBackend implements Backend {
       hostHandlers.delete(sessionId);
       for (const pending of hostRequests.values()) pending.abort();
       dynamicCalls.clear();
-      clearTimeout(timer);
+      clearInterval(timer);
       off();
       request.signal.removeEventListener('abort', abort);
       void done.catch(() => {});

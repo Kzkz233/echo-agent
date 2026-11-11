@@ -123,7 +123,11 @@ export function dshPatchEntries(profile: Profile, bridge?: HarnessMcp) {
                     id: model,
                     name: model,
                     input: profile.vision ? ['text', 'image'] : ['text'],
-                    contextWindow: Math.max(4000, Math.ceil(profile.contextChars / 4)),
+                    // An input character budget is not the model's complete
+                    // context window. Reserve room for output as well.
+                    contextWindow: typeof profile.modelOptions.contextWindowTokens === 'number'
+                      ? profile.modelOptions.contextWindowTokens
+                      : Math.max(256000, Math.ceil(profile.contextChars / 4) + profile.maxOutputTokens),
                     maxTokens: profile.maxOutputTokens,
                     ...(dshEfforts(profile) === undefined ? {} : { reasoningEfforts: dshEfforts(profile) }),
                   },

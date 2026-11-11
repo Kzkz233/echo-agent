@@ -7,7 +7,7 @@ export class StdioRpc {
   private sequence = 0;
   private pending = new Map<
     number,
-    { resolve: (v: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }
+    { method: string; resolve: (v: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }
   >();
   private listeners = new Set<(method: string, params: any) => void>();
   private lines;
@@ -83,19 +83,37 @@ export class StdioRpc {
       } else if (message.method)
         for (const fn of this.listeners) fn(message.method, message.params);
     });
-    const fail = () => {
+    const readOnly = (method: string) =>
+      ['initialize', 'model/list', 'account/read', 'thread/read', 'session/get'].includes(method);
+    const fail = (error?: NodeJS.ErrnoException, code?: number | null) => {
       if (this.stopped) return;
       this.stopped = true;
       for (const p of this.pending.values()) {
         clearTimeout(p.timer);
-        p.reject(new EchoError('rpc_disconnected', '后端进程已断开，需要核对执行结果。', true));
+        p.reject(
+          error?.code === 'ENOENT'
+            ? new EchoError(
+                'rpc_launch_missing',
+                '找不到后端可执行程序或工作目录，请检查安装和启动设置。',
+              )
+            : error?.code === 'EACCES' || error?.code === 'EPERM'
+              ? new EchoError('rpc_launch_denied', '无法启动后端程序，请检查文件权限和启动设置。')
+              : new EchoError(
+                  'rpc_disconnected',
+                  `后端进程已断开${typeof code === 'number' ? `（退出码 ${code}）` : ''}。` +
+                    (readOnly(p.method)
+                      ? '请检查启动设置和后端安装。'
+                      : '执行状态未确认，需要核对结果。'),
+                  !readOnly(p.method),
+                ),
+        );
       }
       this.pending.clear();
       for (const fn of this.listeners) fn('echo/disconnected', {});
     };
-    this.child.on('exit', fail);
-    this.child.on('error', fail);
-    this.child.stdin.on('error', fail);
+    this.child.on('exit', (code) => fail(undefined, code));
+    this.child.on('error', (error) => fail(error));
+    this.child.stdin.on('error', (error) => fail(error));
   }
   call(method: string, params: unknown, timeoutMs = 30000,
     activity?: () => number): Promise<any> {
@@ -117,7 +135,7 @@ export class StdioRpc {
         reject(new EchoError('rpc_timeout', `后端操作 ${method} 未取得回执。`, true));
       };
       const timer = setTimeout(expire, timeoutMs);
-      this.pending.set(id, { resolve, reject, timer });
+      this.pending.set(id, { method, resolve, reject, timer });
       this.child.stdin.write(
         JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n',
         (error) => {

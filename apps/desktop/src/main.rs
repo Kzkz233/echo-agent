@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod auth;
 use serde::{Deserialize, Serialize};
 use std::{
     path::{Path, PathBuf},
@@ -391,6 +392,7 @@ fn main() {
             open_extension_window,
             open_workbench,
             set_language,
+            auth::open_auth_url,
             quit_echo
         ])
         .setup(|app| {

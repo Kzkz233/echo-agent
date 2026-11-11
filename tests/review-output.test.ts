@@ -288,7 +288,7 @@ test('Review recovers a nonempty candidate after an old empty repair and applies
   app.store.put('review-jobs', job.id, { ...paused, pending: { ...paused.pending!, text: '' } });
   backend.responder = async (request) => {
     assert.equal(request.profile.maxOutputTokens, 8192);
-    assert.equal(app.router.profile('test').maxOutputTokens, 2048);
+    assert.equal(app.router.profile('test').maxOutputTokens, 65536);
     assert.match(JSON.parse(request.messages[1].text).previousResult, /known notes/);
     return { text: '{"notes":"known notes","memories":[],"actions":[]}' };
   };
