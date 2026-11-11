@@ -15,6 +15,7 @@ import { availablePiTools, nativePiTools } from './pi-tools.ts';
 import { piEvent } from './execution-events.ts';
 import type { SteerRequest } from '../contracts/execution.ts';
 import { isStableContext } from './turn-context.ts';
+import { protocolTranscript } from './transcript.ts';
 import { estimateTokens, type ContextBreakdown, type ContextDetail } from '../contracts/generation-metrics.ts';
 
 type CacheUsage = {
@@ -150,7 +151,6 @@ export class PiBackend implements Backend {
       }),
     }));
     const finalTargets = new Set<string>();
-    let deliveryOnly = false, deliveryRequests = 0;
     if (request.respond && request.toolPolicy !== 'none')
       tools.push({
         name: 'echo_respond', label: '提交回复',
@@ -219,14 +219,6 @@ export class PiBackend implements Backend {
     let modelSteps = 0, timedOutput = 0, generationMs = 0;
     let lastInput = 0, totalInput = 0, cachedInput = 0, cacheReported = false, cacheComplete = true;
     const agent = new Agent({
-      finishTurn: () => {
-        if (
-          (request.replyTargets?.length &&
-            request.replyTargets.every((id) => finalTargets.has(id))) ||
-          (deliveryOnly && deliveryRequests >= Math.max(2, (request.replyTargets?.length ?? 0) + 1))
-        )
-          return { action: 'end' };
-      },
       initialState: {
         model,
         thinkingLevel: reasoning ?? 'off',
@@ -235,7 +227,7 @@ export class PiBackend implements Backend {
       },
       getApiKey: async () => modelApiKey(request.profile, key),
       streamFn: (model, context, options) => {
-        if (deliveryOnly) deliveryRequests++;
+        context = protocolTranscript(context, model.api);
         cacheReported = false;
         contextBreakdown = { system: 0, tools: 0, messages: 0 };
         details = request.contextDetails && [...request.contextDetails];
@@ -301,13 +293,6 @@ export class PiBackend implements Backend {
       timedOut = false,
       mutationPossible = false;
     agent.beforeToolCall = async ({ toolCall, args }, signal) => {
-      if (deliveryOnly && toolCall.name !== 'echo_respond')
-        return {
-          block: true,
-          reason: 'Only the outstanding channel delivery is allowed.',
-          terminate: true,
-        };
-      if (toolCall.name === 'echo_respond') return;
       if (++turns > 20) return { block: true, reason: 'Echo tool budget reached', terminate: true };
       try {
         await native.validate(toolCall.name, args);
@@ -407,89 +392,7 @@ export class PiBackend implements Backend {
         ],
         timestamp: Date.now(),
       } as any);
-      let result: any = [...agent.state.messages].reverse().find((m) => m.role === 'assistant');
-      const unfinished = request.replyTargets?.filter((id) => !finalTargets.has(id)) ?? [];
-      const plain = result?.content
-        .filter((part: any) => part.type === 'text')
-        .map((part: any) => part.text)
-        .join('')
-        .trim();
-      const maySkip =
-        request.allowSilence && (!plain || plain === '[ECHO_SKIP]') && !finalTargets.size;
-      if (
-        unfinished.length &&
-        request.respond &&
-        request.toolPolicy !== 'none' &&
-        result &&
-        !['error', 'aborted', 'length'].includes(result.stopReason) &&
-        !maySkip
-      ) {
-        // Continue this same turn once to complete the protocol, rather than
-        // replaying the job or forwarding internal prose to a channel. Restrict
-        // both declared and executable tools so no business action can repeat.
-        deliveryOnly = true;
-        if (plain)
-          request.onItem?.({
-            id: 'echo-work-result',
-            kind: 'message',
-            state: 'completed',
-            title: '工作结果',
-            text: plain,
-          });
-        const original = tools.find((tool) => tool.name === 'echo_respond');
-        let submissions = 0;
-        const deliveryTool = {
-          ...original,
-          parameters: z.toJSONSchema(
-            replySubmission.extend({
-              targetId: z.enum(unfinished as [string, ...string[]]),
-              phase: z.literal('final'),
-            }),
-          ),
-          execute: async (id: string, args: unknown) => {
-            const value = replySubmission.parse(args);
-            if (
-              value.phase !== 'final' ||
-              !unfinished.includes(value.targetId) ||
-              ++submissions > unfinished.length + 1
-            )
-              throw new EchoError('reply_protocol', '本阶段只允许完成尚未交付的渠道回复。');
-            return original.execute(id, args);
-          },
-        };
-        request.onItem?.({
-          id: 'echo-delivery-completion',
-          kind: 'status',
-          state: 'running',
-          title: '正在完成渠道交付',
-        });
-        agent.state.tools = [deliveryTool];
-        agent.state.messages = [
-          createInitialSystemMessage(systemPrompt, [
-            {
-              name: deliveryTool.name,
-              description: deliveryTool.description,
-              parameters: deliveryTool.parameters,
-            },
-          ])!,
-          ...agent.state.messages.slice(1),
-        ];
-        await agent.prompt({
-          role: 'system',
-          timestamp: Date.now(),
-          content:
-            '本轮工作已经结束，但以下渠道尚未收到最终交付：' +
-            unfinished.join('、') +
-            '。依据刚才的真实结果，分别调用 echo_respond，phase 为 final。保留各渠道表达风格；未完成或失败的工作如实说明。不得重新执行检索、委派、文件操作或其他业务工具，也不要把工作台内部正文直接当作已经送出的消息。',
-        } as any);
-        result = [...agent.state.messages].reverse().find((m) => m.role === 'assistant');
-        request.onItem?.({
-          id: 'echo-delivery-completion',
-          kind: 'status',
-          state: unfinished.every((id) => finalTargets.has(id)) ? 'completed' : 'failed',
-          title: '渠道交付',
-        });
-      }
+      const result: any = [...agent.state.messages].reverse().find((m) => m.role === 'assistant');
       if (!result || result.stopReason === 'error' || result.stopReason === 'aborted') {
         let detail = String(result?.errorMessage ?? '').slice(0, 500);
         if (key) detail = detail.replaceAll(key, '[redacted]');
@@ -504,7 +407,7 @@ export class PiBackend implements Backend {
         .filter((c: any) => c.type === 'text')
         .map((c: any) => c.text)
         .join('');
-      if (result.stopReason === 'length' || (!text.trim() && !finalTargets.size && !request.allowSilence)) {
+      if (result.stopReason === 'length' || (!text.trim() && !finalTargets.size)) {
         const truncated = result.stopReason === 'length';
         const thinkingChars = result.content
           .filter((c: any) => c.type === 'thinking')

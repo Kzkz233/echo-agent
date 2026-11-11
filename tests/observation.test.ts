@@ -186,6 +186,9 @@ test('a previously attempted observation cannot consume the next interaction coo
   assert.equal(app.store.run('observe-fresh')?.meta.triggerKind, 'observation.interesting');
   assert.equal(backend.calls.length, 1);
   const input = app.store.run('observe-fresh')!.input;
+  assert(input.includes('调用 echo_respond'));
+  assert(!input.includes('应用按任务配置投递结果'));
+  assert(!input.includes('不使用消息发送或修改工具'));
   assert(input.includes('当前本地时间：'));
   assert(input.includes(Intl.DateTimeFormat().resolvedOptions().timeZone));
   assert(input.includes(localTimestamp(new Date(freshTime))));

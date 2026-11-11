@@ -1223,7 +1223,6 @@ export class Router {
           reasoning: input.reasoning ?? conversation.reasoning,
           signal: combined,
           ...(targets.length ? { respond, replyTargets: targets.map(({ id }) => id) } : {}),
-          allowSilence: ['observation', 'care'].includes(source),
           ...(['human', 'delegation', 'group', 'handoff'].includes(source)
             ? {
                 permissions: conversation.permissions,

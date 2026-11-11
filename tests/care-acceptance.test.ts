@@ -49,6 +49,8 @@ test('manual Care checks share the canonical trigger path, preserve the plan and
   assert(result.meta.localOnly);
   assert.equal(backend.calls.length, 1);
   assert.match(backend.calls[0].messages.at(-1)!.text, /不是使用者的新发言/);
+  assert.match(backend.calls[0].messages.at(-1)!.text, /调用 echo_respond/);
+  assert(!backend.calls[0].messages.at(-1)!.text.includes('交由会话渠道投递'));
   await until(()=>app.store.pendingDeliveries().length===1);
   assert.equal(app.store.pendingDeliveries().length, 1);
   assert.equal(app.store.documents('channel-outbound').length, 0);

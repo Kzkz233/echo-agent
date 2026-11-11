@@ -258,7 +258,7 @@ export class Care {
             '这是应用发起的主动交流机会，不是使用者的新发言。沿用当前会话的角色、记忆和关系。',
             rule.prompt,
             ...context,
-            `想安静时只输出 ${observationSilence}。其他时候直接给出要说的话，交由会话渠道投递。`,
+            `想安静时只输出 ${observationSilence}。需要开口时，遵循本轮渠道约定，调用 echo_respond 向已选目标交付。不要继续处理历史请求。`,
           ].join('\n\n'),
         },
         'care',

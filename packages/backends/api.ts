@@ -8,6 +8,7 @@ import {
 } from '../contracts/index.ts';
 import { readModelListing, selectedReasoning, effectiveReasoning } from './model-metadata.ts';
 import { endpoint, modelApiKey, modelListRequest, modelProtocol } from './protocol.ts';
+import { protocolTranscript } from './transcript.ts';
 export { endpoint } from './protocol.ts';
 
 export type SecretResolver = (reference: string) => Promise<string | undefined>;
@@ -265,7 +266,7 @@ export class ApiBackend implements Backend {
     const apiKey = modelApiKey(profile, key);
     invariant(apiKey, 'missing_credential', '请先保存此连接的 API Key。');
     const { normalizeContext } = await import('@earendil-works/pi-ai');
-    const stream = streams.streamSimple(model, normalizeContext({
+    const stream = streams.streamSimple(model, protocolTranscript(normalizeContext({
       messages: request.messages.map((message) => {
         if (message.role === 'system')
           return { role: 'system', content: message.text, timestamp: Date.now() };
@@ -283,7 +284,7 @@ export class ApiBackend implements Backend {
             ...(message.images ?? []).map((image) => ({ type: 'image' as const, ...image }))],
         };
       }),
-    }), {
+    }), model.api), {
       apiKey, reasoning, onPayload, maxTokens: profile.maxOutputTokens, maxRetries: 0,
       signal: AbortSignal.any([request.signal, AbortSignal.timeout(profile.timeoutMs)]),
       fetch: (input, init) => this.fetcher(input, { ...init, redirect: 'error' }),

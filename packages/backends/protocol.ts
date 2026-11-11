@@ -94,10 +94,11 @@ export async function modelProtocol(profile: Profile, override?: string) {
           },
         }
       : {}),
+    ...(api === 'openai-responses' ? { compat: { supportsMidConvoSystemMessages: true } } : {}),
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
   };
   const onPayload: SimpleStreamOptions['onPayload'] = (payload) => {
-    if (api === 'openai-responses' && effort === 'off' && style === 'effort') {
+    if (api === 'openai-responses' && effort === 'off' && (style === 'effort' || style === 'deepseek')) {
       const wire = support?.wireValues?.off;
       if (wire !== null) return { ...(payload as object), reasoning: { effort: wire ?? 'none' } };
     }

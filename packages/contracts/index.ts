@@ -157,7 +157,6 @@ export type AgentPrincipal = {
   personaId: string;
 };
 export type GenerateRequest = {
-  allowSilence?: boolean;
   profile: Profile;
   messages: ModelInput[];
   contextDetails?: ContextDetail[];
