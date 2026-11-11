@@ -10034,5 +10034,45 @@
   [
     "更新未改动的示例人设和提示词。保留你编辑过的内容，以及模型、权限、任务和已有记录。",
     "Update unchanged example personas and prompts. Keep your edits, models, permissions, tasks and existing records."
+  ],
+  [
+    "执行器",
+    "Executor"
+  ],
+  [
+    "子任务执行方式",
+    "Subtask execution"
+  ],
+  [
+    "主会话按任务选择",
+    "Let the main agent choose per task"
+  ],
+  [
+    "使用指定执行器",
+    "Use a fixed executor"
+  ],
+  [
+    "指定执行器",
+    "Fixed executor"
+  ],
+  [
+    "可用执行器",
+    "Available executors"
+  ],
+  [
+    "主会话配置",
+    "Main conversation configuration"
+  ],
+  [
+    "子任务默认思考强度",
+    "Default subtask reasoning"
+  ],
+  [
+    "每次委派可单独选择思考强度；受理前会检查所选执行器是否支持。",
+    "Reasoning can be selected per task. Compatibility is checked before admission."
+  ],
+  [
+    "子任务执行器",
+    "Subtask executors"
   ]
 ]

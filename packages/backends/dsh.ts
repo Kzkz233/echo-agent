@@ -27,6 +27,7 @@ import { dshEvent } from './execution-events.ts';
 import { isStableContext } from './turn-context.ts';
 import { readModelListing, selectedReasoning } from './model-metadata.ts';
 import type { ReasoningSupport, ModelListing } from '../contracts/reasoning.ts';
+import { dshPolicyPlugin, dshFileApproval } from './dsh-policy.ts';
 
 const deepseekOfficialBaseUrl = 'https://api.deepseek.com/anthropic';
 const dshApiKeyEnv = 'ECHO_DSH_API_KEY';
@@ -525,7 +526,20 @@ export class DshBackend implements Backend {
     const key = await this.secrets(profile.apiKeyRef);
     const provider = dshProviderId(profile);
     const selected = selectedReasoning(profile, request.reasoning);
+    const ready = join(home, 'echo-policy-ready-' + randomUUID() + '.json');
+    const policy = dshPolicyPlugin(request.permissions, workspace ?? '', ready);
+    const policyPath = join(home, 'echo-task-policy.mjs');
+    await writeFile(policyPath, policy.source, { mode: 0o600 });
     const patchEntries = dshPatchEntries({ ...profile, reasoning: (selected.effort ?? 'inherit') as any }, bridge);
+    // SDK templates may omit text reads and writes. Echo supplies one scoped
+    // instance; the mandatory policy below remains the final authorization gate.
+    patchEntries.push({ insert: [{ id: 'echo-file-tools', name: '@deepseek-ai/dsh-tool-fs', config: {
+      read: true, readImage: false,
+      write: request.permissions?.pi.projectWrite === true,
+      edit: request.permissions?.pi.projectWrite === true,
+      applyPatch: false,
+    } }] });
+    patchEntries.push({ insert: [{ id: 'echo-task-policy', name: policyPath }] });
     let args = profile.args;
     if (patchEntries.length) {
       const patch = join(home, 'echo.patch.yml');
@@ -541,6 +555,8 @@ export class DshBackend implements Backend {
         ...process.env,
         DSH_HOME: home,
         ELECTRON_RUN_AS_NODE: '1', // Also supports the desktop installation's official SDK CLI entry.
+        ECHO_DSH_POLICY_READY: ready,
+        ECHO_DSH_POLICY_DIGEST: policy.digest,
         ...(bridge ? { [harnessMcpTokenEnv]: bridge.token } : {}),
         ...(key
           ? provider === 'deepseek-official'
@@ -554,11 +570,13 @@ export class DshBackend implements Backend {
         const ask = request.onInteraction;
         if (method === 'approval/request') {
           if (!ask || request.permissions?.dsh.approvals !== 'ask') return { outcome: 'rejected' };
+          const action = dshFileApproval(String(params.reason ?? ''));
           const answer = await ask(
             {
               kind: 'approval',
               title: 'DSH · ' + String(params.toolName ?? 'Tool'),
-              detail: String(params.reason ?? ''),
+              detail: action?.detail ?? String(params.reason ?? ''),
+              ...(action ? { workspaceWrite: { path: action.path, operation: action.operation } } : {}),
             },
             life,
           );
@@ -626,6 +644,13 @@ export class DshBackend implements Backend {
         'dsh_protocol',
         '所选命令没有启动 DSH SDK profile。',
       );
+      let acknowledgement;
+      for (let n = 0; n < 40 && !acknowledgement; n++) {
+        try { acknowledgement = JSON.parse(await readFile(ready, 'utf8')); }
+        catch { await delay(50); }
+      }
+      invariant(acknowledgement?.digest === policy.digest, 'dsh_policy_missing', 'DSH 未确认任务权限策略，未发送推理任务。');
+      await rm(ready, { force: true });
       return rpc;
     } catch (e) {
       rpc.close();

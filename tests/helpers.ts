@@ -94,3 +94,6 @@ export async function until(fn: () => boolean, timeout = 5000) {
     await new Promise((r) => setTimeout(r, 10));
   }
 }
+
+// Transport fixtures acknowledge policy startup; policy behavior is tested independently.
+export const fakeDshPolicyAck = `import {writeFileSync as ackPolicy} from 'node:fs';if(process.env.ECHO_DSH_POLICY_READY)ackPolicy(process.env.ECHO_DSH_POLICY_READY,JSON.stringify({digest:process.env.ECHO_DSH_POLICY_DIGEST}));`;

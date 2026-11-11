@@ -4,6 +4,76 @@ import { setup, FakeBackend, until, submitFixtureReplies } from './helpers.ts';
 import { internal } from '../packages/kernel/registry.ts';
 import { characterDraft } from '../plugins/persona/character-contracts.ts';
 
+for (const accepted of [true, false]) test(`worker results wait for the active parent and ${accepted ? 'stay acknowledged after review' : 'handoff only once'}`, async t => {
+  const app = await setup(t), backend = new FakeBackend();
+  app.router.backends.set('api', backend);
+  const call = (name: string, input: any) => app.registry.call(name, input, internal);
+  const role = await call('persona.character.commit', { requestId: 'return-role', draft: characterDraft.parse({
+    persona: { id: 'return-role', name: 'Fixture', prompt: 'Synthetic' }, profileId: 'test', features: ['delegation'],
+    configurations: { delegation: { authorizationVersion: 3, reportOnCompletion: true } },
+  }) });
+  let release!: () => void; const finishParent = new Promise<void>(done => release = done);
+  let task: any, parentDone = false, handoffs = 0;
+  backend.responder = async request => {
+    if (request.principal?.conversationId.startsWith('worker-')) return { text: 'Synthetic result' };
+    if (request.messages.at(-1)?.text.includes('以下是任务执行结果')) {
+      assert(parentDone); handoffs++; return submitFixtureReplies(request);
+    }
+    task = await call('delegation.request', { requestId: 'active-task', conversationId: role.mainConversationId, goal: 'Synthetic', acceptance: 'Evidence' });
+    const stored = app.store.document<any>('delegated-tasks', task.id);
+    app.store.put('delegated-tasks', task.id, { ...stored, originRunId: app.store.unresolved(role.mainConversationId)[0].id });
+    await finishParent;
+    if (accepted) await call('delegation.review', { taskId: task.id, conversationId: role.mainConversationId, attempt: 1, decision: 'accepted', text: 'Evidence checked' });
+    parentDone = true; return submitFixtureReplies(request);
+  };
+  const parent = app.router.send({ requestId: 'parent-request', conversationId: role.mainConversationId, text: 'Synthetic delegation' });
+  await until(() => !!task && app.store.document<any>('delegated-tasks', task.id)?.state === 'completed');
+  await new Promise(done => setImmediate(done));
+  assert.equal(handoffs, 0);
+  assert.equal(app.router.inputs(role.mainConversationId).length, 0);
+  release(); await parent;
+  if (accepted) {
+    await new Promise(done => setTimeout(done, 50));
+    assert.equal(handoffs, 0);
+    assert.equal(app.store.receipt('delegation-return-' + task.id + '.1')?.state, 'reviewed');
+  } else await until(() => handoffs === 1);
+});
+
+test('a corrected retry in the same parent turn replaces the failed attempt without a stale failure report', async t => {
+  const app = await setup(t), backend = new FakeBackend(); app.router.backends.set('api', backend);
+  const call = (name: string, input: any) => app.registry.call(name, input, internal);
+  const role = await call('persona.character.commit', { requestId: 'retry-role', draft: characterDraft.parse({
+    persona: { id: 'retry-role', name: 'Fixture', prompt: 'Synthetic' }, profileId: 'test', features: ['delegation'],
+  }) });
+  let attempt = 0, returned = '', handoffs = 0;
+  backend.responder = async request => {
+    if (request.principal?.conversationId.startsWith('worker-')) {
+      if (++attempt === 1) throw Error('Synthetic rejected execution');
+      return { text: 'Successful retry' };
+    }
+    if (request.messages.at(-1)?.text.includes('以下是任务执行结果')) {
+      handoffs++; returned = request.messages.at(-1)!.text; return submitFixtureReplies(request);
+    }
+    // Use the same MCP identity that real main-agent tool calls carry.
+    const caller = { kind: 'mcp' as const, personaId: 'retry-role', conversationId: role.mainConversationId, permissions: new Set(['*']) };
+    const guide = request.messages.map(m => m.text).join('\n');
+    const authority = guide.match(/本轮委派接口 authority=([^\s]+)/)?.[1];
+    for (let i = 0; i < 2; i++) {
+      const task = await app.registry.call('delegation.request', { requestId: 'retry-' + i, authority,
+        goal: 'Same goal', acceptance: 'Same evidence', context: 'Same scope' }, caller);
+      await until(() => ['completed', 'failed'].includes(app.store.document<any>('delegated-tasks', task.id)?.state));
+    }
+    return submitFixtureReplies(request);
+  };
+  await app.router.send({ requestId: 'parent-retry', conversationId: role.mainConversationId, text: 'Synthetic retry' });
+  await until(() => handoffs === 1);
+  assert(returned.includes('Successful retry'));
+  assert(!returned.includes('Synthetic rejected execution'));
+  const failed = app.store.documents<any>('delegated-tasks').find(task => task.state === 'failed');
+  assert(failed?.supersededBy);
+  assert.equal(app.store.receipt('delegation-return-' + failed.id + '.1')?.state, 'superseded');
+});
+
 test('worker handoffs retain originating channel grants and keep different destinations in separate turns', async (t) => {
   const app = await setup(t),
     backend = new FakeBackend();

@@ -226,9 +226,25 @@ export class Retrieval {
       }
       lists.push({ hits, weight: query.weight, query: query.text });
     }
-    return fuseRanks(lists).map((hit) => ({
+    const result = fuseRanks(lists);
+    // Partial vector coverage must not bury an exact catalog code or title in
+    // semantic-only neighbors. This is lexical evidence, not fabricated vectors.
+    const anchors = new Set<string>();
+    if (strategy === 'hybrid') for (const query of queries.filter(q => q.weight > 0)) {
+      const text = query.text.normalize('NFKC').toLowerCase().trim();
+      const identifiers = (text.match(/[a-z0-9_-]+/g) ?? [])
+        .filter(term => term.length >= 3 && /[a-z]/.test(term) && /[0-9]/.test(term));
+      for (const record of records) {
+        const title = record.title?.normalize('NFKC').toLowerCase() ?? '';
+        const codes = new Set(title.match(/[a-z0-9_-]+/g) ?? []);
+        if ((text.length >= 4 && title.includes(text)) || identifiers.some(code => codes.has(code)))
+          anchors.add(record.id + ':' + record.version);
+      }
+    }
+    return result.map((hit) => ({
       ...hit,
+      score: anchors.size ? (anchors.has(hit.id + ':' + hit.version) ? 0.85 + 0.15 * hit.score : 0.8 * hit.score) : hit.score,
       method: strategy === 'hybrid' && !usedSemantic ? 'keyword' : strategy,
-    }));
+    })).sort((a, b) => b.score - a.score);
   }
 }

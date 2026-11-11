@@ -41,7 +41,7 @@ for (const kind of ['dsh', 'codex'] as const)
     generate: async () => {
       throw Error('No model calls');
     },
-    listModels: async () => [{ id: kind + '-worker', label: kind + '-worker' }],
+    listModels: async () => [{ id: kind + '-worker', label: kind + '-worker', reasoning: { source: 'host', levels: ['low', 'high'] } }],
   });
 app.store.put(
   'profiles',
@@ -208,7 +208,12 @@ try {
     .locator('.role-editor-nav')
     .getByRole('button', { name: '工具与委派', exact: true })
     .click();
-  const worker = page.locator('[data-role-feature="delegation"]');
+  const worker = page.locator('[data-delegation-executors]');
+  assert.equal(await worker.getByLabel('子任务执行方式', { exact: true }).inputValue(), 'choose');
+  await worker.getByLabel('子任务执行方式', { exact: true }).selectOption('fixed');
+  await worker.getByLabel('指定执行器', { exact: true }).selectOption('worker-dsh.provider');
+  await worker.getByLabel('子任务默认思考强度', { exact: true }).selectOption('high');
+  assert.equal(await worker.getByLabel('子任务默认思考强度', { exact: true }).inputValue(), 'high');
   assert.equal(await worker.getByLabel('执行模型', { exact: true }).inputValue(), 'dsh-worker');
   assert.deepEqual(await values('执行模型', worker), ['dsh-worker']);
   const extra = page.locator('[data-role-feature="selectionfixture"]');
@@ -224,7 +229,7 @@ try {
   await page.waitForFunction(
     () =>
       document.querySelector<HTMLSelectElement>(
-        '[data-role-feature="delegation"] select[aria-label="执行模型"]',
+        '[data-delegation-executors] select[aria-label="执行模型"]',
       )?.selectedOptions[0]?.disabled === true,
   );
   assert.equal(await worker.getByLabel('执行模型', { exact: true }).inputValue(), 'dsh-worker');

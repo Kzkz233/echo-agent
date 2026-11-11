@@ -7,6 +7,7 @@ import {
   type ExecutionRequest,
 } from './config.ts';
 import { authorizeExecution } from './authorization.ts';
+import { selectedReasoning } from '../../packages/backends/model-metadata.ts';
 import { realpath, stat, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { within, projectRoot } from '../../packages/backends/project-root.ts';
@@ -83,6 +84,7 @@ export type DelegatedTask = {
   checkpoint?: { text: string; artifacts: string[]; at: string };
   parentTaskId?: string;
   originRunId?: string;
+  supersededBy?: string;
 };
 type ApprovalReview = { at: string; path: string; operation: 'edit' | 'write'; decision: 'allow' | 'deny' };
 export class Delegations {
@@ -124,8 +126,10 @@ export class Delegations {
       this.config(personaId),
       request,
     );
+    const profile = await this.router.inference.prepare(this.router.profile(template.profileId), template.reasoning, this.ctx?.signal);
+    selectedReasoning(profile, template.reasoning);
     if (template.fullAccess)
-      invariant(['api', 'pi'].includes(this.router.profile(template.profileId).kind),
+      invariant(['api', 'pi'].includes(profile.kind),
         'worker_full_backend', '本机完全访问需要使用内置执行器。');
     return template;
   }
@@ -382,6 +386,15 @@ export class Delegations {
         },
       });
       this.store.put('delegated-tasks', taskId, task);
+      // A corrected execution request in the same originating turn supersedes
+      // its failed predecessor; it must not generate a second result handoff.
+      if (task.originRunId) for (const prior of this.list())
+        if (prior.id !== task.id && prior.originRunId === task.originRunId && prior.state === 'failed' &&
+            prior.goal === task.goal && prior.acceptance === task.acceptance && prior.context === task.context &&
+            !this.store.receipt('delegation-return-' + prior.id + '.' + prior.attempt)) {
+          this.persist({ ...prior, supersededBy: task.id });
+          this.store.saveReceipt('delegation-return-' + prior.id + '.' + prior.attempt, { state: 'superseded', taskId: task.id });
+        }
     });
     this.launch(task);
     return task;
@@ -547,7 +560,8 @@ export class Delegations {
   }
   private scheduleReturns() {
     if (!this.ctx || this.ctx.signal.aborted || this.returns) return;
-    this.returns = Promise.resolve()
+    // run.completed is emitted before Router releases its conversation lock.
+    this.returns = new Promise<void>((done) => setImmediate(done))
       .then(() => this.flushReturns())
       .catch((error) => this.events.emit('delegation.return.failed', { error: String(error) }))
       .finally(() => {
@@ -559,11 +573,13 @@ export class Delegations {
     const tasks = this.list();
     for (const conversationId of new Set(tasks.map((t) => t.conversationId))) {
       const group = tasks.filter((t) => t.conversationId === conversationId);
+      if (this.store.unresolved(conversationId).length) continue;
       if (group.some((t) => ['queued', 'running', 'waiting', 'unknown'].includes(t.state)))
         continue;
       let finished = group.filter(
         (t) =>
           ['completed', 'failed', 'cancelled'].includes(t.state) &&
+          t.acceptanceStatus === 'pending' && !t.supersededBy &&
           t.attempt > 0 &&
           !this.store.receipt('delegation-return-' + t.id + '.' + t.attempt),
       );
@@ -710,6 +726,7 @@ export class Delegations {
           }
         ctx.dispose(
           this.events.subscribe((event) => {
+            if (event.type === 'run.completed') this.scheduleReturns();
             if (event.type === 'character.activity.changed' && !event.data.enabled) {
               for (const task of this.list().filter(
                 (task) => task.personaId === event.data.personaId,
@@ -821,10 +838,19 @@ export class Delegations {
                             ? '可按委派指引自主创建工作任务。'
                             : '仅允许使用者手动创建任务；本轮可查询、验收已有任务。',
                           '通过 delegation_request 提供 goal、acceptance、必要 context 和稳定 requestId；在 execution 中为本次子任务选择 profileId、projectDirectory、workspaces、write、terminal、toolPermissions、reasoning、timeoutMinutes 和补充 prompt。只有授权明确允许时才可选择 fullAccess。只申请本次所需权限，接口返回受理记录，稍后会通知结果。',
+                          '委派是异步执行：受理后向当前渠道简短说明进展并结束本轮，结果到达后会自动接棒。不要用终端 sleep、循环查询或延长本轮来等待。若本轮已看到完成结果，先用 delegation_review 验收，再统一汇报；已验收的结果不会再次接棒。',
                           '可分配的授权上限：' +
                             JSON.stringify({
                               mainProfileId: this.mainProfile(conversation.personaId),
                               allowedProfileIds: config.allowedProfileIds,
+                              selectionMode: config.selectionMode,
+                              fixedProfileId: config.fixedProfileId || this.mainProfile(conversation.personaId),
+                              defaultReasoning: config.defaultReasoning,
+                              executors: [...new Set([this.mainProfile(conversation.personaId), ...config.allowedProfileIds])].filter(Boolean).flatMap((id) => {
+                                try { const profile = this.router.profile(id!); return [{ profileId: id, executor: profile.kind,
+                                  model: profile.model, reasoning: profile.reasoningSupport?.levels ?? [],
+                                  defaultReasoning: profile.reasoning }]; } catch { return []; }
+                              }),
                               workspaces: config.workspaces,
                               toolPermissions: config.toolPermissions,
                               terminal: config.terminal,
@@ -971,6 +997,19 @@ export class Delegations {
               review: { text: v.text, at: new Date().toISOString(), attempt: task.attempt },
             };
             this.persist(next);
+            const key = 'delegation-return-' + task.id + '.' + task.attempt;
+            const receipt = this.store.receipt(key);
+            this.store.saveReceipt(key, { ...receipt, state: 'reviewed' });
+            if (receipt?.requestId) {
+              const queued = this.store.receipt('input-' + receipt.requestId);
+              if (queued?.state === 'queued') {
+                const pending = this.list().some((other) => {
+                  const entry = this.store.receipt('delegation-return-' + other.id + '.' + other.attempt);
+                  return entry?.requestId === receipt.requestId && entry?.state !== 'reviewed';
+                });
+                if (!pending) this.router.cancelInput(receipt.requestId, task.conversationId);
+              }
+            }
             this.store.put('delegated-attempts', task.id + '.' + task.attempt, {
               ...this.store.document<any>('delegated-attempts', task.id + '.' + task.attempt),
               ...next,

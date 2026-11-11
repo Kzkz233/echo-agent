@@ -1,3 +1,4 @@
+import { fakeDshPolicyAck } from './helpers.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { writeFile, readFile } from 'node:fs/promises';
@@ -156,7 +157,7 @@ test('DSH uses official assistant/message events and per-run reasoning with isol
     log = join(app.runtime, 'dsh-wire.jsonl');
   await writeFile(
     script,
-    `import readline from 'node:readline';import fs from 'node:fs';const log=${JSON.stringify(log)};for await(const l of readline.createInterface({input:process.stdin})){const m=JSON.parse(l);fs.appendFileSync(log,JSON.stringify({...m,home:process.env.DSH_HOME})+'\\n');let result={};if(m.method==='initialize')result={serverInfo:{name:'deepseek-harness-sdk-runtime',version:'0.2.2'}};if(m.method==='session/query'){result={kind:'prompt',messageId:'native-input'};console.log(JSON.stringify({method:'session.event',params:{sessionId:m.params.sessionId,event:{type:'assistant/message',data:{message:{content:[{type:'text',text:'DSH native answer'}]}}}}}));}console.log(JSON.stringify({id:m.id,result}));if(m.method==='shutdown')break;}`,
+    `${fakeDshPolicyAck}import readline from 'node:readline';import fs from 'node:fs';const log=${JSON.stringify(log)};for await(const l of readline.createInterface({input:process.stdin})){const m=JSON.parse(l);fs.appendFileSync(log,JSON.stringify({...m,home:process.env.DSH_HOME})+'\\n');let result={};if(m.method==='initialize')result={serverInfo:{name:'deepseek-harness-sdk-runtime',version:'0.2.2'}};if(m.method==='session/query'){result={kind:'prompt',messageId:'native-input'};console.log(JSON.stringify({method:'session.event',params:{sessionId:m.params.sessionId,event:{type:'assistant/message',data:{message:{content:[{type:'text',text:'DSH native answer'}]}}}}}));}console.log(JSON.stringify({id:m.id,result}));if(m.method==='shutdown')break;}`,
   );
   const backend = new DshBackend(app.runtime, app.store, async () => undefined);
   t.after(() => backend.close());
@@ -215,7 +216,7 @@ test('DSH custom providers patch llm-pi-ai as YAML and retain dynamic MCP author
     log = join(app.runtime, 'custom-provider-wire.jsonl');
   await writeFile(
     script,
-    `import readline from 'node:readline';import fs from 'node:fs';const log=${JSON.stringify(log)};for await(const l of readline.createInterface({input:process.stdin})){const m=JSON.parse(l);fs.appendFileSync(log,JSON.stringify({...m,patchPath:process.argv[process.argv.indexOf('--patch')+1],apiKeyPresent:Boolean(process.env.ECHO_DSH_API_KEY)})+'\\n');let result={};if(m.method==='initialize')result={serverInfo:{name:'deepseek-harness-sdk-runtime',version:'0.2.2'}};if(m.method==='session/query'){console.log(JSON.stringify({method:'session.event',params:{sessionId:m.params.sessionId,event:{type:'assistant/message',data:{message:{content:[{type:'text',text:'custom provider fixture'}]}}}}}));}console.log(JSON.stringify({id:m.id,result}));if(m.method==='shutdown')break;}`,
+    `${fakeDshPolicyAck}import readline from 'node:readline';import fs from 'node:fs';const log=${JSON.stringify(log)};for await(const l of readline.createInterface({input:process.stdin})){const m=JSON.parse(l);fs.appendFileSync(log,JSON.stringify({...m,patchPath:process.argv[process.argv.indexOf('--patch')+1],apiKeyPresent:Boolean(process.env.ECHO_DSH_API_KEY)})+'\\n');let result={};if(m.method==='initialize')result={serverInfo:{name:'deepseek-harness-sdk-runtime',version:'0.2.2'}};if(m.method==='session/query'){console.log(JSON.stringify({method:'session.event',params:{sessionId:m.params.sessionId,event:{type:'assistant/message',data:{message:{content:[{type:'text',text:'custom provider fixture'}]}}}}}));}console.log(JSON.stringify({id:m.id,result}));if(m.method==='shutdown')break;}`,
   );
   const backend = new DshBackend(app.runtime, app.store, async () => 'fixture-secret');
   backend.setEchoMcp(() => ({ url: 'http://127.0.0.1:8765/mcp', token: 'fixture-mcp-token' }));
@@ -312,7 +313,7 @@ test('DSH custom model discovery and connection checks use authenticated GET onl
     runtimeLog = join(app.runtime, 'dsh-connection-check.jsonl');
   await writeFile(
     script,
-    `import readline from 'node:readline';import fs from 'node:fs';const log=${JSON.stringify(runtimeLog)};for await(const line of readline.createInterface({input:process.stdin})){const m=JSON.parse(line);fs.appendFileSync(log,JSON.stringify({method:m.method,params:m.params,home:process.env.DSH_HOME,apiKeyPresent:Boolean(process.env.ECHO_DSH_API_KEY),patchPath:process.argv[process.argv.indexOf('--patch')+1]})+'\\n');const result=m.method==='initialize'?{serverInfo:{name:'deepseek-harness-sdk-runtime',version:'0.2.2'}}:{};console.log(JSON.stringify({id:m.id,result}));if(m.method==='shutdown')break;}`,
+    `${fakeDshPolicyAck}import readline from 'node:readline';import fs from 'node:fs';const log=${JSON.stringify(runtimeLog)};for await(const line of readline.createInterface({input:process.stdin})){const m=JSON.parse(line);fs.appendFileSync(log,JSON.stringify({method:m.method,params:m.params,home:process.env.DSH_HOME,apiKeyPresent:Boolean(process.env.ECHO_DSH_API_KEY),patchPath:process.argv[process.argv.indexOf('--patch')+1]})+'\\n');const result=m.method==='initialize'?{serverInfo:{name:'deepseek-harness-sdk-runtime',version:'0.2.2'}}:{};console.log(JSON.stringify({id:m.id,result}));if(m.method==='shutdown')break;}`,
   );
   const requests: any[] = [];
   const server = createServer((req, res) => {
@@ -398,7 +399,7 @@ test('DSH maps the official DeepSeek OpenAI base URL to Messages and classifies 
     log = join(app.runtime, 'failed-dsh-wire.jsonl');
   await writeFile(
     script,
-    `import readline from 'node:readline';import fs from 'node:fs';const log=${JSON.stringify(log)};for await(const l of readline.createInterface({input:process.stdin})){const m=JSON.parse(l);fs.appendFileSync(log,JSON.stringify({...m,baseURL:process.env.DEEPSEEK_BASE_URL})+'\\n');let result={};if(m.method==='initialize')result={serverInfo:{name:'deepseek-harness-sdk-runtime',version:'0.2.2'}};if(m.method==='session/query'){result={kind:'prompt',messageId:'native-input'};console.log(JSON.stringify({method:'session.event',params:{sessionId:m.params.sessionId,event:{type:'turn/end',data:{reason:{kind:'error',error:{message:'DeepSeek Messages request failed (404)',code:'HTTP_404',status:404}}}}}}));}console.log(JSON.stringify({id:m.id,result}));if(m.method==='shutdown')break;}`,
+    `${fakeDshPolicyAck}import readline from 'node:readline';import fs from 'node:fs';const log=${JSON.stringify(log)};for await(const l of readline.createInterface({input:process.stdin})){const m=JSON.parse(l);fs.appendFileSync(log,JSON.stringify({...m,baseURL:process.env.DEEPSEEK_BASE_URL})+'\\n');let result={};if(m.method==='initialize')result={serverInfo:{name:'deepseek-harness-sdk-runtime',version:'0.2.2'}};if(m.method==='session/query'){result={kind:'prompt',messageId:'native-input'};console.log(JSON.stringify({method:'session.event',params:{sessionId:m.params.sessionId,event:{type:'turn/end',data:{reason:{kind:'error',error:{message:'DeepSeek Messages request failed (404)',code:'HTTP_404',status:404}}}}}}));}console.log(JSON.stringify({id:m.id,result}));if(m.method==='shutdown')break;}`,
   );
   const backend = new DshBackend(app.runtime, app.store, async () => undefined);
   t.after(() => backend.close());
@@ -439,7 +440,7 @@ test('DSH keeps a query timeout unknown after request submission', async (t) => 
     script = join(app.runtime, 'timeout-dsh.mjs');
   await writeFile(
     script,
-    `import readline from 'node:readline';for await(const l of readline.createInterface({input:process.stdin})){const m=JSON.parse(l);if(m.method==='initialize'){console.log(JSON.stringify({id:m.id,result:{serverInfo:{name:'deepseek-harness-sdk-runtime',version:'0.2.2'}}}));continue;}if(m.method==='session/query')continue;console.log(JSON.stringify({id:m.id,result:{}}));if(m.method==='shutdown')break;}`,
+    `${fakeDshPolicyAck}import readline from 'node:readline';for await(const l of readline.createInterface({input:process.stdin})){const m=JSON.parse(l);if(m.method==='initialize'){console.log(JSON.stringify({id:m.id,result:{serverInfo:{name:'deepseek-harness-sdk-runtime',version:'0.2.2'}}}));continue;}if(m.method==='session/query')continue;console.log(JSON.stringify({id:m.id,result:{}}));if(m.method==='shutdown')break;}`,
   );
   const backend = new DshBackend(app.runtime, app.store, async () => undefined);
   t.after(() => backend.close());

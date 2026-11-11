@@ -192,6 +192,8 @@ export function DelegationView({
     void rpc('persona.character.read', { id: personaId }).then((value) => {
       const policy = value.configurations.delegation;
       setConfiguration(policy);
+      setProfileId(policy.selectionMode === 'fixed' ? policy.fixedProfileId : '');
+      setReasoning(policy.defaultReasoning ?? 'inherit');
       setWorkspace(policy.workspaces[0]?.path ?? '');
       setTools((policy.toolPermissions ?? []).filter((p: string) => p.endsWith('.read')));
       setTimeoutMinutes(Math.min(20, policy.timeoutMinutes));
@@ -253,15 +255,14 @@ export function DelegationView({
               />
             </label>
             <PathInput label="工作目录" value={workspace} onChange={setWorkspace} directory />
-            <details className="card">
-              <summary>{t('本次执行设置')}</summary>
               <ModelChoice
-                label="执行模型"
+                label="执行器"
                 data={{ ...data, profiles: allowedProfiles }}
                 executor
                 value={profileId}
                 onChange={setProfileId}
                 inheritValue={mainProfile}
+                disabled={configuration?.selectionMode === 'fixed'}
               />
               <ReasoningSelect
                 label="思考强度"
@@ -269,6 +270,8 @@ export function DelegationView({
                 onChange={setReasoning}
                 profileId={profileId || mainProfile}
               />
+            <details className="card">
+              <summary>{t('本次执行设置')}</summary>
               <label className="field">
                 <span>{t('本次执行时限（分钟）')}</span>
                 <input

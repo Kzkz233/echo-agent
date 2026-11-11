@@ -19,6 +19,7 @@ import { contextCompaction } from '../../../packages/contracts/compaction.ts';
 import type { OutputTarget } from '../../../packages/contracts/delivery.ts';
 import { defaultEchoReadPermissions } from '../../../packages/contracts/interaction.ts';
 import { RoleWorkspaces } from './role-workspaces.tsx';
+import { DelegationExecutors } from './delegation-executors.tsx';
 const AvatarAssets = lazy(() => import('./avatar-assets.tsx'));
 const ChatStickView = lazy(() =>
   import('./chatstick-view.tsx').then((module) => ({ default: module.ChatStickView })),
@@ -230,6 +231,11 @@ export function CharacterWizard({
       : f.resource === 'permission' ? data.mcpPermissionCatalog.filter((p:any)=>draft.toolPermissions.includes(p.permission)).map((p:any)=>({id:p.permission,name:p.external ? `${t(p.external.server)} · ${p.external.tool}` : p.owners.map((id:string)=>t(data.plugins.find((plugin:any)=>plugin.id===id)?.name??'共享模块')).join(' · ')+' · '+t(p.permission.endsWith('.read')?'读取':p.permission.endsWith('.write')?'修改':'调用')})) : [];
     const update = (next: unknown) =>
       rowUpdate ? rowUpdate(next) : changeConfig(featureId, f.key, next);
+    if (featureId === 'delegation' && f.key === 'allowedProfileIds')
+      return <DelegationExecutors key={f.key} data={data} policy={draft.configurations.delegation}
+        mainProfileId={draft.profileId} onChange={patch => change({ configurations: {
+          ...draft.configurations, delegation: { ...draft.configurations.delegation, ...patch },
+        } })} />;
     if (f.type !== 'multi' && (f.resource === 'executor' || f.resource === 'model'))
       return (
         <ModelChoice

@@ -9,6 +9,34 @@ import { characterDraft } from '../plugins/persona/character-contracts.ts';
 import { internal } from '../packages/kernel/registry.ts';
 import { echoToolPermissions } from '../packages/kernel/tool-access.ts';
 
+test('fixed executor selection and default reasoning retain the existing model and permission ceiling', async t => {
+  const app = await setup(t);
+  const legacy = settings.parse({ authorizationVersion: 3, allowedProfileIds: ['approved'] });
+  assert.equal(legacy.selectionMode, 'choose');
+  assert.equal(legacy.defaultReasoning, 'inherit');
+  assert.deepEqual(legacy.allowedProfileIds, ['approved']);
+  const policy = { ...legacy, selectionMode: 'fixed' as const, fixedProfileId: 'approved', defaultReasoning: 'high' as const };
+  const task = await authorizeExecution(app.store, 'fixture', 'test', policy, {});
+  assert.equal(task.profileId, 'approved');
+  assert.equal(task.reasoning, 'high');
+  assert.equal(task.write, false);
+  await assert.rejects(authorizeExecution(app.store, 'fixture', 'test', policy, { profileId: 'test' }), /已指定/);
+  await assert.rejects(authorizeExecution(app.store, 'fixture', 'test', { ...policy, fixedProfileId: 'unapproved' }, {}), /未获角色授权/);
+  assert.equal((await authorizeExecution(app.store, 'fixture', 'test', policy, { reasoning: 'low' })).reasoning, 'low');
+});
+
+test('unsupported task thinking is rejected before creating a task or completion notification', async t => {
+  const app = await setup(t);
+  const model = app.store.document<any>('profiles', 'test');
+  app.store.put('profiles', 'test', { ...model, reasoningStyle: 'effort', reasoningLevels: ['low', 'high'] });
+  const role = await app.registry.call('persona.character.commit', { requestId: 'think-role', draft: characterDraft.parse({
+    persona: { id: 'think-role', name: 'Fixture', prompt: 'Synthetic' }, profileId: 'test', features: ['delegation'],
+  }) }, internal);
+  await assert.rejects(app.registry.call('delegation.request', { requestId: 'bad-think', conversationId: role.mainConversationId,
+    goal: 'Synthetic', acceptance: 'Evidence', execution: { reasoning: 'medium' } }, internal), /不支持思考强度/);
+  assert.equal(app.store.documents('delegated-tasks').length, 0);
+});
+
 test('per-task execution is bounded by role model, directory, tool and duration grants', async (t) => {
   const app = await setup(t),
     root = await temporary(t),

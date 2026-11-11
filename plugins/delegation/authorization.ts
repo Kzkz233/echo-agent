@@ -18,7 +18,11 @@ export async function authorizeExecution(
   policy: DelegationPolicy,
   request: ExecutionRequest,
 ): Promise<WorkerTemplate> {
-  const profileId = request.profileId || mainProfileId || policy.allowedProfileIds[0];
+  const fixed = policy.selectionMode === 'fixed';
+  const fixedId = policy.fixedProfileId || mainProfileId;
+  invariant(!fixed || !request.profileId || request.profileId === fixedId,
+    'worker_executor_fixed', '此角色已指定子任务执行器，请使用指定配置。');
+  const profileId = (fixed ? fixedId : request.profileId) || mainProfileId || policy.allowedProfileIds[0];
   invariant(
     profileId && (profileId === mainProfileId || policy.allowedProfileIds.includes(profileId)),
     'worker_model_grant',
@@ -87,6 +91,7 @@ export async function authorizeExecution(
     id: 'task',
     name: '子任务',
     ...request,
+    reasoning: request.reasoning && request.reasoning !== 'inherit' ? request.reasoning : policy.defaultReasoning,
     profileId,
     projectDirectory,
     workspaces,

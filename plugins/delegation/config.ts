@@ -55,6 +55,9 @@ const policySchema = z.object({
       '检查子任务的实际成果与证据，明确记录验收通过或需要返工，再汇报重要结果和未决事项。不要因完成通知重复创建任务。',
     ),
   concurrency: z.number().int().min(1).max(4).default(1),
+  selectionMode: z.enum(['choose', 'fixed']).default('choose'),
+  fixedProfileId: z.string().default(''),
+  defaultReasoning: reasoning.default('inherit'),
   allowedProfileIds: z.array(id).max(100).default([]),
   workspaces: z.array(workspace).max(100).default([]),
   toolPermissions: z.array(id).max(200).optional(),
@@ -104,10 +107,10 @@ export const characterFields: Field[] = [
   { key: 'autonomous', label: '允许主角色委派子任务', type: 'boolean' },
   {
     key: 'allowedProfileIds',
-    label: '额外允许的执行模型',
+    label: '子任务执行器',
     type: 'multi',
     resource: 'executor',
-    description: '主会话模型始终可用；这里只选择允许主角色为子任务使用的其他模型。',
+    description: '指定执行器，或允许主会话为每个任务选择。模型和账号的授权范围单独保留。',
   },
   {
     key: 'workspaces',
