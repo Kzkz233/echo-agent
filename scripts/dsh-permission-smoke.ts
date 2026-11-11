@@ -18,6 +18,7 @@ await mkdir(workspace);
 const file = join(workspace, 'sample.txt');
 await writeFile(file, 'original');
 const forbidden = join(workspace, 'forbidden.txt');
+const writable = process.env.ECHO_DSH_TEST_WRITE === '1';
 let posts = 0,
   approvals = 0;
 const requests: any[] = [];
@@ -31,7 +32,7 @@ const server = createServer(async (req, res) => {
   const request = JSON.parse(body);
   requests.push(request);
   posts++;
-  const tool = posts < 4;
+  const tool = posts < (writable ? 2 : 4);
   res.writeHead(200, { 'Content-Type': 'text/event-stream' });
   const frame = (type: string, data: any) =>
     res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
@@ -51,7 +52,7 @@ const server = createServer(async (req, res) => {
       ? {
           type: 'tool_use',
           id: 'call-' + posts,
-          name: posts === 1 ? 'read' : posts === 2 ? 'write' : 'pwsh',
+          name: writable ? 'write' : posts === 1 ? 'read' : posts === 2 ? 'write' : 'pwsh',
           input: {},
         }
       : { type: 'text', text: '' },
@@ -62,11 +63,13 @@ const server = createServer(async (req, res) => {
       ? {
           type: 'input_json_delta',
           partial_json: JSON.stringify(
-            posts === 1
-              ? { file_path: file }
-              : posts === 2
-                ? { file_path: forbidden, content: 'must not exist' }
-                : { command: `Set-Content -LiteralPath '${forbidden}' -Value 'must not exist'` },
+            writable
+              ? { file_path: forbidden, content: 'approved synthetic write' }
+              : posts === 1
+                ? { file_path: file }
+                : posts === 2
+                  ? { file_path: forbidden, content: 'must not exist' }
+                  : { command: `Set-Content -LiteralPath '${forbidden}' -Value 'must not exist'` },
           ),
         }
       : { type: 'text_delta', text: 'Read-only policy fixture complete.' },
@@ -102,26 +105,34 @@ try {
     signal: AbortSignal.timeout(90000),
     permissions: conversationPermissions.parse({
       projectDirectory: workspace,
-      pi: { projectWrite: false, terminal: false },
+      pi: { projectWrite: writable, terminal: false },
+      codex: { sandbox: writable ? 'workspace-write' : 'read-only' },
       dsh: { approvals: 'ask' },
     }),
-    onInteraction: async () => {
+    onInteraction: async (interaction) => {
+      assert(writable, 'Read-only tasks must not request write or terminal approval.');
+      assert(interaction.kind === 'approval');
+      assert.equal(interaction.workspaceWrite?.path, forbidden);
+      assert.equal(interaction.workspaceWrite?.operation, 'write');
       approvals++;
       return { decision: 'allow' };
     },
   });
   assert.match(result.text, /fixture complete/);
-  assert.equal(posts, 4);
-  assert.equal(approvals, 0);
+  assert.equal(posts, writable ? 2 : 4);
+  assert.equal(approvals, writable ? 1 : 0);
   assert.equal(await readFile(file, 'utf8'), 'original');
-  await assert.rejects(access(forbidden));
+  if (writable) assert.equal(await readFile(forbidden, 'utf8'), 'approved synthetic write');
+  else await assert.rejects(access(forbidden));
   const messages = JSON.stringify(requests.at(-1).messages);
-  assert.match(messages, /original/);
-  assert.match(messages, /read.only|not authorized|denied/i);
-  assert.match(
-    messages,
-    /Terminal execution is not authorized|not available|not found|Unknown tool/i,
-  );
+  if (!writable) {
+    assert.match(messages, /original/);
+    assert.match(messages, /read.only|not authorized|denied/i);
+    assert.match(
+      messages,
+      /Terminal execution is not authorized|not available|not found|Unknown tool/i,
+    );
+  }
   console.log(
     JSON.stringify({
       ok: true,
@@ -130,8 +141,9 @@ try {
       posts,
       approvals,
       originalPreserved: true,
-      writeDenied: true,
-      terminalDenied: true,
+      writeDenied: !writable,
+      terminalDenied: !writable,
+      structuredWriteApproval: writable,
     }),
   );
 } finally {

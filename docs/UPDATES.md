@@ -1,8 +1,8 @@
 # Application updates
 
-Open **Settings → Maintenance → Version & updates** to see the desktop and backend versions, edition, build time and build identifier. The build identifier ties together the embedded frontend, desktop executable and backend. A mismatch is shown explicitly.
+Open **Settings → Maintenance → Version & updates** to see the desktop and backend versions, build time and build identifier. The build identifier ties together the embedded frontend, desktop executable and backend. A mismatch is shown explicitly.
 
-Public builds check stable releases in this project's GitHub repository when the user selects **Check for updates**. Update downloads must match the exact repository asset URL, size and SHA-256 digest returned by GitHub. Personal builds import local `.echo-update` packages. The package edition and data format must match the installed application. The Windows x64 desktop currently supports in-app installation.
+Released clients share the same application binaries. Users add their own roles, data, extensions and external MCP connections outside the installation directory; these are retained during updates. Select **Check for updates** to find stable GitHub releases, or import a local `.echo-update` package. Downloads must match the exact repository asset URL, size and SHA-256 digest returned by GitHub. Build compatibility and data format are validated before installation. The Windows x64 desktop currently supports in-app installation.
 
 The `.echo-update` format is a ZIP containing `update.json` and an `app/` directory. The manifest records build information and the size and SHA-256 of every payload file. Extraction rejects absolute paths, parent traversal, Windows device aliases, alternate data streams, duplicate names and links. Local packages contain executable application code and should come from a trusted build.
 

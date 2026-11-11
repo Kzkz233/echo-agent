@@ -54,6 +54,7 @@ try {
     `http://127.0.0.1:${http.port}/?window=settings&page=updates#token=${http.token}`,
   );
   await page.getByRole('heading', { name: '版本与更新', exact: true }).waitFor();
+  assert(!/公开版|自用版/.test(await page.locator('.updates-page').innerText()));
   assert.equal(
     await page
       .locator('.version-card strong')

@@ -25,7 +25,7 @@ export function dshPolicyPlugin(
   const source = `import {realpathSync,lstatSync,existsSync,writeFileSync} from 'node:fs';
 import {resolve,dirname,relative,isAbsolute} from 'node:path';
 export const name='echo-task-policy';
-export const inject=['tools'];
+export const inject=['tools','approval'];
 const policy=${JSON.stringify(policy)};
 const reads=new Set(['read','read_file','read_image','ls','list_directory','glob','grep','find']);
 const writes=new Set(['write','write_file','edit']);

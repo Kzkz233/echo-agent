@@ -12,9 +12,6 @@ export async function confirmDesktopReady() {
     await invoke('desktop_ready', { frontend: buildInfo }).catch(() => {});
   }
 }
-function editionName(value?: string) {
-  return value === 'public' ? t('公开版') : value === 'private' ? t('自用版') : t('开发版');
-}
 function BuildCard({ label, value }: { label: string; value?: BuildInfo }) {
   return (
     <div className="version-card">
@@ -22,7 +19,6 @@ function BuildCard({ label, value }: { label: string; value?: BuildInfo }) {
       <strong>{value?.version ?? '—'}</strong>
       {value ? (
         <>
-          <span className="muted">{editionName(value.edition)}</span>
           <time>{new Date(value.builtAt).toLocaleString(locale())}</time>
           <code title={value.buildId}>{value.buildId.slice(0, 8)}</code>
         </>
@@ -120,9 +116,7 @@ export function UpdatesView() {
       <section className="card update-actions">
         <h2>{t('应用更新')}</h2>
         <p className="muted">
-          {status?.backend?.edition === 'public'
-            ? t('从 Echo Agent 的 GitHub Releases 获取公开版更新。')
-            : t('导入自用版更新包，保留自用插件。')}
+          {t('从 GitHub Releases 获取更新，或导入本地更新包。已有数据、插件和外部 MCP 配置会保留。')}
         </p>
         {!status?.supported && <p>{t('请在已打包的 Windows 桌面版中更新。')}</p>}
         {status?.supported && (
@@ -193,7 +187,7 @@ export function UpdatesView() {
                   <strong>
                     {t('已准备就绪')} · {status.prepared.build.version}
                   </strong>
-                  <p className="muted">{editionName(status.prepared.build.edition)}</p>
+                  <code>{status.prepared.build.buildId.slice(0, 8)}</code>
                 </div>
                 <Button disabled={busy || !native || mismatch} onClick={() => void install()}>
                   {status.prepared.rollback ? t('重启并回滚') : t('重启并更新')}
@@ -208,8 +202,7 @@ export function UpdatesView() {
         {status?.rollback ? (
           <>
             <p>
-              {t('可回滚版本')} · <strong>{status.rollback.version}</strong> ·{' '}
-              {editionName(status.rollback.edition)}
+              {t('可回滚版本')} · <strong>{status.rollback.version}</strong>
             </p>
             <Button
               secondary

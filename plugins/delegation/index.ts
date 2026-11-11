@@ -847,7 +847,7 @@ export class Delegations {
                               fixedProfileId: config.fixedProfileId || this.mainProfile(conversation.personaId),
                               defaultReasoning: config.defaultReasoning,
                               executors: [...new Set([this.mainProfile(conversation.personaId), ...config.allowedProfileIds])].filter(Boolean).flatMap((id) => {
-                                try { const profile = this.router.profile(id!); return [{ profileId: id, executor: profile.kind,
+                                try { const profile = this.router.profile(id!); return [{ profileId: id, executor: ['api', 'pi'].includes(profile.kind) ? 'builtin' : profile.adapterId ?? profile.kind,
                                   model: profile.model, reasoning: profile.reasoningSupport?.levels ?? [],
                                   defaultReasoning: profile.reasoning }]; } catch { return []; }
                               }),

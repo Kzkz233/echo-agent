@@ -531,6 +531,12 @@ export class DshBackend implements Backend {
     const policyPath = join(home, 'echo-task-policy.mjs');
     await writeFile(policyPath, policy.source, { mode: 0o600 });
     const patchEntries = dshPatchEntries({ ...profile, reasoning: (selected.effort ?? 'inherit') as any }, bridge);
+    // sdk-minimal has an SDK approval transport but omits its approval service.
+    // Own this seam just as we own the isolated inference and MCP instances.
+    patchEntries.push({ id: 'user-approval', disabled: true });
+    patchEntries.push({ insert: [{ id: 'echo-user-approval', name: '@deepseek-ai/dsh-user-approval',
+      config: { policy: request.permissions?.dsh.approvals === 'ask' ? 'ask' : 'never' },
+    }] });
     // SDK templates may omit text reads and writes. Echo supplies one scoped
     // instance; the mandatory policy below remains the final authorization gate.
     patchEntries.push({ insert: [{ id: 'echo-file-tools', name: '@deepseek-ai/dsh-tool-fs', config: {

@@ -10074,5 +10074,9 @@
   [
     "子任务执行器",
     "Subtask executors"
+  ],
+  [
+    "从 GitHub Releases 获取更新，或导入本地更新包。已有数据、插件和外部 MCP 配置会保留。",
+    "Get updates from GitHub Releases or import a local package. Your data, plugins and external MCP configuration are retained."
   ]
 ]
