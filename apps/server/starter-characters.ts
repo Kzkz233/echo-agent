@@ -8,13 +8,14 @@ import { id, invariant } from '../../packages/contracts/index.ts';
 import { internal } from '../../packages/kernel/registry.ts';
 import { characterDraft } from '../../plugins/persona/character-contracts.ts';
 import type { Application } from './application.ts';
-import { starterCharacters, starterSourcePrompts } from './starter-content.ts';
+import { starterCharacters, starterSourcePrompts, starterStudio } from './starter-content.ts';
+import { refreshStarterDraft, refreshStarterGroup, starterDefaults } from './starter-refresh.ts';
 import { ensureStarterModels } from './bundled-models.ts';
 import { inferenceTasks } from '../../packages/contracts/inference.ts';
 import { defaultPermissions } from '../../packages/kernel/tool-access.ts';
 
 const characters = starterCharacters;
-export const starterVersion = '2.0.1';
+export const starterVersion = '3.0.0';
 const featureIds = [
   'memory',
   'avatar',
@@ -63,12 +64,63 @@ export function registerStarterCharacters(app: Application) {
     version: starterVersion,
     existing: app.store.get('starter.studio.v1', null),
   }));
+  op('characters.examples.refresh', z.object({ requestId: id }), async (value, signal) => {
+    invariant(!creating, 'examples_busy', '示例角色正在更新。');
+    const completed = app.store.get<any>('starter.studio.v1', null);
+    invariant(completed, 'examples_missing', '请先创建示例角色。');
+    if (completed.version === starterVersion) return { ...completed, changes: [] };
+    creating = true;
+    try {
+      const changes = [];
+      for (const example of characters) {
+        const roleId = 'example-' + example.id;
+        if (!app.store.document('personas', roleId)) continue;
+        const current = (await app.registry.call(
+          'persona.character.read',
+          { id: roleId },
+          internal,
+          signal,
+        )) as any;
+        const { draft, updated, preserved } = refreshStarterDraft(current, example, starterVersion);
+        await app.registry.call(
+          'persona.character.commit',
+          {
+            draft,
+            requestId: value.requestId + '-refresh-' + example.id,
+          },
+          internal,
+          signal,
+        );
+        changes.push({ id: roleId, updated, preserved });
+      }
+      const group = app.store.document<any>('groups', completed.groupId);
+      if (group) {
+        const next = refreshStarterGroup(group, completed.groupDefaults);
+        if (group.prompt !== next.prompt || group.context !== next.context)
+          await app.registry.call('groups.save', next, internal, signal);
+      }
+      const result = { ...completed, version: starterVersion, groupDefaults: starterStudio };
+      app.store.set('starter.studio.v1', result);
+      app.events.emit('characters.updated', {});
+      return { ...result, changes };
+    } finally {
+      creating = false;
+    }
+  });
   op(
     'characters.examples.create',
     z.object({ profileId: id, requestId: id, updateExisting: z.literal(true).optional() }),
     async (value, signal) => {
       const completed = app.store.get<any>('starter.studio.v1', null);
       if (completed && !value.updateExisting) return completed;
+      // Backward compatible entry point; refreshing content never reconfigures a role.
+      if (completed && value.updateExisting)
+        return app.registry.call(
+          'characters.examples.refresh',
+          { requestId: value.requestId },
+          internal,
+          signal,
+        );
       invariant(!creating, 'examples_busy', '示例角色正在创建。');
       invariant(assets, 'examples_missing', '示例素材缺失，请重新安装完整应用。');
       const model = app.router.inference.models().find((model) => model.id === value.profileId);
@@ -86,8 +138,7 @@ export function registerStarterCharacters(app: Application) {
         const pluginIds = [...app.plugins.plugins.values()]
           .filter(
             (plugin) =>
-              plugin.distribution !== 'local' &&
-              plugin.manifest.package?.startsWith('@echo/'),
+              plugin.distribution !== 'local' && plugin.manifest.package?.startsWith('@echo/'),
           )
           .map((plugin) => plugin.manifest.id);
         for (const pluginId of pluginIds) {
@@ -218,7 +269,26 @@ export function registerStarterCharacters(app: Application) {
               type: 'mail-triggers.rules',
               settings: {
                 name: '新邮件提醒',
-                selection: 'application',
+                rules:
+                  example.id === 'hina'
+                    ? [
+                        {
+                          name: '约定与重要事项',
+                          match: 'subject',
+                          terms:
+                            '会议邀请\n日程变更\n需要确认\n截止日期\nmeeting invitation\naction required\ndeadline',
+                        },
+                      ]
+                    : [
+                        {
+                          name: '新鲜事与邀请',
+                          match: 'subject',
+                          terms:
+                            '活动邀请\n版本更新\n测试邀请\n作品发布\nrelease notes\nbeta invitation\nevent invitation',
+                        },
+                      ],
+                remindAll: false,
+                useLegacyFilters: false,
                 action: 'conversation',
                 reasoning: 'off',
                 prompt: example.mail,
@@ -273,6 +343,13 @@ export function registerStarterCharacters(app: Application) {
                 queryPrompt: example.query,
               },
               reflections: { inject: true, maxNotes: 6, maxChars: 2400 },
+              chatstick: {
+                channels: {
+                  'core.chat': true,
+                  'avatar.bubble': true,
+                  'notifications.inbox': false,
+                },
+              },
               delegation: {
                 authorizationVersion: 3,
                 autonomous: true,
@@ -321,6 +398,7 @@ export function registerStarterCharacters(app: Application) {
                 persona: { name: example.name, prompt: example.prompt },
                 features: [],
                 tasks: [],
+                starterDefaults: starterDefaults(example),
               },
             },
           });
@@ -375,15 +453,18 @@ export function registerStarterCharacters(app: Application) {
               name: '双人工作室',
               members: roles,
               historyWindow: 40,
-              context:
-                '这是使用者与 Hina、Miyu 的共享工作室，可以一起讨论学习、创作、日常计划或项目。没有预设的私人经历。',
-              prompt:
-                '以自己的角色身份参与讨论，结合共享记录和其他成员的回答作出补充。避免轮流重复总结，不替别人发言；不引用私聊、私有记忆或不存在的工具结果。使用者可以选择本轮由谁回应。',
+              ...starterStudio,
             },
             internal,
             signal,
           );
-        const result = { roles, groupId, version: starterVersion, profileId: value.profileId };
+        const result = {
+          roles,
+          groupId,
+          version: starterVersion,
+          profileId: value.profileId,
+          groupDefaults: starterStudio,
+        };
         app.store.set('starter.studio.v1', result);
         app.events.emit('characters.updated', {});
         return result;

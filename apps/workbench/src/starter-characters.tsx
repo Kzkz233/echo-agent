@@ -11,7 +11,16 @@ export function StarterCharacters({ data, act, openRole, openSettings }: any) {
   const [requestId] = useState(() => crypto.randomUUID());
   const confirm = useConfirm();
   useEffect(() => {
-    void rpc<any>('characters.examples.list', {}).then(value=>{setCatalog(value);setModel(value.existing?.profileId??data.conversations?.find((c:any)=>c.personaId===value.existing?.roles?.[0]&&c.kind==='main')?.binding?.profileId??'');});
+    void rpc<any>('characters.examples.list', {}).then((value) => {
+      setCatalog(value);
+      setModel(
+        value.existing?.profileId ??
+          data.conversations?.find(
+            (c: any) => c.personaId === value.existing?.roles?.[0] && c.kind === 'main',
+          )?.binding?.profileId ??
+          '',
+      );
+    });
   }, []);
   if (!catalog) return null;
   return (
@@ -44,11 +53,24 @@ export function StarterCharacters({ data, act, openRole, openSettings }: any) {
               '包含可编辑的记忆整理、主动交流和实时观察任务。任务与桌宠初始关闭，可在角色配置中分别启用。',
             )}
           </p>
-          {(!catalog.existing || catalog.existing.version!==catalog.version) && (
+          {!catalog.existing && (
             <>
-              <ModelChoice label="语言与视觉模型" taskId="observation.vision" data={data} value={model} onChange={setModel} inherit={false} />
-              <p className="muted">{t('使用同一多模态模型体验各项功能，默认关闭思考；本地语义检索使用随客户端提供的 BGE。')}</p>
-              <p className="muted">{t('启用通用插件和角色工具权限；邮箱、QQ 与屏幕观察需要自行配置账号或授权。')}</p>
+              <ModelChoice
+                label="语言与视觉模型"
+                taskId="observation.vision"
+                data={data}
+                value={model}
+                onChange={setModel}
+                inherit={false}
+              />
+              <p className="muted">
+                {t(
+                  '使用同一多模态模型体验各项功能，默认关闭思考；本地语义检索使用随客户端提供的 BGE。',
+                )}
+              </p>
+              <p className="muted">
+                {t('启用通用插件和角色工具权限；邮箱、QQ 与屏幕观察需要自行配置账号或授权。')}
+              </p>
             </>
           )}
           <div className="row wrap">
@@ -70,11 +92,30 @@ export function StarterCharacters({ data, act, openRole, openSettings }: any) {
             >
               {t(catalog.existing ? '打开示例角色' : '创建两个角色及群聊')}
             </Button>
-            {catalog.existing && catalog.existing.version!==catalog.version && <Button secondary disabled={!model} onClick={()=>act(async()=>{
-              if(!await confirm({title:t('更新示例配置'),description:t('更新两位示例角色的人设、提示词、功能和模型配置？已有会话与记忆会保留。')}))return;
-              const result=await rpc('characters.examples.create',{profileId:model,requestId:crypto.randomUUID(),updateExisting:true});
-              setCatalog({...catalog,existing:result});
-            })}>{t('更新示例配置')}</Button>}
+            {catalog.existing && catalog.existing.version !== catalog.version && (
+              <Button
+                secondary
+                onClick={() =>
+                  act(async () => {
+                    if (
+                      !(await confirm({
+                        title: t('更新示例文案'),
+                        description: t(
+                          '更新未改动的示例人设和提示词。保留你编辑过的内容，以及模型、权限、任务和已有记录。',
+                        ),
+                      }))
+                    )
+                      return;
+                    const result = await rpc('characters.examples.refresh', {
+                      requestId: crypto.randomUUID(),
+                    });
+                    setCatalog({ ...catalog, existing: result });
+                  })
+                }
+              >
+                {t('更新示例文案')}
+              </Button>
+            )}
             {!catalog.existing && (
               <Button secondary onClick={() => openSettings('backends')}>
                 {t('配置模型服务')}
