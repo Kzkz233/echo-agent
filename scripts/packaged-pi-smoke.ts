@@ -30,7 +30,10 @@ const model = createServer(async (req, res) => {
       function: { name: 'read', arguments: '{"path":"README.txt"}' } }] }, 'tool_calls');
   } else {
     assert(JSON.stringify(input.messages).includes('PACKAGED_PI_NATIVE_OK'));
-    frame({ role: 'assistant', content: 'Packaged Pi read successful.' }, 'stop');
+    assert(input.tools.some((tool: any) => tool.function.name === 'echo_respond'));
+    frame({ role: 'assistant', tool_calls: [{ index: 0, id: 'fixture-final', type: 'function',
+      function: { name: 'echo_respond', arguments: JSON.stringify({ targetId: 'core.chat', phase: 'final',
+        messages: ['Packaged Pi read successful.'] }) } }] }, 'tool_calls');
   }
   res.end('data: [DONE]\n\n');
 });
