@@ -33,6 +33,8 @@ struct DesktopMenu {
     hide: MenuItem<tauri::Wry>,
     quit: MenuItem<tauri::Wry>,
 }
+#[derive(Default)]
+struct SettingsWindowState(tauri::async_runtime::Mutex<()>);
 #[tauri::command]
 fn set_language(app: tauri::AppHandle, language: String) -> Result<(), String> {
     let menu = app.state::<DesktopMenu>();
@@ -264,10 +266,13 @@ fn open_workbench(app: tauri::AppHandle) -> Result<(), String> {
     show_main(&app)
 }
 #[tauri::command]
-async fn open_settings(app: tauri::AppHandle, page: String) -> Result<(), String> {
+async fn open_settings(app: tauri::AppHandle, state: State<'_, SettingsWindowState>, page: String) -> Result<(), String> {
     if !valid_extension_identifier(&page) {
         return Err("Invalid settings page".into());
     }
+    // Window creation yields to the UI thread. Concurrent invocations must not
+    // all pass the existence check and create orphaned windows with one label.
+    let _opening = state.0.lock().await;
     if let Some(window) = app.get_webview_window("settings") {
         window
             .eval(&format!(
@@ -275,6 +280,7 @@ async fn open_settings(app: tauri::AppHandle, page: String) -> Result<(), String
                 page
             ))
             .map_err(|e| e.to_string())?;
+        window.unminimize().map_err(|e| e.to_string())?;
         window.show().map_err(|e| e.to_string())?;
         window.set_focus().map_err(|e| e.to_string())?;
         return Ok(());
@@ -376,6 +382,7 @@ fn main() {
     // and isolated acceptance fixtures from activating each other's desktop window.
     context.config_mut().identifier = instance_identifier(&data);
     let app = tauri::Builder::default()
+        .manage(SettingsWindowState::default())
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             let app = app.clone();
             std::thread::spawn(move || {

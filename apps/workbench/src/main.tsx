@@ -409,25 +409,33 @@ function App() {
       setPage('character-wizard');
     });
   const openSettings = async (target = 'plugins', pluginId?: string) => {
-    localStorage.setItem(
-      'echo.settings-navigation',
-      JSON.stringify({ page: target, pluginId, at: Date.now() }),
-    );
-    if (!isSettingsPage(target)) {
-      await openWorkbench(target);
-      return;
-    }
-    if ('__TAURI_INTERNALS__' in window) {
-      const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('open_settings', { page: target });
-    } else {
-      window.open(
-        connection.url +
-          '/?window=settings&page=' +
-          encodeURIComponent(target) +
-          '#token=' +
-          encodeURIComponent(connection.token),
-        'echo-settings',
+    try {
+      localStorage.setItem(
+        'echo.settings-navigation',
+        JSON.stringify({ page: target, pluginId, at: Date.now() }),
+      );
+      if (!isSettingsPage(target)) {
+        await openWorkbench(target);
+        return;
+      }
+      if ('__TAURI_INTERNALS__' in window) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('open_settings', { page: target });
+      } else {
+        window.open(
+          connection.url +
+            '/?window=settings&page=' +
+            encodeURIComponent(target) +
+            '#token=' +
+            encodeURIComponent(connection.token),
+          'echo-settings',
+        );
+      }
+    } catch (cause) {
+      setError(
+        t('无法打开设置窗口：{reason}', {
+          reason: cause instanceof Error ? cause.message : String(cause),
+        }),
       );
     }
   };

@@ -2508,3 +2508,4 @@ Echo 将退出并保存上一版程序。启动验收失败时自动恢复，已
 最近一次更新	Last update
 已自动回滚	Rolled back automatically
 回滚恢复程序版本。角色、会话和资料保留当前数据，更新前数据库快照单独保存。	Rollback restores the application version. Characters, conversations and documents keep their current data. A separate database snapshot is saved before updating.
+无法打开设置窗口：{reason}	Unable to open Settings: {reason}
