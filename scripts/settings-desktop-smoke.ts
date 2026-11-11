@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { cp, mkdir, mkdtemp, symlink } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, symlink } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -127,6 +127,28 @@ try {
     new Promise((_, reject) => setTimeout(() => reject(Error('Fixture did not exit')), 15000)),
   ]);
 } finally {
+  // A failed assertion must also release the bundled node.exe before a rebuild.
+  // Stop only the backend identified by this fixture's private connection file.
+  try {
+    const connection = JSON.parse(await readFile(join(fixture, 'data/connection.json'), 'utf8'));
+    assert.match(connection.url, /^http:\/\/127\.0\.0\.1:\d+$/);
+    await fetch(connection.url + '/rpc', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + connection.token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'system.shutdown', params: {} }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
+      console.warn('Fixture backend cleanup:', String(error));
+  }
+  const main = browser
+    ?.contexts()[0]
+    ?.pages()
+    .find((p) => !p.url().includes('window='));
+  await main
+    ?.evaluate(() => (window as any).__TAURI_INTERNALS__.invoke('quit_echo'))
+    .catch(() => {});
   await browser?.close().catch(() => {});
   if (child.exitCode === null) child.kill();
   console.log('Isolated settings fixture: ' + fixture);
