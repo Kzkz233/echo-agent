@@ -167,11 +167,9 @@ export function PluginPage({
       }
     };
     addEventListener('message', receive);
-    const changed = (event: Event) =>
-      frame.current?.contentWindow?.postMessage(
-        { type: 'echo:event', bridge, event: (event as CustomEvent).detail },
-        '*',
-      );
+    // Frames receive invalidation signals, never private message/event payloads.
+    const changed = (event: Event) => frame.current?.contentWindow?.postMessage(
+      { type: 'echo:event', bridge, event: { type: (event as CustomEvent).detail?.type, data: {} } }, '*');
     addEventListener('echo-event', changed);
     return () => {
       active = false;

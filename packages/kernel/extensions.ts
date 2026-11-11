@@ -8,7 +8,7 @@ import { readFile, realpath, stat, mkdir, lstat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import type { ExtensionHost, ModuleExtension } from './extension-host.ts';
-import { join, resolve, relative, isAbsolute, dirname } from 'node:path';
+import { join, resolve, relative, isAbsolute, dirname, basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { invariant } from '../contracts/index.ts';
@@ -109,7 +109,7 @@ export class Extensions {
         ? manifest
         : extensionSchema.parse({
             ...manifest,
-            command: process.execPath,
+            command: 'node',
             args: [join(destination, meta.entry)],
           });
     if (previous) this.store.put('extension-rollback', manifest.id, previous);
@@ -170,6 +170,7 @@ export class Extensions {
       runtime?: 'node' | 'module';
       entry?: string;
       metadataHash?: string;
+      sha256?: string;
     }>())
       if (row.runtime === 'module') {
         // A disabled module is metadata only: no import, factory or native process.
@@ -197,7 +198,12 @@ export class Extensions {
           },
         };
         this.plugins.add(shell);
-      } else this.add(row.directory, row.manifest);
+      } else {
+        // Packaged Node entries follow the current core runtime, even when an
+        // installer moves the application. Explicit user commands stay literal.
+        const packagedNode = row.sha256 && ['node', 'node.exe'].includes(basename(row.manifest.command).toLowerCase());
+        this.add(row.directory, packagedNode ? { ...row.manifest, command: 'node' } : row.manifest);
+      }
   }
   private async loadModule(row: {
     directory: string;
