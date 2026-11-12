@@ -177,7 +177,7 @@ test('registered delivery styles and image support are applied independently per
   }
 });
 
-test('reports can target external outputs without entering chat; main-chat presentations stay out of inference and Review', async (t) => {
+test('notice reports preserve one canonical result per task while channel presentations stay out of inference and Review', async (t) => {
   const f = await fixture(t);
   for (const [requestId, outputTargets] of [
     ['external', ['fixture.destination']],
@@ -199,8 +199,8 @@ test('reports can target external outputs without entering chat; main-chat prese
     );
   assert.equal(f.calls(), 1);
   const messages = f.app.store.allMessages(f.chat.id);
-  assert.equal(messages.length, 1);
-  assert.equal(messages[0].meta.presentationOnly, true);
+  assert.equal(messages.filter(message => message.meta.presentationOnly).length, 1);
+  assert.equal(messages.filter(message => message.meta.taskResultId).length, 2);
   assert.equal(f.app.store.documents<any>('outputs').length, 2);
   assert(f.app.store.documents<any>('outputs').every((output) => output.plan.source === 'review'));
   await f.app.router.send({
@@ -208,12 +208,9 @@ test('reports can target external outputs without entering chat; main-chat prese
     text: 'Next human turn',
     requestId: 'next',
   });
-  assert(!JSON.stringify(f.backend.calls[0].messages).includes('PRESENTATION_ONLY_REPORT'));
-  assert(
-    !(await f.app.reviews.collect('companion')).some((material) =>
-      material.text.includes('PRESENTATION_ONLY_REPORT'),
-    ),
-  );
+  assert.equal(f.backend.calls[0].messages.filter(message => message.text.includes('PRESENTATION_ONLY_REPORT')).length, 2);
+  const materials = await f.app.reviews.collect('companion');
+  assert(materials.filter(material => material.text.includes('PRESENTATION_ONLY_REPORT')).length <= 2);
 });
 
 test('unknown delivery is never retried and changed or missing targets do not redirect an old result', async (t) => {
@@ -342,6 +339,7 @@ test('Review freezes destinations before reading and never sends to a replacemen
       type: 'review.policies',
       id: 'review-frozen',
       settings: {
+        runtimeVersion: 1, // The legacy JSON reviewer also retains its frozen delivery contract.
         personaId: 'companion',
         name: 'Synthetic review',
         enabled: false,

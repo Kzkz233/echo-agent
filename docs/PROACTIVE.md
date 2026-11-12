@@ -19,8 +19,9 @@ and conversation availability. Observe clues age out of proactive interaction af
 minutes. This does not discard observation records from Review or the archive.
 The native capture helper measures authorized area and brightness separately. An entirely
 unreadable batch records its verified source without requesting vision or a bubble.
-The completion notice for memory review uses a short report from its final packet.
-Checkpoint notes remain in the review record.
+Memory review reports use the verified result of the whole execution and its
+confirmed operations. Checkpoint notes remain in the review record. Reporting
+uses the shared parent-conversation handoff and selected delivery destinations.
 
 Website observation is task-scoped: each role selects browser executables and allowed domains.
 The built-in URL reader uses Windows UI Automation and works only when a browser exposes a

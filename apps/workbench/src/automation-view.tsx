@@ -9,6 +9,7 @@ import { rpc } from './client.ts';
 import { locale, t } from './i18n.ts';
 import { ReasoningSelect } from './reasoning-select.tsx';
 import { ModelChoice } from './model-choice.tsx';
+import { WorkExecutionSettings, WorkContextSettings } from './work-settings.tsx';
 import {
   Button,
   EmptyState,
@@ -40,12 +41,16 @@ export function TaskField({
   onChange,
   profileId,
   plugins = [],
+  workPolicy,
+  features,
 }: {
   field: AutomationField;
   draft: Draft;
   onChange: (key: string, value: unknown) => void;
   profileId?: string;
   plugins?: { id: string; name: string }[];
+  workPolicy?: any;
+  features?: string[];
 }) {
   const value = draft.settings[field.key];
   const [openRow, setOpenRow] = useState<number>();
@@ -70,6 +75,15 @@ export function TaskField({
   const options = (field.options ?? []).filter(
     (o) => !field.filterBy || o.scope === draft.settings[field.filterBy],
   );
+  if (field.kind === 'execution') return <WorkExecutionSettings personaId={String(draft.settings.personaId ?? '') || undefined}
+    initialPolicy={workPolicy} mainProfileId={profileId} features={features}
+    value={value} onChange={next => onChange(field.key, next)} />;
+  if (field.kind === 'work-context') return <WorkContextSettings personaId={String(draft.settings.personaId ?? '') || undefined}
+    profileId={String(draft.settings.profileId ?? profileId ?? '') || undefined} features={features}
+    value={draft.settings} onChange={next => {
+      const key = ['compaction', 'maxOutputTokens', 'contextBlocks'].find(key => JSON.stringify(next[key]) !== JSON.stringify(draft.settings[key]));
+      if (key) onChange(key, next[key]);
+    }} />;
   if(field.kind==='outputs')return <OutputTargetsField value={value} onChange={(value:string[])=>onChange(field.key,value)} personaId={draft.settings.personaId} conversationId={draft.settings.conversationId||draft.settings.reportConversationId} source={(field.outputSourceField?field.outputSources?.[String(draft.settings[field.outputSourceField])]:undefined)??field.outputSource} bubble={field.legacyBubble??Boolean(draft.settings.bubble)}/>;
   if (field.kind === 'model' || field.kind === 'executor')
     return (
@@ -242,7 +256,7 @@ export function TaskField({
           ) : (
             <input
               aria-label={label}
-              type={field.kind === 'number' ? 'number' : 'text'}
+              type={field.kind === 'number' ? 'number' : field.kind === 'datetime' ? 'datetime-local' : 'text'}
               min={field.min}
               max={field.max}
               value={text}
@@ -390,6 +404,7 @@ export function AutomationView({
     });
   const types = catalog.types
     .filter((entry) => !only || entry.id === only)
+    .filter((entry) => !personaId || entry.scope === 'character')
     .map((entry) => ({
       ...entry,
       items: personaId

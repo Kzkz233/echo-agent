@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { id, reasoning } from '../../packages/contracts/index.ts';
 import type { Field } from '../../packages/kernel/registry.ts';
+import { executionRequest } from '../../packages/contracts/work.ts';
+import { contextCompaction } from '../../packages/contracts/compaction.ts';
+export { executionRequest };
+export type { ExecutionRequest } from '../../packages/contracts/work.ts';
 export const defaultDelegationPrompt =
   '你负责理解用户意图、组织工作、检查成果和最终沟通。对于耗时、可独立验收的执行工作，优先使用适合的 Worker；简单交流与短小操作直接处理。委派时说明目标、约束、必要背景和验收标准。收到结果后检查证据和未决事项，再向用户汇报。不要把任务受理或执行结束当作验收通过。';
 export const workerTemplate = z.object({
@@ -21,27 +25,13 @@ export const workerTemplate = z.object({
   timeoutMinutes: z.number().int().min(1).max(120).default(20),
   prompt: z.string().max(12000).default(''),
   toolPermissions: z.array(id).max(200).optional(),
+  compaction: contextCompaction.optional(),
+  maxOutputTokens: z.number().int().min(64).max(131072).optional(),
+  workerRecall: z.boolean().optional(),
+  contextBlocks: z.array(id).max(200).optional(),
 });
 export type WorkerTemplate = z.infer<typeof workerTemplate>;
 // The legacy type name is retained for frozen historical execution snapshots only.
-export const executionRequest = z
-  .object({
-    profileId: id.optional(),
-    reasoning: reasoning.optional(),
-    projectDirectory: z.string().optional(),
-    workspaces: z
-      .array(z.object({ path: z.string().min(1), write: z.boolean().default(false) }))
-      .max(20)
-      .optional(),
-    write: z.boolean().optional(),
-    fullAccess: z.boolean().optional(),
-    terminal: z.boolean().optional(),
-    timeoutMinutes: z.number().int().min(1).max(120).optional(),
-    prompt: z.string().max(12000).optional(),
-    toolPermissions: z.array(id).max(200).optional(),
-  })
-  .strict();
-export type ExecutionRequest = z.infer<typeof executionRequest>;
 const workspace = z.object({ path: z.string().min(1), write: z.boolean().default(false) });
 const policySchema = z.object({
   authorizationVersion: z.literal(3).default(3),
@@ -58,6 +48,9 @@ const policySchema = z.object({
   selectionMode: z.enum(['choose', 'fixed']).default('choose'),
   fixedProfileId: z.string().default(''),
   defaultReasoning: reasoning.default('inherit'),
+  contextBlocks: z.array(id).max(200).optional(),
+  compaction: contextCompaction.optional(),
+  maxOutputTokens: z.number().int().min(64).max(131072).optional(),
   allowedProfileIds: z.array(id).max(100).default([]),
   workspaces: z.array(workspace).max(100).default([]),
   toolPermissions: z.array(id).max(200).optional(),

@@ -15,6 +15,8 @@ export const memoryChange = z.object({
   sources: z.array(z.string()).min(1).max(50),
   perspective: memorySchema.shape.perspective,
   confirmation: memorySchema.shape.confirmation,
+  tags: memorySchema.shape.tags.optional(),
+  occurredAt: memorySchema.shape.occurredAt,
 });
 export type MemoryChange = z.infer<typeof memoryChange>;
 export const memoryOperations = [

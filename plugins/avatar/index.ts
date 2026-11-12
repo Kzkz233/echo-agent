@@ -27,6 +27,13 @@ import { Clock } from '../../packages/kernel/clock.ts';
 import { readReplyImage } from '../../packages/kernel/reply-images.ts';
 import { packAvatar, unpackAvatar } from './package.ts';
 import { avatarStates, defineAvatarStates } from './states.ts';
+// v2 renderers supply a library to the shared host. v1 remains readable for
+// installed extensions that still own a legacy executable.
+export function avatarRendererPoint(context: PluginContext | undefined, renderer: string) {
+  return (['avatar.renderers@2', 'avatar.renderers@1'] as const).find((point) =>
+    context?.capabilities.list(point).some((p) => p.id === renderer && p.state === 'active'),
+  );
+}
 export function avatarPlugin(
   store: Store,
   router: Router,
@@ -57,13 +64,10 @@ export function avatarPlugin(
             directory: cfg.assetDirectory?.trim() || bundled,
           };
           if (!cfg.renderer || cfg.renderer === 'frames') return fallback;
-          if (
-            !context?.capabilities
-              .list('avatar.renderers@1')
-              .some((p) => p.id === cfg.renderer && p.state === 'active')
-          )
+          const point = avatarRendererPoint(context, cfg.renderer);
+          if (!point)
             return { ...fallback, issue: '所选增强渲染器不可用，暂用基础帧动画；原选择已保留。' };
-          return (await context.capabilities.invoke('avatar.renderers@1', cfg.renderer, {
+          return (await context!.capabilities.invoke(point, cfg.renderer, {
             personaId,
           })) as {
             kind: string;
@@ -180,17 +184,11 @@ export function avatarPlugin(
         output: z.array(z.string()),
         run: async ({ personaId }) => {
           const profile = roleAvatar(store, personaId);
-          if (
-            profile.renderer !== 'frames' &&
-            context?.capabilities
-              .list('avatar.renderers@1')
-              .some((p) => p.id === profile.renderer && p.state === 'active')
-          ) {
-            const selected = (await context.capabilities.invoke(
-              'avatar.renderers@1',
-              profile.renderer,
-              { personaId },
-            )) as any;
+          const point = avatarRendererPoint(context, profile.renderer);
+          if (profile.renderer !== 'frames' && point) {
+            const selected = (await context!.capabilities.invoke(point, profile.renderer, {
+              personaId,
+            })) as any;
             if (selected.clips?.length) return selected.clips;
           }
           const root =
@@ -428,6 +426,26 @@ export function avatarPlugin(
         cardinality: 'one',
       });
       ctx.capabilities.define({
+        id: 'avatar.renderers@2',
+        description:
+          'Optional native renderer library; the base host owns all windows, bubbles, input and receipts',
+        input: z.object({ personaId: id.optional() }),
+        output: z.object({
+          kind: z
+            .string()
+            .min(1)
+            .refine((kind) => kind !== 'frames'),
+          directory: z.string().min(1),
+          library: z.string().min(1),
+          abi: z.literal(1),
+          clips: z.array(z.string()).optional(),
+          stateClips: z.record(z.string(), z.string()).optional(),
+        }),
+        providePermission: 'avatar.renderer',
+        consumePermission: 'avatar.render',
+        cardinality: 'one',
+      });
+      ctx.capabilities.define({
         id: 'avatar.materials@1',
         description: 'Optional renderer material libraries and import controls',
         input: z.object({}),
@@ -483,13 +501,9 @@ export function avatarPlugin(
           stateClips: z.record(z.string(), z.string()),
         }),
         run: async ({ renderer, personaId }) => {
-          if (
-            !ctx.capabilities
-              .list('avatar.renderers@1')
-              .some((p) => p.id === renderer && p.state === 'active')
-          )
-            return { clips: [], stateClips: {} };
-          const result = (await ctx.capabilities.invoke('avatar.renderers@1', renderer, {
+          const point = avatarRendererPoint(ctx, renderer);
+          if (!point) return { clips: [], stateClips: {} };
+          const result = (await ctx.capabilities.invoke(point, renderer, {
             personaId,
           })) as any;
           return { clips: result.clips ?? [], stateClips: result.stateClips ?? {} };

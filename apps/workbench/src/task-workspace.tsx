@@ -5,6 +5,8 @@ import { Button, EmptyState } from './ui.tsx';
 import { DelegationView } from './character-workspace.tsx';
 import { AutomationView } from './automation-view.tsx';
 import { ReviewResume } from './review-resume.tsx';
+import { ReviewCandidates } from './review-candidates.tsx';
+import { ChatView } from './chat-view.tsx';
 import { taskPresentation } from '../../../packages/contracts/tasks.ts';
 
 export function TaskWorkspace({ data, act, personaId, setPage, openTask, configureRole }: any) {
@@ -16,6 +18,7 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
   const [view, setView] = useState<'automation' | 'work'>('work');
   const [manual, setManual] = useState(false),
     [reviewRuns, setReviewRuns] = useState<any[]>([]);
+  const [workSessions, setWorkSessions] = useState<any[]>([]);
   const delegation =
     data.plugins.some((p: any) => p.id === 'delegation' && p.enabled) &&
     data.characters.some((r: any) => r.id === personaId);
@@ -29,16 +32,18 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
         data.plugins.some((p: any) => p.id === 'review' && p.enabled)
           ? rpc('review.list')
           : Promise.resolve([]),
+        rpc('work.list', { personaId }),
       ]);
       if (!alive) return;
       if (results[0].status === 'fulfilled') setCatalog(results[0].value);
       if (results[1].status === 'fulfilled') setWorkers(results[1].value);
       if (results[2].status === 'fulfilled') setReviewRuns(results[2].value);
+      if (results[3].status === 'fulfilled') setWorkSessions(results[3].value);
     };
     void load();
     const update = (event: any) => {
       if (
-        /^(automation\.|delegation\.|review\.|run\.|interaction\.|observation\.)/.test(
+        /^(work\.|automation\.|delegation\.|review\.|run\.|interaction\.|observation\.)/.test(
           event.detail.type,
         )
       ) {
@@ -85,6 +90,18 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
   );
   const rows = [
     ...automations,
+    ...workSessions.filter(work => work.origin.type !== 'delegation').map(work => ({
+      ...work, key: work.id, name: work.title, type: work.origin.type,
+      typeName: work.origin.name, kind: 'worker', managed: true, lifetime: work.persistent === false ? 'once' : 'continuous',
+      inactive: !automations.some((task: any) => task.type === work.origin.type && task.id === work.origin.id &&
+        task.item.enabled && !task.item.suspendedByCharacter) || work.persistent === false && !['running', 'waiting'].includes(work.state),
+      label: ({ running: '执行中', waiting: '等待确认', idle: '等待触发', failed: '执行失败',
+        unknown: '结果待核对', cancelled: '已停止' } as Record<string, string>)[work.state],
+    })),
+    ...automations.filter((task: any) => task.type === 'observation.tasks').map((task: any) => ({
+      ...task, key: 'background-' + task.key, kind: 'worker', background: true, lifetime: 'continuous',
+      inactive: !task.item.enabled || task.item.suspendedByCharacter,
+    })),
     ...workers.map((task: any) => ({
       key: task.id,
       id: task.id,
@@ -103,8 +120,9 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
         ('inactive' in row && row.inactive) === history &&
         (!filter || ('lifetime' in row && row.lifetime === filter)),
   );
-  const current =
-    selected?.kind === 'automation'
+  const current = selected?.managed
+    ? { ...selected, ...workSessions.find(work => work.id === selected.id) }
+    : selected?.kind === 'automation'
       ? automations.find((row: any) => row.key === selected.key)
       : selected;
   return (
@@ -158,7 +176,23 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
           <Button secondary onClick={() => setSelected(undefined)}>
             {t('返回任务列表')}
           </Button>
-          {current.kind === 'worker' ? (
+          {current.background ? (
+            <AutomationView {...{ act, openTask, personaId }} only={current.type} focusId={current.id}
+              detailOnly roleTasks={roleTasks} />
+          ) : current.managed ? (
+            <section>
+              <div className="page-title page-title-actions"><h2>{current.name}</h2>
+                <Button secondary onClick={() => openTask('automation', current.origin.type, current.origin.id, 'edit')}>
+                  {t('来源自动化任务')}
+                </Button>
+              </div>
+              <p>{t('执行设置由来源任务管理。')}</p>
+              {current.error && <p className="warning">{current.error}</p>}
+              {['running', 'waiting'].includes(current.state) && <Button secondary
+                onClick={() => act(() => rpc('work.cancel', { id: current.id }))}>{t('停止本次执行')}</Button>}
+              <ChatView {...{ data, act, setPage, openTask }} fixedConversationId={current.conversationId} surface="session" managedSettings />
+            </section>
+          ) : current.kind === 'worker' ? (
             <DelegationView
               {...{ data, act, personaId, setPage }}
               selectedTaskId={current.id}
@@ -187,6 +221,7 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
                           {run.nextPacket} / {run.totalPackets}
                         </p>
                         {run.state === 'paused' && <ReviewResume run={run} act={act} />}
+                        {run.checkpointFlow && <ReviewCandidates jobId={run.id} />}
                         {run.state === 'completed' && !run.applied && (
                           <Button
                             secondary

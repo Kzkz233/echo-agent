@@ -4,7 +4,7 @@ import { mkdir, writeFile, link, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setup, conversation, FakeBackend, temporary, until } from './helpers.ts';
 import { seedProfile } from '../scripts/inference-fixture.ts';
-import { profileSchema, observationConfigSchema } from '../packages/contracts/index.ts';
+import { EchoError, profileSchema, observationConfigSchema } from '../packages/contracts/index.ts';
 import { conversationPermissions } from '../packages/contracts/interaction.ts';
 import { nativePiTools } from '../packages/backends/pi-tools.ts';
 import { contributeSourceReader } from '../plugins/observation/source-readers.ts';
@@ -30,7 +30,7 @@ test('Pi publishes one progress message and can finish with a structured reply t
     response.setHeader('Content-Type', 'text/event-stream');
     response.end('data: ' + JSON.stringify({ choices: [{ index: 0, finish_reason: 'tool_calls', delta: {
       role: 'assistant', tool_calls: [{ index: 0, id: 'fixture-reply-' + call, type: 'function', function: {
-        name: 'echo_respond', arguments: JSON.stringify({ targetId: 'core.chat', phase: call === 1 ? 'progress' : 'final', messages: [call === 1 ? 'Checking the sources.' : 'Sources confirmed.'] }),
+        name: 'echo_respond', arguments: JSON.stringify({ targetId: 'core.chat', phase: call === 1 ? 'progress' : 'final', messages: call === 1 ? ['Checking the sources.'] : ['Sources confirmed.', 'No archive operation was committed.'] }),
       } }],
     } }] }) + '\n\ndata: [DONE]\n\n');
   });
@@ -41,9 +41,42 @@ test('Pi publishes one progress message and can finish with a structured reply t
   assert.equal(run.state, 'succeeded', run.error ?? 'Synthetic run did not complete');
   assert.equal(requests.length, 2);
   assert.deepEqual(requests[0].tools.find((tool: any) => tool.function.name === 'echo_respond').function.parameters.properties.targetId.enum, ['core.chat']);
-  assert.equal(run.result, 'Sources confirmed.');
+  assert.equal(run.result, 'Sources confirmed.\n\nNo archive operation was committed.');
   assert.deepEqual(app.store.allMessages(chat.id).filter(m => m.role === 'assistant').map(m => [m.meta.replyPhase, m.text]),
-    [['progress', 'Checking the sources.'], ['final', 'Sources confirmed.']]);
+    [['progress', 'Checking the sources.'], ['final', 'Sources confirmed.\n\nNo archive operation was committed.']]);
+  assert.deepEqual(app.store.allMessages(chat.id).find(m => m.meta.replyPhase === 'final')?.meta.replyParts,
+    ['Sources confirmed.', 'No archive operation was committed.']);
+  await until(() => app.deliveries.rows().filter(row => row.state === 'delivered').length === 2);
+});
+
+test('Pi receives explicit remaining channel targets after each final submission', async t => {
+  const app = await setup(t, []), chat = conversation(app, { kind: 'main' });
+  await app.plugins.enable('notifications');
+  const requests: any[] = [];
+  const server = createServer(async (request, response) => {
+    let body = ''; for await (const chunk of request) body += chunk;
+    const payload = JSON.parse(body); requests.push(payload);
+    if (requests.length === 2) {
+      const receipt = JSON.parse(payload.messages.filter((message: any) => message.role === 'tool').at(-1).content);
+      assert.deepEqual(receipt.completedTargets, ['core.chat']);
+      assert.deepEqual(receipt.remainingTargets, ['notifications.inbox']);
+    }
+    const targetId = requests.length === 1 ? 'core.chat' : 'notifications.inbox';
+    response.setHeader('Content-Type', 'text/event-stream');
+    response.end('data: ' + JSON.stringify({ choices: [{ index: 0, finish_reason: 'tool_calls', delta: {
+      role: 'assistant', tool_calls: [{ index: 0, id: 'channel-' + requests.length, type: 'function', function: {
+        name: 'echo_respond', arguments: JSON.stringify({ targetId, phase: 'final', messages: ['Fixture ' + targetId] }),
+      } }],
+    } }] }) + '\n\ndata: [DONE]\n\n');
+  });
+  await new Promise<void>(done => server.listen(0, '127.0.0.1', done));
+  t.after(() => new Promise<void>(done => { server.closeAllConnections(); server.close(() => done()); }));
+  seedProfile(app, profileSchema.parse({ id: 'test', name: 'Loopback', kind: 'api', model: 'fixture',
+    endpoint: `http://127.0.0.1:${(server.address() as any).port}/v1` }));
+  const delivery = await app.deliveries.plan(chat.id, 'human', ['core.chat', 'notifications.inbox']);
+  const run = await app.router.send({ conversationId: chat.id, requestId: 'multi-channel-receipts', text: 'Report to both selected targets.', delivery });
+  assert.equal(run.state, 'succeeded', run.error ?? 'Synthetic run failed');
+  assert.equal(requests.length, 2);
   await until(() => app.deliveries.rows().filter(row => row.state === 'delivered').length === 2);
 });
 
@@ -95,10 +128,11 @@ test('Pi separates file permissions from approved or explicitly granted Echo mut
       description: 'Synthetic ' + access,
       permission: 'fixture.' + access,
       mcp: true,
-      input: z.object({}),
+      input: z.object({ marker: z.literal('ok').optional(), uncertain: z.boolean().optional() }),
       output: z.object({ done: z.boolean() }),
-      run: () => {
+      run: (input) => {
         if (access !== 'read') writes.push(access);
+        if (input.uncertain) throw new EchoError('fixture_uncertain', 'Synthetic uncertain mutation', true);
         return { done: true };
       },
     });
@@ -129,7 +163,7 @@ test('Pi separates file permissions from approved or explicitly granted Echo mut
                     type: 'function',
                     function: {
                       name: 'fixture_' + (input.model === 'readonly' ? 'read' : 'write'),
-                      arguments: '{}',
+                      arguments: input.model === 'invalid' ? '{"marker":"bad"}' : input.model === 'uncertain' ? '{"uncertain":true}' : '{}',
                     },
                   },
                 ],
@@ -151,7 +185,7 @@ test('Pi separates file permissions from approved or explicitly granted Echo mut
     async () => undefined,
     () => new Set(['fixture.read', 'fixture.write']),
   );
-  for (const model of ['readonly', 'write', 'granted']) {
+  for (const model of ['readonly', 'write', 'granted', 'invalid', 'uncertain']) {
     const profile = profileSchema.parse({
       id: model,
       name: model,
@@ -163,7 +197,7 @@ test('Pi separates file permissions from approved or explicitly granted Echo mut
     const projectDirectory = await temporary(t);
     const grants = conversationPermissions.parse({ projectDirectory, pi: {
       tools: model === 'write' ? 'ask' : 'read',
-      ...(model === 'granted' ? { echoTools: 'granted' } : {}),
+      ...(['granted', 'invalid', 'uncertain'].includes(model) ? { echoTools: 'granted' } : {}),
     } });
     if (model === 'granted') {
       const names = pi.toolCatalog({ permissions: grants }).map((tool) => tool.name);
@@ -179,10 +213,12 @@ test('Pi separates file permissions from approved or explicitly granted Echo mut
         ...(model === 'granted' ? {} : { onInteraction: async () => ({ decision: 'allow' as const }) }),
         permissions: grants,
       }),
-      (error: any) => error.code === 'pi_failed' && error.uncertain === (model !== 'readonly'),
+      // Both writes returned confirmed tool results before the provider failed.
+      // A missing final answer must not label those known effects as uncertain.
+      (error: any) => error.code === 'pi_failed' && error.uncertain === (model === 'uncertain'),
     );
   }
-  assert.deepEqual(writes, ['write', 'write']);
+  assert.deepEqual(writes, ['write', 'write', 'write']);
 });
 
 test('Pi retains transport causes and never silently retries a submitted HTTP request', async (t) => {

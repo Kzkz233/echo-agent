@@ -235,7 +235,7 @@ export class Reflections {
         this.router.context(
           {
             id: 'reflections',
-            blocks: [{ id: 'reflections.current', layer: 'turn', after: ['memory.recall'] }],
+            blocks: [{ id: 'reflections.current', layer: 'turn', after: ['memory.recall'], label: '角色关注', worker: 'optional' }],
             prepare: ({ conversation, source }) => ({
               'reflections.current':
                 source !== 'care' && this.config(conversation.personaId).inject

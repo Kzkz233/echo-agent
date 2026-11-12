@@ -560,7 +560,6 @@ export class Mailbox {
       'mail',
       mailGrants,
       [{ key: 'accountIds', label: '可访问邮箱', type: 'multi', resource: 'mailAccount' }],
-      ['scheduler.mail'],
     );
     return {
       config: { schema: mailConfigSchema },

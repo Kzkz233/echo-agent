@@ -145,11 +145,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "echo-avatar-sdk"
+version = "1.0.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "echo-native"
 version = "0.10.0"
 dependencies = [
  "base64",
  "chrono",
+ "echo-avatar-sdk",
  "image",
  "serde",
  "serde_json",

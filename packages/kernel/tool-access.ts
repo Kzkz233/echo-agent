@@ -1,7 +1,8 @@
 import type { Store } from './store.ts';
-import { characterActive } from './characters.ts';
+import { characterActive, characterEnabled } from './characters.ts';
 
 import type { AgentPrincipal } from '../contracts/index.ts';
+import type { WorkAuthority } from '../contracts/work.ts';
 import { conversationPermissions, defaultEchoReadPermissions } from '../contracts/interaction.ts';
 
 export type HarnessMcp = { url: string; token: string };
@@ -71,10 +72,16 @@ export function echoToolPermissions(
     );
     if (!character) return new Set<string>();
     const worker = conversation.kind === 'worker' && character.independentToolGrants;
-    const ceiling = worker
+    const authority = store.document<WorkAuthority>('work-authorities', conversation.id);
+    if (authority && (!authority.active || !characterEnabled(store, principal.personaId, authority.owner))) return new Set<string>();
+    const ceiling = authority ? authority.permissions : worker
       ? store.document<RoleToolGrants>('character-settings.delegation', principal.personaId)?.toolPermissions ?? []
       : roleToolGrants(store, character);
     permissions = ceiling.filter((permission) => characterPermissions.has(permission));
+    if (authority?.owner === 'delegation') {
+      const current = store.document<RoleToolGrants>('character-settings.delegation', principal.personaId)?.toolPermissions ?? [];
+      permissions = permissions.filter(permission => current.includes(permission));
+    }
     if (worker && !conversation.permissions?.echoTools) return new Set<string>();
     if(conversation.permissions?.echoTools)permissions=permissions.filter(permission=>conversation.permissions!.echoTools!.includes(permission));
   }

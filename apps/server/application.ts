@@ -1,5 +1,5 @@
 import { Deliveries } from '../../packages/kernel/delivery.ts';
-import { characterActive } from '../../packages/kernel/characters.ts';
+import { characterActive, characterEnabled } from '../../packages/kernel/characters.ts';
 import { registerStarterCharacters } from './starter-characters.ts';
 import {
   clockComponent,
@@ -177,6 +177,8 @@ export class Application {
       kind: 'pi',
       listModels: (profile) => this.api.listModels(profile),
       capabilities: (profile) => ({
+        contextManagement: 'echo',
+        outputLimit: true,
         events: true,
         steer: true,
         images: profile.vision,
@@ -342,7 +344,7 @@ export class Application {
       { ...this.embeddings.plugin(), component: 'models', internalComponent: true },
       { ...this.localModels.plugin(), component: 'models', internalComponent: true },
       this.knowledge.plugin(),
-      new Delegations(this.store, this.router, this.events).plugin(),
+      new Delegations(this.store, this.router, this.events, this.clock, this.deliveries).plugin(),
       modelServicesComponent(this.store, localRuntimeConfig),
       clockComponent(this.store, this.clock),
       storageComponent(this.store, this.plugins),
@@ -545,6 +547,60 @@ export class Application {
         })})), sources: this.triggerActions.sources() };
       },
     );
+    op('work.list', '读取角色的全部工作会话', z.object({ personaId: id.optional() }), 'delegation.read',
+      (value, caller) => {
+        invariant(!caller.personaId || !value.personaId || caller.personaId === value.personaId, 'work_owner', '只能读取当前角色的工作会话。');
+        return this.router.workSessions.list(caller.personaId ?? value.personaId);
+      });
+    op('work.contextOptions', '读取插件注册的子任务上下文选项', z.object({ personaId: id, features: z.array(id).optional() }), 'delegation.read',
+      async (value, _caller, signal) => {
+        const role = this.store.document<{ mainConversationId: string }>('characters', value.personaId);
+        const conversation = role && this.store.conversation(role.mainConversationId);
+        const toolLabels: Record<string, string> = {};
+        const plugins = this.plugins.list();
+        for (const operation of this.registry.list(internal, true))
+          toolLabels[operation.permission] ??= plugins.find(plugin => plugin.id === operation.owner)?.name ?? operation.owner;
+        return { options: await this.router.workerContextOptions(value.personaId, signal, value.features), toolLabels,
+          compaction: this.store.document<{ compaction?: unknown }>('character-settings.delegation', value.personaId)?.compaction ??
+            conversation?.compaction ?? { triggerTokens: 256000, keepRecentPercent: 8 },
+          selected: this.store.document<{ contextBlocks?: string[] }>('character-settings.delegation', value.personaId)?.contextBlocks };
+      });
+    op('work.cancel', '停止本次工作执行', z.object({ id }), 'delegation.write', value => {
+      const work = this.store.document<{ conversationId: string }>('work-sessions', value.id);
+      invariant(work, 'work_missing', '工作会话不存在。');
+      this.router.workSessions.cancel(value.id);
+      return { accepted: true };
+    });
+    op('automation.manage', '在当前角色下查看、创建、编辑、启停或执行已注册的自动化任务',
+      z.object({ action: z.enum(['list', 'save', 'pause', 'resume', 'run', 'remove']), type: id.optional(),
+        id: id.optional(), settings: z.record(z.string(), z.unknown()).optional(), requestId: id.optional() }),
+      'delegation.write', async (value, caller, signal) => {
+        const role = caller.personaId && this.store.document<{ mainConversationId: string }>('characters', caller.personaId);
+        invariant(role && role.mainConversationId === caller.conversationId, 'task_owner', '请从角色主工作会话管理自动化任务。');
+        const catalog = await this.automation.catalog(signal);
+        const types = catalog.types.filter(type => type.scope === 'character' && characterEnabled(this.store, caller.personaId, type.owner));
+        const belongs = (item: any) => (item.personaId ?? item.settings?.personaId) === caller.personaId;
+        if (value.action === 'list') return { types: types.map(type => ({ ...type, items: type.items.filter(belongs) })) };
+        invariant(this.store.document<{ autonomous?: boolean }>('character-settings.delegation', caller.personaId)?.autonomous !== false,
+          'delegation_policy', '角色未获准自主创建或执行子任务。');
+        const type = types.find(type => type.id === value.type);
+        invariant(type && characterActive(this.store, caller.personaId), 'task_type', '此角色的任务类型当前不可用。');
+        invariant(caller.permissions.has('*') || caller.permissions.has(type.owner + '.write'), 'permission_denied', '没有管理此类任务的权限。');
+        const item = type.items.find(item => item.id === value.id);
+        invariant(!item || belongs(item), 'task_owner', '不能管理其他角色的任务。');
+        const taskId = value.id ?? randomUUID();
+        if (value.action === 'save' || value.action === 'pause' || value.action === 'resume') {
+          invariant(value.action === 'save' || item, 'task_missing', '任务不存在。');
+          const settings = value.action === 'save' ? { ...value.settings, personaId: caller.personaId } :
+            { ...(item?.persistedSettings ?? item?.settings), enabled: value.action === 'resume' };
+          invariant(!value.settings?.personaId || value.settings.personaId === caller.personaId, 'task_owner', '不能为其他角色创建任务。');
+          return this.automation.mutate(type.id, { action: 'save', id: taskId, settings,
+            actor: { personaId: caller.personaId, conversationId: caller.conversationId, permissions: [...caller.permissions] } }, signal);
+        }
+        invariant(item, 'task_missing', '任务不存在。');
+        return this.automation.mutate(type.id, value.action === 'remove' ? { action: 'remove', id: item.id } :
+          { action: 'run', id: item.id, requestId: value.requestId ?? randomUUID() }, signal);
+      }, true);
     op(
       'automation.dispatch',
       '已启用的来源插件提交自动化动作',
@@ -708,6 +764,7 @@ export class Application {
           bubbleSeconds: 25,
         }),
         vaults: this.knowledge.vaults(),
+        workSessions: this.router.workSessions.list(),
         mailAccounts: this.store.documents<{ id: string; name: string }>('mail-accounts')
           .map(({ id, name }) => ({ id, name })),
         mcpPermissions: this.store.get('mcp.permissions', [
@@ -1140,6 +1197,8 @@ export class Application {
       (v) => {
         const old = this.store.conversation(v.id);
         invariant(old, 'missing_conversation', v.id);
+        invariant(!this.router.workSessions.list().some(work => work.conversationId === v.id && work.origin.type !== 'delegation'),
+          'work_managed', '请在来源自动化任务中修改执行设置。');
         invariant(
           !v.personaId || v.personaId === old.personaId || !managedConversation(this.store, old),
           'managed_conversation',

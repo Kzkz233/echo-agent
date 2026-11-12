@@ -69,6 +69,9 @@ export const conversationSchema = z.object({
   review: z.boolean().default(false),
   permissions: conversationPermissions.optional(),
   compaction: contextCompaction.optional(),
+  maxOutputTokens: z.number().int().min(64).max(131072).optional(),
+  workerRecall: z.boolean().optional(),
+  contextBlocks: z.array(id).max(200).optional(),
   kind: z.enum(['main', 'chat', 'group-member', 'worker']).optional(),
   groupId: id.optional(),
   contextProviders: z.array(id).optional(),
@@ -167,12 +170,15 @@ export type GenerateRequest = {
   permissions?: Conversation['permissions'];
   principal?: AgentPrincipal;
   toolPolicy?: 'none' | 'scoped';
+  compaction?: import('./compaction.ts').ContextCompaction;
   onInteraction?: (request: HostInteraction, signal: AbortSignal) => Promise<HostAnswer>;
   signal: AbortSignal;
   onDelta?: (text: string) => void;
   onNativeRun?: (id: string) => void;
   onItem?: (item: ExecutionUpdate) => void;
-  respond?: (input: import('./delivery.ts').ReplySubmission) => { accepted: true };
+  respond?: (input: import('./delivery.ts').ReplySubmission) => {
+    accepted: true; completedTargets?: string[]; remainingTargets?: string[];
+  };
   replyTargets?: string[];
 };
 export type GenerateResult = {
@@ -279,6 +285,7 @@ export const memorySchema = z.object({
   sources: z.array(z.string()).default([]),
   perspective: z.enum(['objective', 'subjective', 'mixed']).optional(),
   confirmation: z.enum(['user-confirmed', 'observed', 'reported', 'inferred']).optional(),
+  occurredAt: z.union([z.iso.date(), z.iso.datetime({ offset: true })]).optional(),
 });
 export type Memory = z.infer<typeof memorySchema> & {
   id: string;

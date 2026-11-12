@@ -77,8 +77,9 @@ const streamsInChat = (run: Run) => {
   const plan = run.meta.delivery as DeliveryPlan | undefined;
   return localChat(plan) && (plan?.targets.length ?? 0) <= 1;
 };
-export function ChatView({ data, act, setPage, openTask, fixedConversationId, editRole, surface, openSession }: any) {
+export function ChatView({ data, act, setPage, openTask, fixedConversationId, editRole, surface, openSession, managedSettings = false }: any) {
   const dialogue = surface === 'dialogue';
+  managedSettings ||= (data.workSessions ?? []).some((work: any) => work.conversationId === fixedConversationId && work.origin.type !== 'delegation');
   const fullSession = surface === 'session';
   const openReference = (link: any) =>
     link.type && link.taskId ? openTask(link.page, link.type, link.taskId) : setPage(link.page);
@@ -524,6 +525,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                   <input
                     key={conversation.id + conversation.title}
                     className="title-input"
+                    readOnly={managedSettings}
                     aria-label={t('会话标题')}
                     defaultValue={conversation.title}
                     onKeyDown={(e) => {
@@ -585,14 +587,14 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                 >
                   <Icon name="backup" size={17} />
                 </button>
-                <button
+                {!managedSettings && <button
                   className="icon-button delete-action"
                   aria-label={t('删除当前会话')}
                   title={t('删除当前会话')}
                   onClick={() => remove(conversation)}
                 >
                   <Icon name="trash" size={17} />
-                </button>
+                </button>}
               </div>
             </div>}
             {!dialogue && references?.length ? (
@@ -1121,7 +1123,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                       act={act}
                       projectDirectory={dialogue ? undefined : conversation.permissions?.projectDirectory}
                     />
-                    {!dialogue && <ReasoningSelect
+                    {!dialogue && !managedSettings && <ReasoningSelect
                       compact
                       label="本会话思考强度"
                       disabled={busy}

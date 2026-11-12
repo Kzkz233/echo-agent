@@ -31,33 +31,35 @@ test('language services drive the built-in agent for main and worker conversatio
 test('disabling a role capability preserves and suspends its configured tasks, then restores intent', async (t) => {
   const app = await setup(t);
   await app.plugins.enable('mail');
+  await app.plugins.enable('mail-triggers');
   app.store.put('mail-accounts', 'fixture', { id: 'fixture', name: 'Synthetic mailbox' });
   const call = (name: string, input: any) => app.registry.call(name, input, internal);
   let role = await call('persona.character.commit', { requestId: 'create-task-role', draft: characterDraft.parse({
-    persona: { id: 'task-role', name: 'Task role', prompt: 'Unchanged original persona' }, features: ['mail'],
-    tasks: [{ id: 'mail-poll', type: 'scheduler.mail', settings: {
-      name: 'Mailbox poll', accountId: 'fixture', enabled: true, mode: 'interval', minutes: 37,
+    persona: { id: 'task-role', name: 'Task role', prompt: 'Unchanged original persona' }, features: ['mail', 'mail-triggers'],
+    configurations: { mail: { accountIds: ['fixture'] } },
+    tasks: [{ id: 'mail-reminder', type: 'mail-triggers.rules', settings: {
+      name: 'Mailbox reminder', accountIds: ['fixture'], enabled: true, cooldownMinutes: 37,
+      rules: [{ name: 'Fixture topic', match: 'subject', terms: 'synthetic' }],
     } }],
   }) });
   role = await call('persona.character.commit', { requestId: 'disable-task-role', draft: { ...role, features: [] } });
   assert.equal(role.tasks.length, 1);
   assert.equal(role.tasks[0].enabledWhenAvailable, true);
   assert.equal(role.tasks[0].settings.enabled, false);
-  assert.equal(role.tasks[0].settings.minutes, 37);
-  assert(app.store.document('scheduler-jobs', 'mail-poll'));
-  role = await call('persona.character.commit', { requestId: 'restore-task-role', draft: { ...role, features: ['mail'] } });
+  assert.equal(role.tasks[0].settings.cooldownMinutes, 37);
+  role = await call('persona.character.commit', { requestId: 'restore-task-role', draft: { ...role, features: ['mail', 'mail-triggers'] } });
   assert.equal(role.tasks[0].settings.enabled, true);
   assert.equal(role.tasks[0].enabledWhenAvailable, undefined);
   assert.equal(role.persona.prompt, 'Unchanged original persona');
-  await app.plugins.disable('mail');
+  await app.plugins.disable('mail-triggers');
   role = await call('persona.character.read', { id: 'task-role' });
   role = await call('persona.character.commit', { requestId: 'edit-with-unavailable-plugin', draft: {
     ...role, persona: { ...role.persona, name: 'Renamed role' },
   } });
-  assert(app.store.document<any>('characters', 'task-role').taskIds.some((task: any) => task.id === 'mail-poll'));
-  await app.plugins.enable('mail');
+  assert(app.store.document<any>('characters', 'task-role').taskIds.some((task: any) => task.id === 'mail-reminder'));
+  await app.plugins.enable('mail-triggers');
   role = await call('persona.character.read', { id: 'task-role' });
-  assert.equal(role.tasks[0].settings.minutes, 37);
+  assert.equal(role.tasks[0].settings.cooldownMinutes, 37);
 });
 
 test('observation task model selection overrides only that task and preserves the role route', async (t) => {

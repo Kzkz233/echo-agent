@@ -15,7 +15,9 @@
     "inference.contribute",
     "character.contribute",
     "knowledge.read",
-    "knowledge.enhance"
+    "knowledge.enhance",
+    "approvals.request",
+    "approvals.contribute"
   ],
   "characterPermissions": [
     "memory.read",
@@ -33,5 +35,5 @@
     "order": 10
   },
   "category": "Memory and behavior",
-  "optionalDependencies": []
+  "optionalDependencies": ["approvals"]
 }

@@ -62,7 +62,8 @@ Typed domain contracts sit on this generic mechanism:
 | `care.blockers@1`                     | Optional current-activity gate                                             |
 | `notifications.channels@1`            | Presentation/delivery and receipts, independent of inference               |
 | `approvals.prepare/execute/inspect@1` | Validated preview/frozen action, execution, read-only reconciliation       |
-| `avatar.renderers@1`                  | Optional native character renderer; common input/bubbles stay in Avatar    |
+| `avatar.renderers@2`                  | Native rendering library loaded by the shared Avatar host (ABI v1)         |
+| `avatar.renderers@1`                  | Legacy executable renderer compatibility                                  |
 | `agenda.inputs@1`                     | Input-to-draft conversion without committing entries                       |
 | `agenda.projections@1`                | Read-only groups/columns referencing canonical item IDs                    |
 | `agenda.reminders@1`                  | Optional reminder presentation without invoking a model                    |

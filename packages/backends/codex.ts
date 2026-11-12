@@ -48,6 +48,8 @@ export const codexEchoToolName = (name: string) => name.replaceAll('.', '_');
 
 export class CodexBackend implements Backend {
   capabilities = (profile: Profile) => ({
+    contextManagement: 'host' as const,
+    outputLimit: false,
     events: true,
     steer: true,
     images: profile.vision,

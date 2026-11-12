@@ -25,6 +25,10 @@ export const triggerAction = z.discriminatedUnion('action', [
   }),
   z.object({
     action: z.literal('conversation'),
+    delivery: deliveryPlan.optional(),
+    recordOnly: z.boolean().default(false),
+    reportPrompt: z.string().max(10000).optional(),
+    messageSource: z.enum(['observation', 'care', 'review', 'trigger', 'handoff']).optional(),
     kind: id,
     requestId: id,
     conversationId: id,
@@ -147,6 +151,10 @@ export class TriggerActions {
           .digest('hex')
       : input.requestId;
     if (input.action === 'notice') {
+      if (input.conversationId) await this.router.taskResults.submit({
+        id: requestId + '.record', conversationId: input.conversationId, text: input.title + '\n' + input.text,
+        source: owner === 'review' ? 'review' : 'trigger', task: source.label.slice(0, 160), report: false,
+      }, signal);
       if (this.deliveries && input.conversationId) {
         const conversation=this.router.store.conversation(input.conversationId);
         invariant(conversation,'missing_conversation','通知会话不存在。');
@@ -158,25 +166,13 @@ export class TriggerActions {
       return { state: 'published' as const };
     }
     const previous = this.router.store.run(requestId);
-    if (!previous && this.blocked(input.conversationId)) return { state: 'busy' as const };
     const messageSource =
-      owner === 'observation' ? 'observation' : owner === 'care' ? 'care' : 'trigger';
-    const plan=previous?.meta.delivery ?? await this.deliveries?.plan(input.conversationId,messageSource,input.outputTargets,{bubble:input.bubble,localOnly:input.localOnly,task:input.task,legacySources:[isAdditionalSignal(input.kind)?'signal:'+input.kind:messageSource]},signal);
-    const run = await this.router.send(
-      {
-        conversationId: input.conversationId,
-        requestId,
-        text: input.text,
-        source: messageSource,
-        bubble: input.bubble,
-        ...(plan ? { delivery: plan as any } : {}),
-        reasoning: input.reasoning,
-        localOnly: input.localOnly,
-        triggerKind: input.kind,
-        messageOrigin: { task: source.label.slice(0, 160) },
-      },
-      signal,
-    );
-    return { state: 'executed' as const, run };
+      input.messageSource ?? (owner === 'observation' ? 'observation' : owner === 'care' ? 'care' : 'trigger');
+    const plan=previous?.meta.delivery ?? input.delivery ?? await this.deliveries?.plan(input.conversationId,messageSource,input.outputTargets,{bubble:input.bubble,localOnly:input.localOnly,task:input.task,legacySources:[isAdditionalSignal(input.kind)?'signal:'+input.kind:messageSource]},signal);
+    return this.router.taskResults.submit({ id: requestId, conversationId: input.conversationId,
+      text: input.text, source: messageSource, task: source.label.slice(0, 160),
+      report: !input.recordOnly, reportPrompt: input.reportPrompt, delivery: plan as any,
+      reasoning: input.reasoning, expiresAt: input.expiresAt,
+      bubble: input.bubble, localOnly: input.localOnly, triggerKind: input.kind }, signal);
   }
 }

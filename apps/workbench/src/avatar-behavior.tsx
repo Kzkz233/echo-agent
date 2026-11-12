@@ -34,7 +34,9 @@ export function AvatarBehavior({ personaId, config, providers, onChange }: any) 
     };
   }, [personaId, config.assetDirectory, config.renderer]);
   const available = providers.filter(
-    (provider: any) => provider.point === 'avatar.renderers@1' && provider.state === 'active',
+    (provider: any) =>
+      ['avatar.renderers@1', 'avatar.renderers@2'].includes(provider.point) &&
+      provider.state === 'active',
   );
   return (
     <>

@@ -4,6 +4,7 @@ import { statusText, t } from './i18n.ts';
 import { Button, EmptyState, useConfirm, PathInput } from './ui.tsx';
 import { ModelChoice } from './model-choice.tsx';
 import { ReasoningSelect } from './reasoning-select.tsx';
+import { WorkContextSettings } from './work-settings.tsx';
 import { ChatView } from './chat-view.tsx';
 import { ConversationInteractions, subtaskApprovalLabel } from './host-interactions.tsx';
 const RunTrace = lazy(() => import('./run-trace.tsx'));
@@ -178,6 +179,7 @@ export function DelegationView({
     [instructions, setInstructions] = useState('');
   const [extraRoots, setExtraRoots] = useState<{ path: string; write: boolean }[]>([]);
   const [timeoutMinutes, setTimeoutMinutes] = useState(20);
+  const [contextOptions, setContextOptions] = useState<any>({});
   const [attempts, setAttempts] = useState<any[]>([]);
   useEffect(() => {
     if (selectedTaskId) setCurrent(selectedTaskId);
@@ -415,6 +417,7 @@ export function DelegationView({
                 </select>
               </label>
             </div>
+            <WorkContextSettings personaId={personaId} profileId={profileId || mainProfile} value={contextOptions} onChange={setContextOptions} />
             <Button
               disabled={
                 data.characterActivities?.[personaId]?.enabled === false ||
@@ -430,6 +433,7 @@ export function DelegationView({
                     goal,
                     acceptance,
                     execution: {
+                      ...contextOptions,
                       profileId: profileId || undefined,
                       projectDirectory: workspace,
                       write,

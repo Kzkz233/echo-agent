@@ -6,6 +6,8 @@ const block = z.object({
   id,
   layer: z.enum(['stable', 'turn']),
   historyDependent: z.boolean().optional(),
+  label: z.string().max(120).optional(),
+  worker: z.enum(['default', 'optional', 'required']).optional(),
   before: z.array(id).optional(),
   after: z.array(id).optional(),
 });

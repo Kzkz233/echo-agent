@@ -20,6 +20,7 @@ import type { OutputTarget } from '../../../packages/contracts/delivery.ts';
 import { defaultEchoReadPermissions } from '../../../packages/contracts/interaction.ts';
 import { RoleWorkspaces } from './role-workspaces.tsx';
 import { DelegationExecutors } from './delegation-executors.tsx';
+import { WorkContextSettings } from './work-settings.tsx';
 const AvatarAssets = lazy(() => import('./avatar-assets.tsx'));
 const ChatStickView = lazy(() =>
   import('./chatstick-view.tsx').then((module) => ({ default: module.ChatStickView })),
@@ -165,6 +166,7 @@ export function CharacterWizard({
   const type = catalog.taskTypes.find((v: any) => v.id === task?.type);
   const availableTasks = catalog.taskTypes.filter(
     (v: any) =>
+      v.scope === 'character' &&
       (draft.features.includes(v.owner) ||
         catalog.features.some(
           (feature: any) =>
@@ -501,6 +503,8 @@ export function CharacterWizard({
             }))}
         </div>
       </details>}
+      {canDelegate && <WorkContextSettings personaId={draft.persona.id} profileId={draft.profileId} features={draft.features} value={delegation}
+        onChange={value => change({ configurations: { ...draft.configurations, delegation: value } })} />}
       <Button secondary onClick={() => openSettings('backends')}>
         {t('管理模型服务')}
       </Button>
@@ -712,6 +716,8 @@ export function CharacterWizard({
               ).map((f: import('../../../packages/kernel/automation.ts').AutomationField) => (
                 <TaskField
                   plugins={data.plugins}
+                  workPolicy={draft.configurations.delegation}
+                  features={draft.features}
                   key={task.id + ':' + f.key}
                   field={f}
                   profileId={

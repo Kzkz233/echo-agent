@@ -193,6 +193,7 @@ test('automation exposes optional types and keeps settings and frozen Review mat
     call('automation.save', { type: 'review.policies', id, settings });
   await save('first-review', {
     name: 'Synthetic review',
+    runtimeVersion: 1, // This fixture verifies the retained legacy frozen-material flow.
     personaId: 'companion',
     conversationScope: 'selected',
     conversationIds: [first.id],

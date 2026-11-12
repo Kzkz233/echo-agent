@@ -1,0 +1,8 @@
+[package]
+name = "echo-avatar-sdk"
+version = "1.0.0"
+edition = "2024"
+license = "Apache-2.0"
+
+[dependencies]
+serde_json = "1"

@@ -257,6 +257,8 @@ function terminalFailure(reason: unknown): string | undefined {
 /** Official DSH SDK protocol; isolated DSH_HOME, no desktop/private-cache access. */
 export class DshBackend implements Backend {
   capabilities = (profile: Profile) => ({
+    contextManagement: 'host' as const,
+    outputLimit: true,
     events: true,
     steer: false,
     images: profile.vision,

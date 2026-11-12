@@ -75,8 +75,8 @@ export function chatStickPlugin(store: Store, files: Files, router: Router): Plu
       router.context({
         id: 'chatstick',
         blocks: [
-          { id: 'chatstick.catalog', layer: 'stable', after: ['persona.profile', 'memory.core', 'delegation.guide'] },
-          { id: 'chatstick.targets', layer: 'turn', after: ['core.presentation'] },
+          { id: 'chatstick.catalog', layer: 'stable', after: ['persona.profile', 'memory.core', 'delegation.guide'], label: '聊天表情目录', worker: 'optional' },
+          { id: 'chatstick.targets', layer: 'turn', after: ['core.presentation'], label: '聊天表情渠道', worker: 'optional' },
         ],
         prepare: ({ conversation, source, replyStyles }) => {
           if (!eligible(source)) return emptyContext;

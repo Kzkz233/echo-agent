@@ -33,7 +33,9 @@ import {
   type ContextTurn,
 } from './context.ts';
 import type { ReplyImage } from '../contracts/index.ts';
-import { compactConversation, eligibleHistory } from './compaction.ts';
+import { compactConversation, eligibleHistory, conversationCompaction } from './compaction.ts';
+import { WorkSessions } from './work-sessions.ts';
+import { TaskResults } from './task-results.ts';
 import { estimateTokens, type ContextDetail } from '../contracts/generation-metrics.ts';
 import { messageContextRules, renderMessageText, type MessageOrigin } from '../contracts/message-context.ts';
 import { captureMessageContext, storedMessageContext, messageSourcePoint } from './message-context.ts';
@@ -53,8 +55,12 @@ type Submission = {
   workSession?: true;
   delivery?: DeliveryPlan;
   messageOrigin?: MessageOrigin;
+  recordedInputId?: string;
+  expiresAt?: number;
 };
 export class Router {
+  readonly workSessions: WorkSessions;
+  readonly taskResults: TaskResults;
   readonly inference: InferenceCatalog;
   readonly interactions: Interactions;
   readonly execution: ExecutionLedger;
@@ -124,6 +130,8 @@ export class Router {
     readonly events: Events,
     readonly capabilities = new Capabilities(),
   ) {
+    this.workSessions = new WorkSessions(this);
+    this.taskResults = new TaskResults(this);
     this.interactions = new Interactions(events);
     this.execution = new ExecutionLedger(store, events);
     this.attachments = new Attachments(store);
@@ -140,9 +148,10 @@ export class Router {
       {
         id: 'core',
         blocks: [
-          { id: 'core.message-context', layer: 'stable' },
+          { id: 'core.message-context', layer: 'stable', worker: 'required', label: '消息来源与时间' },
           {
             id: 'core.presentation',
+            worker: 'required',
             layer: 'turn',
             after: ['memory.recall', 'reflections.current', 'delegation.turn'],
           },
@@ -153,7 +162,8 @@ export class Router {
             return { ...base, 'core.presentation': [{ text: [
               presentation === 'external' ? '本轮通过消息渠道回复。' : presentation === 'bubble' ? '本轮显示在桌宠小气泡。' : '',
               '发给渠道的内容必须用 echo_respond 提交。普通正文只属于执行过程。messages 的每项是一条独立消息，普通换行留在同一项内。progress 是可选的中途说明，final 是正式交付。',
-              '需要回复时，给每个已选目标分别提交 final，共用同一次工作的结果。',
+              '每个目标每阶段只能提交一次。开场白后还有正文时，开场使用 progress；final 的 messages 必须一次包含该目标的全部正文与分段，不可先用 final 发开场再追加另一条 final。',
+              '一旦开始回复，必须为下列全部目标分别提交 final，共用同一次工作的结果。目标已由用户或任务配置选定，不按入站渠道自行删减。工具回执会列出尚未完成的目标。',
               ...(replyStyles.some((style) => style.id === 'core.chat') ? ['聊天中的闲聊省略 title；想分条说时，把每条分别写进 messages。'] : []),
               ...replyStyles.map(({ id, label, text }) => `${id}（${label}）${text ? '：' + text : ''}`),
             ].filter(Boolean).join('\n') }] };
@@ -222,7 +232,13 @@ export class Router {
         });
       }),
     );
-    const ordered = orderContext(describe.flat());
+    const defaults = this.store.document<{ contextBlocks?: string[] }>('character-settings.delegation', conversation.personaId);
+    const selected = conversation.contextBlocks ?? defaults?.contextBlocks;
+    if (conversation.kind === 'worker' && selected) input = { ...input, conversation: { ...conversation, contextBlocks: selected } };
+    const declared = describe.flat();
+    const ordered = orderContext(declared.filter(block => conversation.kind !== 'worker' ||
+      block.worker === 'required' || (selected ? selected.includes(block.id) :
+        (block.worker ?? (block.layer === 'stable' ? 'default' : 'optional')) === 'default')));
     const prepared = new Map<string, Record<string, ContextItem[]>>();
     const result = { prefix: [] as (ContextItem & { source: string })[], turn: [] as (ContextItem & { source: string })[] };
     for (const block of ordered.filter((block) => !input.phase || block.layer === input.phase)) {
@@ -243,7 +259,7 @@ export class Router {
         items = value as Record<string, ContextItem[]>;
         invariant(
           Object.keys(items).every((id) =>
-            ordered.some((item) => item.provider === block.provider && item.id === id),
+            declared.some((item) => item.provider === block.provider && item.id === id),
           ),
           'context_block_undeclared',
           '插件返回了未声明的上下文块：' + block.provider,
@@ -261,6 +277,19 @@ export class Router {
       }
     }
     return result;
+  }
+  async workerContextOptions(personaId: string, signal = new AbortController().signal, features?: string[]) {
+    const rows = this.capabilities.list(contextPoint.id).filter(provider => provider.state === 'active' &&
+      (provider.id === 'core.context' || provider.owner === 'persona' ||
+        (features ? features.includes(provider.owner) : characterEnabled(this.store, personaId, provider.owner))));
+    const options = await Promise.all(rows.map(async provider => {
+      const blocks = await this.capabilities.invoke({ id: 'core', permissions: new Set(['context.read']), signal },
+        contextPoint.id, provider.id, { action: 'describe' }, signal) as ContextBlock[];
+      return blocks.map(block => ({ id: block.id, label: block.label ?? block.id,
+        owner: provider.owner, required: block.worker === 'required',
+        default: (block.worker ?? (block.layer === 'stable' ? 'default' : 'optional')) !== 'optional' }));
+    }));
+    return options.flat();
   }
   profiles() {
     return this.inference.models().map((model) => {
@@ -638,6 +667,11 @@ export class Router {
       return;
     const receipt = this.store.queuedInput(conversationId);
     if (!receipt) return;
+    if (receipt.input.expiresAt !== undefined && receipt.input.expiresAt <= Date.now()) {
+      this.store.saveReceipt(receipt.id, { ...receipt, state: 'expired' });
+      queueMicrotask(() => void this.drain(conversationId));
+      return;
+    }
     this.draining.add(conversationId);
     this.store.saveReceipt(receipt.id, { ...receipt, state: 'running' });
     try {
@@ -988,7 +1022,11 @@ export class Router {
       '会话连接已变化，请重新提交。',
     );
     invariant(binding.state === 'active', 'binding_not_ready', '会话后端切换尚未确认。');
-    const profile = this.profile(binding.profileId),
+    const workerDefaults = conversation.kind === 'worker'
+      ? this.store.document<{ maxOutputTokens?: number }>('character-settings.delegation', conversation.personaId) : undefined;
+    const outputLimit = conversation.maxOutputTokens ?? workerDefaults?.maxOutputTokens;
+    const profile = { ...this.profile(binding.profileId),
+        ...(outputLimit ? { maxOutputTokens: outputLimit } : {}) },
       backend = this.executionBackend(profile, conversation.id);
     const attachments = this.attachments.metadata(input.attachmentIds ?? [], conversation.id);
     invariant(
@@ -1031,7 +1069,7 @@ export class Router {
           : expression?.channels?.[style] ?? (target.presentation === 'external' ? expression?.external : undefined);
         return { id: target.id, label: target.label, text: text ?? '', supportsImages: target.supportsImages };
       });
-      const recent = this.store.recentMessages(conversation.id);
+      const recent = this.store.recentMessages(conversation.id).filter(message => message.id !== input.recordedInputId);
       const contextInput = {
         action: 'prepare',
         conversation,
@@ -1062,7 +1100,7 @@ export class Router {
         profile,
         recent,
         base: prefix + '\n' + currentText,
-        generate: source === 'human',
+        generate: true,
         signal: combined,
       });
       const summary = compacted.summary;
@@ -1150,7 +1188,10 @@ export class Router {
               }
             : {}),
         }));
-        const current = this.store.append(
+        const recorded = input.recordedInputId ? this.store.message(input.recordedInputId) : undefined;
+        invariant(!input.recordedInputId || recorded?.conversationId === conversation.id && recorded.text === input.text,
+          'result_message', '已登记的任务结果与本次输入不一致。');
+        const current = recorded ?? this.store.append(
           conversation.id,
           source === 'human' ? 'user' : 'system',
           source,
@@ -1212,6 +1253,11 @@ export class Router {
       }
       const interactionLife = new AbortController();
       const submitted = new Map<string, Message>();
+      const replyReceipt = () => ({
+        accepted: true as const,
+        completedTargets: targets.filter(target => submitted.has(target.id + ':final')).map(target => target.id),
+        remainingTargets: targets.filter(target => !submitted.has(target.id + ':final')).map(target => target.id),
+      });
       const respond = (value: ReplySubmission) => {
         combined.throwIfAborted();
         invariant(this.store.binding(conversation.id)?.epoch === run!.epoch, 'stale_epoch', '旧绑定结果不再投递。');
@@ -1222,7 +1268,7 @@ export class Router {
         const old = submitted.get(key);
         if (old) {
           invariant(old.meta.replyTitle === reply.title && JSON.stringify(old.meta.submittedParts) === JSON.stringify(reply.messages), 'reply_duplicate', '该目标已提交同阶段回复。');
-          return { accepted: true as const };
+          return replyReceipt();
         }
         invariant(!submitted.has(reply.targetId + ':final'), 'reply_complete', '该目标已提交最终答复。');
         invariant(reply.messages.every((part) => part !== observationSilence), 'reply_control', '跳过信号应直接作为本轮结果。');
@@ -1234,7 +1280,7 @@ export class Router {
         }));
         submitted.set(key, message);
         this.events.emit('message.posted', { conversationId: conversation.id });
-        return { accepted: true as const };
+        return replyReceipt();
       };
       const result = await backend
         .generate({
@@ -1251,10 +1297,11 @@ export class Router {
             conversationId: conversation.id,
             personaId: conversation.personaId,
           },
+          compaction: conversationCompaction(this.store, conversation),
           reasoning: input.reasoning ?? conversation.reasoning,
           signal: combined,
           ...(targets.length ? { respond, replyTargets: targets.map(({ id }) => id) } : {}),
-          ...(['human', 'delegation', 'group', 'handoff'].includes(source)
+          ...(['human', 'delegation', 'group', 'handoff', 'review', 'observation', 'care', 'trigger'].includes(source)
             ? {
                 permissions: conversation.permissions,
                 onInteraction: (input, signal) =>
@@ -1279,8 +1326,12 @@ export class Router {
             this.store.updateRun(run!);
           },
           onItem: (item) => {
-            if (!combined.aborted && this.store.binding(conversation.id)?.epoch === run!.epoch)
+            if (!combined.aborted && this.store.binding(conversation.id)?.epoch === run!.epoch) {
               this.execution.update(run!.id, item);
+              if (item.id === 'context-compaction' && item.state === 'completed' && item.detail)
+                this.store.append(conversation.id, 'system', 'import',
+                  '本次执行过程摘要（历史资料）：\n' + item.detail, run!.id, { executionSummary: true });
+            }
           },
         })
         .finally(() => interactionLife.abort());

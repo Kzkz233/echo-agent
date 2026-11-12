@@ -10,9 +10,10 @@ export const channelTextMode = z.enum(['auto', 'combined']);
 export type ChannelTextMode = z.infer<typeof channelTextMode>;
 export const replySubmission = z.object({
   targetId: key,
-  phase: z.enum(['progress', 'final']),
+  phase: z.enum(['progress', 'final']).describe('每个目标每阶段只能提交一次。尚有正文待发送时用 progress；final 必须包含该目标的完整答复，提交后不能追加。'),
   title: z.string().trim().min(1).max(200).optional(),
-  messages: z.array(z.string().trim().min(1).max(20000)).min(1).max(3),
+  messages: z.array(z.string().trim().min(1).max(20000)).min(1).max(3)
+    .describe('要分条发送时，把全部分段放在这一个数组里；不要为同一目标反复调用 final。'),
 }).strict();
 export type ReplySubmission = z.infer<typeof replySubmission>;
 export const outputTarget = z.object({

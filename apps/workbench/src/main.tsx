@@ -606,6 +606,7 @@ function App() {
               'personas.updated',
               'groups.updated',
               'delegation.updated',
+              'work.updated',
               'interaction.changed',
               'review.updated',
               'settings.changed',

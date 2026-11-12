@@ -29,6 +29,8 @@ export type ExecutionItem = Omit<ExecutionUpdate, 'delta'> & {
   truncated?: boolean;
 };
 export type SessionCapabilities = {
+  contextManagement?: 'echo' | 'host';
+  outputLimit?: boolean;
   events: boolean;
   steer: boolean;
   images: boolean;

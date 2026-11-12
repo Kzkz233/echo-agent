@@ -17,6 +17,7 @@ const field = z.object({
   label: z.string(),
   kind: z.enum([
     'text',
+    'datetime',
     'textarea',
     'number',
     'boolean',
@@ -28,6 +29,8 @@ const field = z.object({
     'model',
     'executor',
     'outputs',
+    'execution',
+    'work-context',
   ]),
   inferenceTask: id.optional(),
   outputSource: z.string().optional(),
@@ -82,7 +85,8 @@ const descriptor = z.object({
 });
 const request = z.discriminatedUnion('action', [
   z.object({ action: z.literal('catalog') }),
-  z.object({ action: z.literal('save'), id, settings: value }),
+  z.object({ action: z.literal('save'), id, settings: value,
+    actor: z.object({ personaId: id, conversationId: id, permissions: z.array(z.string()) }).optional() }),
   z.object({ action: z.literal('remove'), id }),
   z.object({ action: z.literal('run'), id, requestId: id }),
 ]);
@@ -97,7 +101,7 @@ type Scope = ReturnType<Capabilities['forOwner']>;
 type Handler = {
   describe: () =>
     z.input<typeof descriptor> | undefined | Promise<z.input<typeof descriptor> | undefined>;
-  save?: (id: string, settings: Record<string, unknown>) => unknown;
+  save?: (id: string, settings: Record<string, unknown>, actor?: { personaId: string; conversationId: string; permissions: string[] }) => unknown;
   remove?: (id: string) => unknown;
   run?: (id: string, requestId: string, signal: AbortSignal) => unknown;
 };
@@ -130,7 +134,7 @@ export function contributeAutomation(
     signal.throwIfAborted();
     if (input.action === 'save') {
       invariant(handler.save, 'automation_unsupported', '请打开专用页面配置此任务。');
-      await handler.save(input.id, input.settings);
+      await handler.save(input.id, input.settings, input.actor);
     } else if (input.action === 'remove') {
       invariant(handler.remove, 'automation_unsupported', '此任务不支持移除。');
       await handler.remove(input.id);

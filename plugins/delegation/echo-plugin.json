@@ -14,7 +14,8 @@
     "context.contribute",
     "character.contribute",
     "review.contribute",
-    "avatar.state"
+    "avatar.state",
+    "automation.contribute"
   ],
   "settings": [],
   "views": [

@@ -8,7 +8,16 @@ import { Events } from '../../packages/kernel/events.ts';
 import { z } from 'zod';
 import { displayAvatar } from './profiles.ts';
 import { avatarStateClip } from '../../packages/contracts/avatar.ts';
-export type AvatarRenderer = { kind: string; directory: string; issue?: string; executable?: string; clips?: string[]; stateClips?: Record<string, string> };
+export type AvatarRenderer = {
+  kind: string;
+  directory: string;
+  issue?: string;
+  executable?: string;
+  library?: string;
+  abi?: 1;
+  clips?: string[];
+  stateClips?: Record<string, string>;
+};
 export class NativeAvatar {
   private client?: StdioRpc;
   private generation = 0;
@@ -88,7 +97,8 @@ export class NativeAvatar {
       return;
     }
     const selected = await this.renderer?.();
-    const binary = selected?.executable ?? join(dirname(this.helper), 'echo-avatar.exe');
+    const binary =
+      (!selected?.library && selected?.executable) || join(dirname(this.helper), 'echo-avatar.exe');
     if (!existsSync(binary)) throw Error('原生桌宠程序未构建');
     if (this.client && binary !== this.binary) await this.stop();
     if (!this.client) {
@@ -149,11 +159,15 @@ export class NativeAvatar {
       stateRules: ((await this.states?.()) ?? []).map((state) => ({
         id: state.id,
         priority: cfg.stateRules[state.id]?.priority ?? state.priority,
-        clip: cfg.stateRules[state.id]?.clip ?? selected?.stateClips?.[state.id] ?? avatarStateClip(state, cfg),
+        clip:
+          cfg.stateRules[state.id]?.clip ??
+          selected?.stateClips?.[state.id] ??
+          avatarStateClip(state, cfg),
         fallback: state.fallback,
       })),
       roam: cfg.roam,
       renderer: selected?.kind ?? 'frames',
+      rendererLibrary: selected?.library,
       instanceId: this.instance,
       slot: this.slot,
       homeOffset: this.homeOffset,
@@ -161,7 +175,6 @@ export class NativeAvatar {
       fps: cfg.fps ?? 10,
       corner: cfg.corner ?? 'right',
       conversationId: target,
-      conversationTitle: this.store.conversation(target)?.title ?? 'Choose a chat in Echo',
     };
     const signature = JSON.stringify({ ...params, homeOffset: undefined });
     if (signature !== this.configured) {
@@ -271,7 +284,6 @@ export class NativeAvatar {
           const result = await client.call('avatar.show', {
             text: next.text,
             conversationId: next.conversationId,
-            conversationTitle: this.store.conversation(next.conversationId)?.title ?? 'Echo',
             seconds: current.bubbleSeconds,
             ...(image ? { image } : {}),
           });

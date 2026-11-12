@@ -10082,5 +10082,153 @@
   [
     "无法打开设置窗口：{reason}",
     "Unable to open Settings: {reason}"
+  ],
+  [
+    "来源自动化任务",
+    "Source automation"
+  ],
+  [
+    "执行设置由来源任务管理。",
+    "Execution settings are managed by the source task."
+  ],
+  [
+    "停止本次执行",
+    "Stop this run"
+  ],
+  [
+    "上下文设置",
+    "Context settings"
+  ],
+  [
+    "此执行器使用宿主的上下文压缩设置。",
+    "This executor uses its host’s context compaction settings."
+  ],
+  [
+    "上下文配置",
+    "Context configuration"
+  ],
+  [
+    "沿用角色配置",
+    "Use role settings"
+  ],
+  [
+    "单次模型输出上限（tokens）",
+    "Output limit per model call (tokens)"
+  ],
+  [
+    "沿用模型配置",
+    "Use model settings"
+  ],
+  [
+    "上下文注入",
+    "Context injection"
+  ],
+  [
+    "恢复默认",
+    "Reset to default"
+  ],
+  [
+    "执行设置",
+    "Execution settings"
+  ],
+  [
+    "允许修改文件",
+    "Allow file changes"
+  ],
+  [
+    "应用工具",
+    "Application tools"
+  ],
+  [
+    "结果汇报",
+    "Report results"
+  ],
+  [
+    "汇报渠道",
+    "Report channels"
+  ],
+  [
+    "工作会话",
+    "Work session"
+  ],
+  [
+    "汇报要求",
+    "Reporting instructions"
+  ],
+  [
+    "自定义任务",
+    "Custom task"
+  ],
+  [
+    "使用应用时区。",
+    "Uses the application time zone."
+  ],
+  [
+    "委派指引",
+    "Delegation instructions"
+  ],
+  [
+    "任务执行上下文",
+    "Task execution context"
+  ],
+  [
+    "聊天表情目录",
+    "Chat sticker catalog"
+  ],
+  [
+    "执行时限（分钟）",
+    "Execution timeout (minutes)"
+  ],
+  [
+    "高级执行设置",
+    "Advanced execution settings"
+  ],
+  [
+    "不使用",
+    "Not used"
+  ],
+  [
+    "整理范围",
+    "Review scope"
+  ],
+  [
+    "新增材料",
+    "New material"
+  ],
+  [
+    "记忆库分批维护",
+    "Batched memory maintenance"
+  ],
+  [
+    "每批维护条目数",
+    "Entries per maintenance batch"
+  ],
+  [
+    "仅用于记忆库维护；每次运行检查一批，成功后推进位置，多次运行覆盖全库。",
+    "For memory maintenance only. Each run checks a batch and advances after success; repeated runs cover the library."
+  ],
+  [
+    "候选记忆",
+    "Memory candidates"
+  ],
+  [
+    "已更新",
+    "Updated"
+  ],
+  [
+    "无需修改",
+    "No change needed"
+  ],
+  [
+    "查看完整内容",
+    "Read full content"
+  ],
+  [
+    "没有候选记忆",
+    "No memory candidates"
+  ],
+  [
+    "已处理",
+    "Processed"
   ]
 ]

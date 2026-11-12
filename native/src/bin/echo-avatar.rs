@@ -40,6 +40,7 @@ mod desktop {
         clips: HashMap<String, FrameClip>,
         fps: u64,
         fps_override: Option<u64>,
+        extension: Option<echo_native::avatar_renderer::Renderer>,
     }
     impl Drop for Canvas {
         fn drop(&mut self) {
@@ -56,6 +57,8 @@ mod desktop {
         started: Instant,
         working: bool,
         playing: String,
+        selected_clip: String,
+        motion_override: Option<Value>,
         scene: Option<Motion>,
         scene_start: Instant,
         last_tick: Instant,
@@ -80,11 +83,8 @@ mod desktop {
         bubble_image: Option<image::RgbaImage>,
         bubble_image_painted: bool,
         conversation: String,
-        conversation_title: String,
         default_conversation: String,
-        default_title: String,
         reply_conversation: String,
-        reply_title: String,
         reply_sequence: u64,
         pending_reply: Option<String>,
         instance: String,
@@ -114,11 +114,27 @@ mod desktop {
         renderer: &str,
         motion: &[String],
         fps_override: Option<u64>,
+        library: Option<&str>,
     ) -> Result<Canvas, Box<dyn std::error::Error>> {
         unsafe {
             let root = std::path::Path::new(directory);
             if renderer != "frames" {
-                return Err("unknown renderer".into());
+                let extension = echo_native::avatar_renderer::Renderer::load(
+                    library.ok_or("renderer library absent")?,
+                    directory,
+                    scale,
+                )?;
+                let m = &extension.metadata;
+                return create_canvas(
+                    m["width"].as_u64().unwrap() as i32,
+                    m["height"].as_u64().unwrap() as i32,
+                    HashMap::new(),
+                    fps_override
+                        .unwrap_or(m["fps"].as_u64().unwrap_or(10))
+                        .clamp(1, m["maxFps"].as_u64().unwrap_or(30)),
+                    fps_override,
+                    Some(extension),
+                );
             }
             let dimensions = image::image_dimensions(root.join("atlas.png"))?;
             if dimensions.0 as u64 * dimensions.1 as u64 > 64_000_000 {
@@ -140,7 +156,9 @@ mod desktop {
             }
             let mut clips = HashMap::new();
             let mut total_frames = 0usize;
-            for name in ["idle", "walk"].into_iter().chain(motion.iter().map(String::as_str))
+            for name in ["idle", "walk"]
+                .into_iter()
+                .chain(motion.iter().map(String::as_str))
             {
                 if clips.contains_key(name) {
                     continue;
@@ -196,7 +214,7 @@ mod desktop {
                 );
             }
             let fps = clips["idle"].fps;
-            create_canvas(w, h, clips, fps, fps_override)
+            create_canvas(w, h, clips, fps, fps_override, None)
         }
     }
     unsafe fn create_canvas(
@@ -205,6 +223,7 @@ mod desktop {
         clips: HashMap<String, FrameClip>,
         fps: u64,
         fps_override: Option<u64>,
+        extension: Option<echo_native::avatar_renderer::Renderer>,
     ) -> Result<Canvas, Box<dyn std::error::Error>> {
         unsafe {
             let dc = CreateCompatibleDC(None);
@@ -227,6 +246,7 @@ mod desktop {
                 clips,
                 fps,
                 fps_override,
+                extension,
             })
         }
     }
@@ -257,13 +277,20 @@ mod desktop {
             if let (Some(bounds), Some(c)) = (work_area(s), &s.canvas) {
                 s.scene_start = Instant::now();
                 s.last_tick = s.scene_start;
-                let mut scene = Motion::new(
-                    bounds,
-                    s.left && !s.docked,
-                    roam,
+                let mut scene = Motion::new(bounds, s.left && !s.docked, roam);
+                scene.set_walk_speed(
+                    c.extension
+                        .as_ref()
+                        .and_then(|e| e.metadata["walkSpeed"].as_f64()),
                 );
-                scene.place_slot(s.slot as usize, c.w as f64 + 16. * s.scale, s.left && !s.docked);
-                if let Some(offset) = s.home_offset { scene.set_home_offset(offset, s.left && !s.docked); }
+                scene.place_slot(
+                    s.slot as usize,
+                    c.w as f64 + 16. * s.scale,
+                    s.left && !s.docked,
+                );
+                if let Some(offset) = s.home_offset {
+                    scene.set_home_offset(offset, s.left && !s.docked);
+                }
                 scene.dock(s.docked, 0.);
                 let _ = SetWindowPos(
                     s.hwnd,
@@ -275,6 +302,7 @@ mod desktop {
                     SWP_NOACTIVATE,
                 );
                 s.scene = Some(scene);
+                s.motion_override = None;
             }
         }
     }
@@ -283,6 +311,41 @@ mod desktop {
         s.track_button = false;
         if let Some(scene) = &mut s.scene {
             scene.drop_at(s.scene_start.elapsed().as_secs_f64());
+        }
+        unsafe {
+            renderer_motion(s, "drop", 0.);
+        }
+    }
+    unsafe fn renderer_motion(s: &mut State, event: &str, dt: f64) -> bool {
+        let (Some(scene), Some(extension)) = (
+            &mut s.scene,
+            s.canvas.as_mut().and_then(|c| c.extension.as_mut()),
+        ) else {
+            return false;
+        };
+        if extension.metadata["motionHooks"] != true {
+            return false;
+        }
+        let now = s.scene_start.elapsed().as_secs_f64();
+        let value=extension.request("motion",json!({"event":event,"now":now,"dt":dt,"scale":s.scale,"x":scene.x,"y":scene.y,"bounds":scene.bounds()}));
+        match value {
+            Ok(value) if value.is_object() => {
+                let [left, top, right, floor] = scene.bounds();
+                if let Some(x) = value["x"].as_f64().filter(|x| x.is_finite()) {
+                    scene.x = x.clamp(left, right);
+                }
+                if let Some(y) = value["y"].as_f64().filter(|y| y.is_finite()) {
+                    scene.y = y.clamp(top, floor);
+                }
+                s.motion_override = Some(value);
+                true
+            }
+            _ => {
+                if s.motion_override.take().is_some() {
+                    scene.rest(now, 6.);
+                }
+                false
+            }
         }
     }
     const BUBBLE_THUMBNAIL: f64 = 72.;
@@ -456,28 +519,75 @@ mod desktop {
             let phase = s.scene.as_ref().map_or(Phase::Idle, |scene| scene.phase);
             let facing_left = s.scene.as_ref().is_some_and(|scene| scene.facing_left);
             let mut active = s.active_states.clone();
-            if s.expires.is_some() { active.push("avatar.speaking".into()); }
-            if matches!(phase, Phase::Drag) { active.push("avatar.dragging".into()); }
-            if matches!(phase, Phase::Roam | Phase::Dock) { active.push("avatar.roaming".into()); }
+            if s.expires.is_some() {
+                active.push("avatar.speaking".into());
+            }
+            if matches!(phase, Phase::Drag) {
+                active.push("avatar.dragging".into());
+            }
+            if matches!(phase, Phase::Roam | Phase::Dock) {
+                active.push("avatar.roaming".into());
+            }
+            if let Some(states) = s
+                .motion_override
+                .as_ref()
+                .and_then(|v| v["activities"].as_array())
+            {
+                active.extend(
+                    states
+                        .iter()
+                        .take(32)
+                        .filter_map(|id| id.as_str().map(str::to_owned)),
+                );
+            }
             if let Some(c) = &mut s.canvas {
-                let selected = echo_native::avatar_activity::choose(&s.state_rules, &active, |name| c.clips.contains_key(name));
-                // Keep ties deterministic and suppress sub-frame animation churn.
-                if s.playing != selected && (s.started.elapsed().as_millis() >= 180 || !c.clips.contains_key(&s.playing)) {
-                    s.playing = selected;
-                    s.started = Instant::now();
-                }
-                let clip = &c.clips[&s.playing];
-                c.fps = c.fps_override.unwrap_or(clip.fps);
-                let index = (s.started.elapsed().as_millis() as u64 * c.fps / 1000) as usize
-                    % clip.frames.len();
-                let frame = &clip.frames[index];
-                ptr::copy_nonoverlapping(frame.as_ptr(), c.bits.cast(), frame.len());
-                if facing_left {
-                    let stride = c.w as usize;
-                    let pixels =
-                        std::slice::from_raw_parts_mut(c.bits.cast::<u32>(), stride * c.h as usize);
-                    for row in pixels.chunks_exact_mut(stride) {
-                        row.reverse();
+                if let Some(extension) = &mut c.extension {
+                    let selected =
+                        echo_native::avatar_activity::choose(&s.state_rules, &active, |name| {
+                            extension.has_clip(name)
+                        });
+                    if s.selected_clip != selected {
+                        s.selected_clip = selected.clone();
+                        s.started = Instant::now();
+                    }
+                    let result=extension.request("render",json!({"seconds":s.started.elapsed().as_secs_f64(),"elapsed":s.scene_start.elapsed().as_secs_f64(),"clip":selected,"facingLeft":facing_left}));
+                    let rendered = result.map_err(|e| windows::core::Error::new(E_FAIL, e))?;
+                    s.playing = rendered["clip"].as_str().unwrap_or(&selected).to_owned();
+                    c.fps = c
+                        .fps_override
+                        .unwrap_or(rendered["fps"].as_u64().unwrap_or(10))
+                        .clamp(1, extension.metadata["maxFps"].as_u64().unwrap_or(30));
+                    extension
+                        .copy_pixels(c.bits.cast())
+                        .map_err(|e| windows::core::Error::new(E_FAIL, e))?;
+                } else {
+                    let selected =
+                        echo_native::avatar_activity::choose(&s.state_rules, &active, |name| {
+                            c.clips.contains_key(name)
+                        });
+                    // Keep ties deterministic and suppress sub-frame animation churn.
+                    if s.playing != selected
+                        && (s.started.elapsed().as_millis() >= 180
+                            || !c.clips.contains_key(&s.playing))
+                    {
+                        s.playing = selected;
+                        s.started = Instant::now();
+                    }
+                    let clip = &c.clips[&s.playing];
+                    c.fps = c.fps_override.unwrap_or(clip.fps);
+                    let index = (s.started.elapsed().as_millis() as u64 * c.fps / 1000) as usize
+                        % clip.frames.len();
+                    let frame = &clip.frames[index];
+                    ptr::copy_nonoverlapping(frame.as_ptr(), c.bits.cast(), frame.len());
+                    if facing_left {
+                        let stride = c.w as usize;
+                        let pixels = std::slice::from_raw_parts_mut(
+                            c.bits.cast::<u32>(),
+                            stride * c.h as usize,
+                        );
+                        for row in pixels.chunks_exact_mut(stride) {
+                            row.reverse();
+                        }
                     }
                 }
                 let mut rect = RECT::default();
@@ -524,7 +634,7 @@ mod desktop {
             let mut rect = RECT::default();
             let _ = GetWindowRect(s.hwnd, &mut rect);
             let width = dip(s, 344.);
-            let height = dip(s, 136.);
+            let height = dip(s, 112.);
             let _ = SetWindowPos(
                 s.composer,
                 Some(HWND_TOPMOST),
@@ -545,22 +655,17 @@ mod desktop {
                 } else {
                     s.default_conversation.clone()
                 };
-                s.reply_title = if bubble {
-                    s.conversation_title.clone()
-                } else {
-                    s.default_title.clone()
-                };
             }
             s.composer_issue.clear();
             let width = dip(s, 344.);
-            let height = dip(s, 136.);
+            let height = dip(s, 112.);
             place_composer(s);
             round_window(s.composer, width, height, dip(s, 20.));
             let _ = SetWindowPos(
                 s.edit,
                 None,
                 dip(s, 18.),
-                dip(s, 44.),
+                dip(s, 18.),
                 width - dip(s, 36.),
                 dip(s, 54.),
                 SWP_NOZORDER | SWP_NOACTIVATE,
@@ -608,7 +713,6 @@ mod desktop {
                         s.slot = p["slot"].as_u64().unwrap_or(0).min(32) as u32;
                         s.home_offset = p["homeOffset"].as_f64();
                         s.default_conversation = p["conversationId"].as_str().unwrap_or("").into();
-                        s.default_title = p["conversationTitle"].as_str().unwrap_or("Echo").into();
                         let scale = p["scale"].as_f64().unwrap_or(1.).clamp(0.4, 2.)
                             * 0.75
                             * GetDpiForSystem() as f64
@@ -620,26 +724,52 @@ mod desktop {
                                 .to_owned()
                         });
                         let fps_override = Some(p["fps"].as_u64().unwrap_or(10).clamp(1, 30));
-                        let requested_motion: Vec<String> = motion.iter().cloned().chain(
-                            p["stateRules"].as_array().into_iter().flatten()
-                                .filter_map(|rule| rule["clip"].as_str().map(str::to_owned))
-                        ).collect();
+                        let requested_motion: Vec<String> =
+                            motion
+                                .iter()
+                                .cloned()
+                                .chain(
+                                    p["stateRules"].as_array().into_iter().flatten().filter_map(
+                                        |rule| rule["clip"].as_str().map(str::to_owned),
+                                    ),
+                                )
+                                .collect();
                         match load(
                             p["directory"].as_str().unwrap_or(""),
                             scale,
                             p["renderer"].as_str().unwrap_or("frames"),
                             &requested_motion,
                             fps_override,
+                            p["rendererLibrary"].as_str(),
                         ) {
                             Ok(canvas) => {
                                 s.canvas = Some(canvas);
                                 s.motion = motion;
-                                s.state_rules = serde_json::from_value(p["stateRules"].clone()).unwrap_or_else(|_| vec![
-                                    echo_native::avatar_activity::Rule{id:"avatar.idle".into(),priority:0,clip:s.motion[0].clone(),fallback:String::new()},
-                                    echo_native::avatar_activity::Rule{id:"avatar.working".into(),priority:40,clip:s.motion[1].clone(),fallback:"avatar.idle".into()},
-                                    echo_native::avatar_activity::Rule{id:"avatar.speaking".into(),priority:70,clip:s.motion[2].clone(),fallback:"avatar.idle".into()},
-                                ]);
+                                s.state_rules = serde_json::from_value(p["stateRules"].clone())
+                                    .unwrap_or_else(|_| {
+                                        vec![
+                                            echo_native::avatar_activity::Rule {
+                                                id: "avatar.idle".into(),
+                                                priority: 0,
+                                                clip: s.motion[0].clone(),
+                                                fallback: String::new(),
+                                            },
+                                            echo_native::avatar_activity::Rule {
+                                                id: "avatar.working".into(),
+                                                priority: 40,
+                                                clip: s.motion[1].clone(),
+                                                fallback: "avatar.idle".into(),
+                                            },
+                                            echo_native::avatar_activity::Rule {
+                                                id: "avatar.speaking".into(),
+                                                priority: 70,
+                                                clip: s.motion[2].clone(),
+                                                fallback: "avatar.idle".into(),
+                                            },
+                                        ]
+                                    });
                                 s.playing.clear();
+                                s.selected_clip.clear();
                                 s.scale = (GetDpiForSystem() as f64 / 96.).max(1.);
                                 position(s, p["roam"].as_bool().unwrap_or(true));
                                 let result = paint(s);
@@ -658,7 +788,14 @@ mod desktop {
                     }
                     "avatar.activity" => {
                         s.working = p["working"].as_bool().unwrap_or(false);
-                        s.active_states = serde_json::from_value(p["states"].clone()).unwrap_or_else(|_| if s.working { vec!["avatar.working".into()] } else { vec![] });
+                        s.active_states = serde_json::from_value(p["states"].clone())
+                            .unwrap_or_else(|_| {
+                                if s.working {
+                                    vec!["avatar.working".into()]
+                                } else {
+                                    vec![]
+                                }
+                            });
                         let _ = paint(s);
                         respond(id, json!({"activity":activity(s)}));
                     }
@@ -672,8 +809,6 @@ mod desktop {
                             .take(1000)
                             .collect();
                         s.conversation = p["conversationId"].as_str().unwrap_or("").into();
-                        s.conversation_title =
-                            p["conversationTitle"].as_str().unwrap_or("Echo").into();
                         s.expires = Some(
                             Instant::now()
                                 + std::time::Duration::from_secs(
@@ -706,7 +841,9 @@ mod desktop {
                     "avatar.layout" => {
                         let offset = p["homeOffset"].as_f64().unwrap_or(0.).max(0.);
                         s.home_offset = Some(offset);
-                        if let Some(scene) = &mut s.scene { scene.set_home_offset(offset, s.left && !s.docked); }
+                        if let Some(scene) = &mut s.scene {
+                            scene.set_home_offset(offset, s.left && !s.docked);
+                        }
                         let _ = paint(s);
                         respond(id, json!({"ready":true}));
                     }
@@ -715,7 +852,7 @@ mod desktop {
                         let _ = GetWindowRect(s.hwnd, &mut rect);
                         respond(
                             id,
-                            json!({"language":if s.english {"en"} else {"zh-CN"},"renderer":"win32","borderless":GetClassLongPtrW(s.hwnd,GCL_STYLE)&(CS_DROPSHADOW.0 as usize)==0,"animation":"frames","docked":s.docked,"motion":s.scene.as_ref().map(|scene| scene.phase.name()),"roam":s.scene.as_ref().is_some_and(|scene| scene.roam),"pid":std::process::id(),"activity":activity(s),"clip":s.playing,"paints":s.paints,"visible":IsWindowVisible(s.hwnd).as_bool(),"bubbleVisible":IsWindowVisible(s.bubble).as_bool(),"composerVisible":IsWindowVisible(s.composer).as_bool(),"draftLength":GetWindowTextLengthW(s.edit),"imeComposing":s.ime_active,"pendingReply":s.pending_reply.is_some(),"conversationId":s.conversation,"text":s.text,"left":rect.left,"top":rect.top,"width":rect.right-rect.left,"height":rect.bottom-rect.top}),
+                            json!({"language":if s.english {"en"} else {"zh-CN"},"renderer":"win32","borderless":GetClassLongPtrW(s.hwnd,GCL_STYLE)&(CS_DROPSHADOW.0 as usize)==0,"animation":s.canvas.as_ref().and_then(|c|c.extension.as_ref()).map_or("frames",|r|r.metadata["kind"].as_str().unwrap_or("extension")),"sharedHost":true,"rendererAbi":s.canvas.as_ref().and_then(|c|c.extension.as_ref()).map(|_|1),"bubbleHeader":false,"composerHeader":false,"docked":s.docked,"motion":s.motion_override.as_ref().and_then(|v|v["phase"].as_str()).or_else(||s.scene.as_ref().map(|scene|scene.phase.name())),"facing":s.scene.as_ref().map(|scene| if scene.facing_left { "left" } else { "right" }),"roam":s.scene.as_ref().is_some_and(|scene| scene.roam),"pid":std::process::id(),"activity":activity(s),"clip":s.playing,"paints":s.paints,"visible":IsWindowVisible(s.hwnd).as_bool(),"bubbleVisible":IsWindowVisible(s.bubble).as_bool(),"composerVisible":IsWindowVisible(s.composer).as_bool(),"draftLength":GetWindowTextLengthW(s.edit),"imeComposing":s.ime_active,"pendingReply":s.pending_reply.is_some(),"conversationId":s.conversation,"text":s.text,"left":rect.left,"top":rect.top,"width":rect.right-rect.left,"height":rect.bottom-rect.top}),
                         );
                     }
                     "avatar.quit" => {
@@ -794,7 +931,17 @@ mod desktop {
                         let occupied = s.working
                             || s.expires.is_some()
                             || IsWindowVisible(s.composer).as_bool();
-                        scene.tick(s.scene_start.elapsed().as_secs_f64(), dt, s.scale, occupied);
+                        if s.motion_override.is_none() {
+                            scene.tick(
+                                s.scene_start.elapsed().as_secs_f64(),
+                                dt,
+                                s.scale,
+                                occupied,
+                            );
+                        }
+                    }
+                    if s.motion_override.is_some() {
+                        renderer_motion(s, "tick", dt);
                     }
                     let _ = paint(s);
                     if work_area_changed && IsWindowVisible(s.composer).as_bool() {
@@ -836,6 +983,7 @@ mod desktop {
                     if IsWindowVisible(s.composer).as_bool() {
                         cancel_composer(s);
                     }
+                    renderer_motion(s, "grab", 0.);
                     if let Some(scene) = &mut s.scene {
                         s.grab_offset = Some(POINT {
                             x: lp.0 as i16 as i32,
@@ -905,18 +1053,6 @@ mod desktop {
                     card(s, hwnd, dc);
                     let mut r = RECT::default();
                     let _ = GetClientRect(hwnd, &mut r);
-                    caption(
-                        s,
-                        dc,
-                        &s.reply_title,
-                        RECT {
-                            left: dip(s, 18.),
-                            top: dip(s, 13.),
-                            right: r.right - dip(s, 18.),
-                            bottom: dip(s, 33.),
-                        },
-                        COLORREF(0x00a39083),
-                    );
                     let hint = if !s.composer_issue.is_empty() {
                         s.composer_issue.as_str()
                     } else if s.pending_reply.is_some() {
@@ -1123,6 +1259,8 @@ mod desktop {
                 started: Instant::now(),
                 working: false,
                 playing: String::new(),
+                selected_clip: String::new(),
+                motion_override: None,
                 scene: None,
                 scene_start: Instant::now(),
                 last_tick: Instant::now(),
@@ -1147,11 +1285,8 @@ mod desktop {
                 bubble_image: None,
                 bubble_image_painted: false,
                 conversation: String::new(),
-                conversation_title: String::new(),
                 default_conversation: String::new(),
-                default_title: String::new(),
                 reply_conversation: String::new(),
-                reply_title: String::new(),
                 reply_sequence: 0,
                 pending_reply: None,
                 instance: String::new(),

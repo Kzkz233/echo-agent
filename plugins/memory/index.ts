@@ -17,11 +17,13 @@ import { Store } from '../../packages/kernel/store.ts';
 import { Router } from '../../packages/kernel/router.ts';
 import { Retrieval } from '../../packages/kernel/retrieval.ts';
 import { Files } from '../files/index.ts';
-import type { Plugin, Field } from '../../packages/kernel/registry.ts';
+import type { Plugin, Field, Caller } from '../../packages/kernel/registry.ts';
+import type { WorkAuthority } from '../../packages/contracts/work.ts';
 import type { Capabilities } from '../../packages/kernel/capabilities.ts';
 import { bm25 } from '../../packages/kernel/search-query.ts';
 import type { SearchHit } from '../../packages/kernel/retrieval.ts';
 import { memoryChange, type MemoryChange } from './changes.ts';
+import { memorySummary, recordRead, requireRead } from './reading.ts';
 
 export const memoryConfigSchema = z.object({
   queryMethod: id.optional(),
@@ -84,6 +86,24 @@ export class Memories {
     readonly files: Files,
     readonly retrieval: Retrieval,
   ) {}
+  private authorizeChange(caller: Caller, operation: string, sources: string[] = []) {
+    if (!caller.conversationId) return;
+    const authority = this.store.document<WorkAuthority>('work-authorities', caller.conversationId);
+    if (!authority) return;
+    invariant(authority.active && authority.writeReady !== false, 'memory_not_ready', '请先完整阅读本次任务材料。');
+    invariant(!authority.memoryOperations || authority.memoryOperations.includes(operation),
+      'memory_operation_denied', '此任务未获准执行该记忆操作。');
+    invariant(!authority.allowedSources || sources.length > 0 && sources.every(source => authority.allowedSources!.includes(source)),
+      'memory_sources', '请使用本次材料提供的完整来源编号。');
+  }
+  private async archiveEntry(memory: Memory) {
+    const vault = await this.files.managed('memory', 'Memory Library');
+    const entry = await this.files.entries.read('memory-' + memory.id, 0, 16000000, vault.id);
+    await this.files.entries.save(vault.id, entry.title, entry.content, {
+      id: entry.id, path: entry.logicalPath, kind: 'memory',
+      metadata: { ...entry.metadata, archived: true }, revision: entry.revision,
+    }, 'memory');
+  }
   config(personaId?: string) {
     const value = memoryConfigSchema.parse(
       characterSettings(
@@ -127,10 +147,13 @@ export class Memories {
     const memory: Memory = {
       ...(old?.perspective ? { perspective: old.perspective } : {}),
       ...(old?.confirmation ? { confirmation: old.confirmation } : {}),
+      ...(old?.occurredAt ? { occurredAt: old.occurredAt } : {}),
       ...value,
       id: value.id ?? randomUUID(),
       version: createHash('sha256')
-        .update(JSON.stringify([value.text, value.title, value.tags, value.core]))
+        .update(JSON.stringify([value.text, value.title, value.tags, value.core,
+          value.perspective ?? old?.perspective, value.confirmation ?? old?.confirmation,
+          value.occurredAt ?? old?.occurredAt, value.sources]))
         .digest('hex'),
       updatedAt: new Date().toISOString(),
     };
@@ -153,6 +176,7 @@ export class Memories {
             sources: memory.sources,
             perspective: memory.perspective,
             confirmation: memory.confirmation,
+            occurredAt: memory.occurredAt,
             version: memory.version,
           },
         },
@@ -262,6 +286,8 @@ export class Memories {
           ],
           perspective: change.perspective ?? old?.perspective,
           confirmation: change.confirmation ?? old?.confirmation,
+          tags: change.tags ?? old?.tags ?? [],
+          occurredAt: change.occurredAt ?? old?.occurredAt,
         }),
         approveCore,
       );
@@ -274,11 +300,14 @@ export class Memories {
       after: saved,
       at: new Date().toISOString(),
     };
+    for (const memory of [...(['delete', 'archive'].includes(operation) && old ? [old] : []), ...merged])
+      await this.archiveEntry(memory);
     this.store.transaction(() => {
       if (['delete', 'archive'].includes(operation) && old) this.store.remove('memories', old.id);
       for (const memory of merged) this.store.remove('memories', memory.id);
       this.store.put('memory-changes', requestId, result);
     });
+    this.router.events.emit('memory.updated', { personaId });
     return result;
   }
 
@@ -381,6 +410,27 @@ export class Memories {
       .slice(0, config.limit);
   }
   async close() {}
+  /** Maintenance search deliberately ignores chat-context suppression and recall count limits. */
+  async search(personaId: string, query: string, signal: AbortSignal) {
+    const memories = this.store.documents<Memory>('memories').filter(m => m.personaId === personaId && !m.core);
+    const records = memories.map(m => ({ id: m.id, version: m.version, text: m.title + ' ' + m.tags.join(' ') + ' ' + m.text }));
+    const config = this.config(personaId);
+    let hits: SearchHit[];
+    try {
+      invariant(this.scope, 'memory_unavailable', '记忆插件不可用。');
+      hits = await this.scope.invoke('knowledge.retrieval@1', config.retrievalMethod,
+        { personaId, collection: 'memory', query, records }, signal) as SearchHit[];
+      const known = new Set(records.map(row => row.id + ':' + row.version));
+      invariant(hits.every(hit => known.has(hit.id + ':' + hit.version)), 'memory_scope', '检索返回了范围外记忆。');
+    } catch (error) {
+      signal.throwIfAborted();
+      if (config.fallback === 'error' || config.retrievalMethod === 'semantic.memory') throw error;
+      hits = bm25(query, records);
+    }
+    const byId = new Map(memories.map(memory => [memory.id, memory]));
+    return [...new Map(hits.filter(hit => hit.score > 0).sort((a, b) => b.score - a.score)
+      .map(hit => [hit.id, { ...memorySummary(byId.get(hit.id)!), score: hit.score, method: hit.method }])).values()];
+  }
   plugin(): Plugin {
     const service = this;
     return {
@@ -423,8 +473,30 @@ export class Memories {
         },
       },
       config: { schema: memoryConfigSchema },
-      activate: ({ registry, dispose, capabilities }) => {
+      activate: (ctx) => {
+        const { registry, dispose, capabilities } = ctx;
         this.scope = capabilities;
+        const corePayload = z.object({ personaId: id, change: memoryChange });
+        capabilities.provide('approvals.prepare@1', 'memory.core-change', '核心记忆变更', ({ payload }) => {
+          const value = corePayload.parse(payload);
+          invariant(value.change.operation === 'propose-core', 'core_approval', '此入口仅用于核心记忆审批。');
+          const old = value.change.subjectId ? this.store.document<Memory>('memories', value.change.subjectId) : undefined;
+          invariant(!old || old.personaId === value.personaId, 'memory_owner', '不能修改其他角色的记忆。');
+          return { title: '核心记忆变更 · ' + value.change.title, frozen: value,
+            details: [{ label: '角色', value: value.personaId }, { label: '操作', value: value.change.coreOperation ?? 'add' },
+              { label: '原文', value: old?.text ?? '' }, { label: '建议内容', value: value.change.text },
+              { label: '依据', value: value.change.sources.join('\n') }] };
+        });
+        capabilities.provide('approvals.execute@1', 'memory.core-change', '应用核心记忆变更', async ({ frozen, approvalId }) => {
+          try {
+            const value = corePayload.parse(frozen);
+            return { state: 'succeeded', receipt: await this.change(value.personaId, value.change, approvalId, true) };
+          } catch (error) { return { state: 'failed', receipt: { error: String(error) } }; }
+        });
+        capabilities.provide('approvals.inspect@1', 'memory.core-change', '核对核心记忆变更', ({ approvalId }) => {
+          const receipt = this.store.document('memory-changes', approvalId);
+          return { state: receipt ? 'succeeded' : 'unknown', receipt };
+        });
         dispose(() => {
           this.scope = undefined;
         });
@@ -483,15 +555,16 @@ export class Memories {
           {
             id: 'memory',
             blocks: [
-              { id: 'memory.core', layer: 'stable', after: ['persona.profile'] },
-              { id: 'memory.recall', layer: 'turn', historyDependent: true },
+              { id: 'memory.core', layer: 'stable', after: ['persona.profile'], label: '核心记忆', worker: 'default' },
+              { id: 'memory.recall', layer: 'turn', historyDependent: true, worker: 'optional', label: '记忆召回' },
             ],
             prepare: async ({ conversation, text, effective, phase }, signal) => {
               const core = this.store
                 .documents<Memory>('memories')
                 .filter((m) => m.personaId === conversation.personaId && m.core);
               const matches =
-                phase === 'stable'
+                phase === 'stable' || conversation.kind === 'worker' &&
+                  !(conversation.contextBlocks?.includes('memory.recall') || conversation.workerRecall)
                   ? []
                   : await this.recall(conversation.personaId, text, effective, signal);
               return {
@@ -535,22 +608,93 @@ export class Memories {
         op(
           'memory.list',
           '列出角色记忆',
-          z.object({ personaId: id.optional() }),
+          z.object({ personaId: id.optional(), offset: z.number().int().min(0).default(0),
+            limit: z.number().int().min(1).max(100).default(20) }),
           'memory.read',
           (v, caller) => {
             if (caller.personaId && v.personaId && v.personaId !== caller.personaId)
               throw new Error('角色只能读取自己的记忆。');
             const personaId = caller.personaId ?? v.personaId;
-            return this.store
+            const rows = this.store
               .documents<Memory>('memories')
               .filter((m) => !personaId || m.personaId === personaId);
+            return caller.kind === 'mcp' ? rows.slice(v.offset, v.offset + v.limit).map(memorySummary) : rows;
           },
         );
+        const personaFor = (caller: Caller, requested?: string) => {
+          invariant(!caller.personaId || !requested || requested === caller.personaId, 'memory_owner', '只能读取当前角色的记忆。');
+          const personaId = caller.personaId ?? requested;
+          invariant(personaId, 'memory_owner', '请指定角色。'); return personaId;
+        };
+        op('memory.search', '按主题检索相关旧记忆，返回分页摘要；用 memory_read 阅读正文，不受聊天召回去重限制',
+          z.object({ personaId: id.optional(), query: z.string().trim().min(1).max(4000),
+            offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(50).default(12) }),
+          'memory.read', async (value, caller, signal) => {
+            const rows = await this.search(personaFor(caller, value.personaId), value.query, signal);
+            return { items: rows.slice(value.offset, value.offset + value.limit), total: rows.length,
+              hasMore: value.offset + value.limit < rows.length,
+              nextOffset: value.offset + value.limit < rows.length ? value.offset + value.limit : null };
+          });
+        op('memory.read', '按完整编号分页阅读记忆；继续读取时携带 version，直到 hasMore=false 后才算完整阅读',
+          z.object({ id, version: z.string().optional(), offset: z.number().int().min(0).default(0),
+            maxChars: z.number().int().min(1).max(12000).default(4000) }), 'memory.read', (value, caller) => {
+            const memory = this.store.document<Memory>('memories', value.id);
+            invariant(memory && (!caller.personaId || memory.personaId === caller.personaId), 'memory_missing', '记忆不存在或不属于当前角色。');
+            invariant((!value.version || value.version === memory.version) && (!value.offset || value.version),
+              'memory_version', '记忆版本已变化或缺少续读版本，请从头重新读取。');
+            invariant(value.offset <= memory.text.length, 'memory_offset', '读取位置超过正文长度。');
+            const end = Math.min(value.offset + value.maxChars, memory.text.length);
+            if (caller.conversationId) recordRead(this.store, caller.conversationId, memory, value.offset, end);
+            return { ...memorySummary(memory), sources: memory.sources, text: memory.text.slice(value.offset, end),
+              offset: value.offset, hasMore: end < memory.text.length, nextOffset: end < memory.text.length ? end : null };
+          });
         op('memory.save', '保存非核心记忆', memorySchema, 'memory.write', (v, caller) => {
           if (caller.personaId && v.personaId !== caller.personaId)
             throw new Error('角色只能保存自己的记忆。');
+          this.authorizeChange(caller, v.id && this.store.document('memories', v.id) ? 'update' : 'add', v.sources);
+          invariant(!caller.conversationId || !this.store.document('work-authorities', caller.conversationId) || !v.id || !this.store.document('memories', v.id),
+            'memory_version_required', '工作任务修改已有记忆请使用 memory_change，提供完整编号和当前版本。');
           return this.save(v);
         });
+        op('memory.change', '按完整记忆编号和版本新增、修订、合并或删除普通记忆；核心变更只提交审批',
+          z.object({ personaId: id.optional(), requestId: id, change: memoryChange }), 'memory.write',
+          async (value, caller, signal) => {
+            const personaId = caller.personaId ?? value.personaId;
+            invariant(personaId && (!value.personaId || value.personaId === personaId), 'memory_owner', '请使用当前角色的记忆库。');
+            this.authorizeChange(caller, value.change.operation, value.change.sources);
+            const work = caller.conversationId && this.store.document<WorkAuthority>('work-authorities', caller.conversationId);
+            if (work && work.memoryReadRequired) {
+              for (const subjectId of [value.change.subjectId, ...value.change.merged.map((item: { id: string }) => item.id)].filter(Boolean)) {
+                const memory = this.store.document<Memory>('memories', subjectId!);
+                invariant(memory && memory.personaId === personaId, 'memory_owner', '记忆不属于当前角色。');
+                requireRead(this.store, caller.conversationId!, memory);
+              }
+            }
+            const record = (result: unknown) => {
+              if (caller.conversationId && this.store.conversation(caller.conversationId)?.kind === 'worker') {
+                const key = 'memory-tool.' + caller.conversationId + '.' + value.requestId;
+                if (!this.store.receipt(key)) this.store.transaction(() => {
+                  const message = this.store.append(caller.conversationId!, 'system', 'tool',
+                    '记忆工具操作回执（已执行的历史记录）：\n' + JSON.stringify(result),
+                    this.store.unresolved(caller.conversationId).find(run => run.state === 'running')?.id,
+                    { memoryRequestId: value.requestId });
+                  this.store.saveReceipt(key, { messageId: message.id });
+                });
+              }
+              return result;
+            };
+            if (value.change.operation === 'propose-core') {
+              // Domain automation may use its own existing approval provider to recheck live task grants.
+              const authority = caller.conversationId && this.store.document<WorkAuthority>('work-authorities', caller.conversationId);
+              const approvalTarget = authority && authority.coreApproval;
+              const approval = await ctx.registry.call('approvals.request', {
+                executor: approvalTarget?.executor ?? 'memory.core-change',
+                payload: { ...approvalTarget?.payload, personaId, change: value.change }, requestId: value.requestId,
+              }, { kind: 'internal', permissions: new Set(['approvals.request']) }, signal);
+              return record({ state: 'pending-approval', approval });
+            }
+            return record(await this.change(personaId, value.change, value.requestId));
+          });
         op(
           'memory.saveCore',
           '明确确认后保存核心记忆',
@@ -573,6 +717,7 @@ export class Memories {
               const current = this.store.document<Memory>('memories', v.id);
               if (caller.personaId && current?.personaId !== caller.personaId)
                 throw new Error('角色只能删除自己的记忆。');
+              if (current) await this.archiveEntry(current);
               this.store.remove('memories', v.id);
               return { deleted: true };
             }),

@@ -30,6 +30,7 @@ pub struct Motion {
     next: f64,
     lap: usize,
     anchor_offset: f64,
+    walk_speed: Option<f64>,
 }
 
 impl Motion {
@@ -47,23 +48,46 @@ impl Motion {
             next: 6.,
             lap: 0,
             anchor_offset: 0.,
+            walk_speed: None,
         }
     }
     pub fn place_slot(&mut self, slot: usize, spacing: f64, left: bool) {
         self.anchor_offset = slot as f64 * spacing.max(0.);
-        self.x = if left { self.bounds[0] + self.anchor_offset } else { self.bounds[2] - self.anchor_offset }
-            .clamp(self.bounds[0], self.bounds[2]);
+        self.x = if left {
+            self.bounds[0] + self.anchor_offset
+        } else {
+            self.bounds[2] - self.anchor_offset
+        }
+        .clamp(self.bounds[0], self.bounds[2]);
         self.next += slot.min(10) as f64 * 0.6;
     }
     pub fn set_home_offset(&mut self, offset: f64, left: bool) {
         let [min, _, max, _] = self.bounds;
-        let home = |value: f64| if left { (min + value).min(max) } else { (max - value).max(min) };
+        let home = |value: f64| {
+            if left {
+                (min + value).min(max)
+            } else {
+                (max - value).max(min)
+            }
+        };
         let at_home = self.phase == Phase::Idle && (self.x - home(self.anchor_offset)).abs() <= 1.;
         self.anchor_offset = offset.max(0.);
-        if at_home { self.x = home(self.anchor_offset); }
+        if at_home {
+            self.x = home(self.anchor_offset);
+        }
     }
     pub fn grab(&mut self) {
         self.phase = Phase::Drag;
+    }
+    pub fn bounds(&self) -> [f64; 4] {
+        self.bounds
+    }
+    pub fn set_walk_speed(&mut self, speed: Option<f64>) {
+        self.walk_speed = speed.filter(|s| s.is_finite() && *s > 0. && *s <= 10_000.);
+    }
+    pub fn rest(&mut self, now: f64, delay: f64) {
+        self.phase = Phase::Idle;
+        self.next = now + delay;
     }
     pub fn drag_to(&mut self, x: f64, y: f64) {
         let [left, top, right, floor] = self.bounds;
@@ -78,9 +102,24 @@ impl Motion {
         let [left, top, right, floor] = bounds;
         self.bounds = bounds;
         self.x = match self.phase {
-            Phase::Idle if self.docked && (self.x - (old_right-self.anchor_offset).max(old_left)).abs() <= 1. => (right-self.anchor_offset).max(left),
-            Phase::Idle if !self.roam && (self.x - (old_left+self.anchor_offset).min(old_right)).abs() <= 1. => (left+self.anchor_offset).min(right),
-            Phase::Idle if !self.roam && (self.x - (old_right-self.anchor_offset).max(old_left)).abs() <= 1. => (right-self.anchor_offset).max(left),
+            Phase::Idle
+                if self.docked
+                    && (self.x - (old_right - self.anchor_offset).max(old_left)).abs() <= 1. =>
+            {
+                (right - self.anchor_offset).max(left)
+            }
+            Phase::Idle
+                if !self.roam
+                    && (self.x - (old_left + self.anchor_offset).min(old_right)).abs() <= 1. =>
+            {
+                (left + self.anchor_offset).min(right)
+            }
+            Phase::Idle
+                if !self.roam
+                    && (self.x - (old_right - self.anchor_offset).max(old_left)).abs() <= 1. =>
+            {
+                (right - self.anchor_offset).max(left)
+            }
             _ => self.x.clamp(left, right),
         };
         self.y = if self.phase != Phase::Drag && (self.y - old_floor).abs() <= 1. {
@@ -107,6 +146,15 @@ impl Motion {
             self.next = now + 6.;
         }
     }
+    fn face_inward_when_idle(&mut self) {
+        let [left, _, right, floor] = self.bounds;
+        if self.phase == Phase::Idle && (self.y - floor).abs() <= 1. {
+            let side = self.x - (left + right) * 0.5;
+            if side.abs() > 1. {
+                self.facing_left = side > 0.;
+            }
+        }
+    }
     pub fn tick(&mut self, now: f64, dt: f64, scale: f64, occupied: bool) {
         let [left, _, right, floor] = self.bounds;
         if self.phase == Phase::Drag {
@@ -122,9 +170,14 @@ impl Motion {
         } else if occupied || !self.roam {
             self.phase = Phase::Idle;
             self.next = now + 6.;
+            self.face_inward_when_idle();
             return;
         } else if self.phase == Phase::Idle && now >= self.next && right - left > 16. * scale {
-            let distance = [135., 225., 170., 285.][self.lap % 4] * scale;
+            let distance = self
+                .walk_speed
+                .map_or([135., 225., 170., 285.][self.lap % 4] * scale, |speed| {
+                    speed * [2.5, 4., 3., 5.][self.lap % 4]
+                });
             let center = (left + right) * 0.5;
             let dir = if self.x > center { -1. } else { 1. };
             let dir = if self.lap % 2 == 0 { dir } else { -dir };
@@ -140,7 +193,11 @@ impl Motion {
             if delta.abs() > 1. {
                 self.facing_left = delta < 0.;
             }
-            let speed = if self.phase == Phase::Dock { 460. * scale } else { 120. * scale };
+            let speed = self.walk_speed.unwrap_or(if self.phase == Phase::Dock {
+                460. * scale
+            } else {
+                120. * scale
+            });
             self.x += delta.clamp(-speed * dt, speed * dt);
             if (self.target - self.x).abs() < 1. && (!self.docked || (floor - self.y).abs() < 1.) {
                 self.x = self.target;
@@ -148,12 +205,45 @@ impl Motion {
                 self.next = now + [15., 23., 19., 29.][self.lap % 4];
             }
         }
+        self.face_inward_when_idle();
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn docking_walks_right_then_faces_inward_and_left_idle_faces_right() {
+        let mut motion = Motion::new([-1800., 0., -300., 800.], true, false);
+        motion.dock(true, 0.);
+        motion.tick(0.1, 0.1, 1., false);
+        assert_eq!(motion.phase, Phase::Dock);
+        assert!(!motion.facing_left);
+        for step in 2..=50 {
+            motion.tick(step as f64 * 0.1, 0.1, 1., false);
+        }
+        assert_eq!((motion.x, motion.phase), (-300., Phase::Idle));
+        assert!(motion.facing_left);
+        motion.tick(6., 0.1, 1., true);
+        assert!(motion.facing_left);
+        motion.dock(false, 6.);
+        motion.grab();
+        motion.drag_to(-1800., 800.);
+        motion.drop_at(7.);
+        motion.tick(7.1, 0.1, 1., true);
+        assert!(!motion.facing_left);
+    }
+    #[test]
+    fn dragging_and_idle_above_the_floor_keep_their_facing() {
+        let mut motion = Motion::new([0., 0., 900., 600.], true, false);
+        motion.grab();
+        motion.drag_to(900., 250.);
+        motion.tick(0.1, 0.1, 1., false);
+        assert!(!motion.facing_left);
+        motion.drop_at(1.);
+        motion.tick(1.1, 0.1, 1., false);
+        assert!(!motion.facing_left);
+    }
     #[test]
     fn multiple_roles_have_separate_home_positions_without_restricting_dragging() {
         let mut first = Motion::new([12., 12., 1200., 800.], false, true);
@@ -169,7 +259,9 @@ mod tests {
         second.drag_to(1100., 800.);
         second.drop_at(0.);
         second.dock(true, 0.);
-        for i in 1..=20 { second.tick(i as f64 * 0.1, 0.1, 1., false); }
+        for i in 1..=20 {
+            second.tick(i as f64 * 0.1, 0.1, 1., false);
+        }
         assert_eq!(second.x, 1000.);
         second.update_bounds([12., 12., 1800., 1000.]);
         assert_eq!(second.x, 1600.);
@@ -222,6 +314,9 @@ mod tests {
         motion.drag_to(-220., 280.);
         motion.drop_at(1.);
         motion.tick(1.1, 0.1, 1., false);
-        assert_eq!((motion.x, motion.y, motion.phase), (-220., 280., Phase::Idle));
+        assert_eq!(
+            (motion.x, motion.y, motion.phase),
+            (-220., 280., Phase::Idle)
+        );
     }
 }

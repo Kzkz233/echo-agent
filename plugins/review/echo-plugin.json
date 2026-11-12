@@ -17,13 +17,7 @@
     "automation.dispatch",
     "character.contribute"
   ],
-  "settings": [
-    {
-      "key": "defaultMaxOutputTokens",
-      "label": "整理默认输出上限（0 为自动）",
-      "type": "number"
-    }
-  ],
+  "settings": [],
   "views": [
     "review"
   ],

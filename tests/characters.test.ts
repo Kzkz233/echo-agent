@@ -6,40 +6,50 @@ import { characterDraft } from '../plugins/persona/character-contracts.ts';
 import { seedProfile } from '../scripts/inference-fixture.ts';
 import { profileSchema } from '../packages/contracts/index.ts';
 
-test('editing a role leaves unchanged schedules and shared-source assignments intact', async (t) => {
+test('application schedules stay outside character tasks and survive role edits and deactivation', async (t) => {
   const app = await setup(t);
   await app.plugins.enable('scheduler');
   await app.plugins.enable('mail');
   app.store.put('mail-accounts', 'fixture-account', { id: 'fixture-account', name: 'Fixture' });
   const call = (name: string, params: any = {}) => app.registry.call(name, params, internal);
+  await call('automation.save', { type: 'scheduler.mail', id: 'sync-fixture', settings: {
+    name: 'Sync fixture', enabled: false, accountId: 'fixture-account', mode: 'interval', minutes: 30,
+  } });
+  const catalog = await call('persona.character.catalog');
+  assert(!catalog.taskTypes.some((type: any) => type.id === 'scheduler.mail'));
+  assert(catalog.taskTypes.every((type: any) => type.scope === 'character'));
+  assert(!catalog.features.find((feature: any) => feature.id === 'mail').taskTypes?.length);
+  const appCatalog = await call('automation.catalog');
+  assert.equal(appCatalog.types.find((type: any) => type.id === 'scheduler.mail').scope, 'workspace');
   const role = await call('persona.character.commit', {
     requestId: 'scheduled-role',
     draft: characterDraft.parse({
       persona: { id: 'owner', name: 'Owner', prompt: 'Original' },
       features: ['mail'],
-      tasks: [
-        {
-          id: 'sync-fixture',
-          type: 'scheduler.mail',
-          settings: {
-            name: 'Sync fixture',
-            enabled: false,
-            accountId: 'fixture-account',
-            mode: 'interval',
-            minutes: 30,
-          },
-        },
-      ],
     }),
   });
   const original = app.store.document<any>('scheduler-jobs', 'sync-fixture');
   app.store.put('scheduler-jobs', 'sync-fixture', { ...original, nextAt: Date.now() + 123456 });
   const expected = app.store.document('scheduler-jobs', 'sync-fixture');
+  // Older versions could attach a shared sync plan to a role. Reading or
+  // saving that role must neither expose nor mutate the application plan.
+  const oldRole = app.store.document<any>('characters', role.persona.id);
+  app.store.put('characters', role.persona.id, { ...oldRole,
+    taskIds: [...oldRole.taskIds, { id: 'sync-fixture', type: 'scheduler.mail' }],
+  });
   const draft = await call('persona.character.read', { id: role.persona.id });
+  assert(!draft.tasks.some((task: any) => task.type === 'scheduler.mail'));
+  await assert.rejects(call('persona.character.commit', { requestId: 'invalid-role-sync', draft: {
+    ...draft, tasks: [{ id: 'sync-fixture', type: 'scheduler.mail', settings: {
+      name: 'Incorrect role sync', enabled: false, accountId: 'fixture-account', mode: 'interval', minutes: 15,
+    } }],
+  } }), /角色能力/);
   await call('persona.character.commit', {
     requestId: 'edit-scheduled-role',
     draft: { ...draft, persona: { ...draft.persona, prompt: 'Revised persona' } },
   });
+  assert.deepEqual(app.store.document('scheduler-jobs', 'sync-fixture'), expected);
+  await call('characters.setActive', { personaId: role.persona.id, enabled: false, revision: 0 });
   assert.deepEqual(app.store.document('scheduler-jobs', 'sync-fixture'), expected);
 });
 
@@ -169,7 +179,7 @@ test('temporary role configuration suspension does not turn off the saved frame 
   assert.equal(app.store.get<any>('avatar.config', {}).enabled, true);
 });
 
-test('role-owned contributed tasks retain ownership even when the execution plugin has no persona dependency', async (t) => {
+test('removing a role mailbox grant does not remove its formerly linked application sync plan', async (t) => {
   const app = await setup(t);
   await app.plugins.enable('scheduler');
   await app.plugins.enable('mail');
@@ -178,34 +188,28 @@ test('role-owned contributed tasks retain ownership even when the execution plug
     name: 'Fixture mailbox',
   });
   const call = (name: string, params: any = {}) => app.registry.call(name, params, internal);
+  await call('automation.save', { type: 'scheduler.mail', id: 'role-mail-sync', settings: {
+    name: 'Mailbox sync', mode: 'interval', minutes: 10, enabled: false, accountId: 'fixture-account',
+  } });
   const role = await call('persona.character.commit', {
     requestId: 'mail-role',
     draft: characterDraft.parse({
       persona: { id: 'mail-role', name: 'Mailbox role', prompt: 'Synthetic' },
       features: ['mail'],
-      tasks: [
-        {
-          id: 'role-mail-sync',
-          type: 'scheduler.mail',
-          settings: {
-            name: 'Role mail sync',
-            mode: 'interval',
-            minutes: 10,
-            enabled: false,
-            accountId: 'fixture-account',
-          },
-        },
-      ],
     }),
   });
-  assert.equal(role.tasks.length, 1);
-  assert.equal(role.tasks[0].id, 'role-mail-sync');
+  const storedRole = app.store.document<any>('characters', role.persona.id);
+  app.store.put('characters', role.persona.id, { ...storedRole,
+    taskIds: [...storedRole.taskIds, { id: 'role-mail-sync', type: 'scheduler.mail' }],
+  });
+  assert.equal(role.tasks.length, 0);
   assert.equal(app.store.document<any>('scheduler-jobs', 'role-mail-sync').personaId, undefined);
+  const expected = app.store.document('scheduler-jobs', 'role-mail-sync');
   await call('persona.character.commit', {
     requestId: 'mail-role-remove',
     draft: { ...role, features: [], tasks: [] },
   });
-  assert.equal(app.store.document('scheduler-jobs', 'role-mail-sync'), undefined);
+  assert.deepEqual(app.store.document('scheduler-jobs', 'role-mail-sync'), expected);
 });
 
 test('character packages carry validated frame assets and upgrades retain local overrides', async (t) => {
@@ -431,7 +435,8 @@ test('delegation honors role permission, deduplicates requests, returns a result
   backend.responder = async (request) => {
     assert.equal(request.permissions?.codex.sandbox, 'read-only');
     assert.match(request.messages[0].text, /WORKER_TEMPLATE[\s\S]*delegation_checkpoint/);
-    assert.doesNotMatch(request.messages[0].text, /authority=|Synthetic chief/);
+    assert.match(request.messages[0].text, /Synthetic chief/);
+    assert.doesNotMatch(request.messages[0].text, /authority=/);
     assert(request.messages.some((m) => m.context === 'turn' && m.text.includes('authority=')));
     assert.match(request.messages.at(-1)!.text, /验收要求/);
     assert.doesNotMatch(request.messages.at(-1)!.text, /WORKER_TEMPLATE/);
@@ -485,7 +490,7 @@ test('delegation honors role permission, deduplicates requests, returns a result
   await call('delegation.request', request);
   assert.equal(backend.calls.length, 1);
   assert.equal(
-    app.store.allMessages(role.mainConversationId).filter((m) => m.source === 'notification')
+    app.store.allMessages(role.mainConversationId).filter((m) => m.meta.taskResultId)
       .length,
     1,
   );

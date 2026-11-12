@@ -98,7 +98,15 @@ export class Characters {
           ).catalog,
         })),
     );
-    return { features, taskTypes };
+    const characterTasks = taskTypes.filter((type) => type.scope === 'character');
+    const taskIds = new Set(characterTasks.map((type) => type.id));
+    return {
+      features: features.map((feature) => ({
+        ...feature,
+        taskTypes: feature.taskTypes?.filter((id: string) => taskIds.has(id)),
+      })),
+      taskTypes: characterTasks,
+    };
   }
   private record(personaId: string, features: string[]) {
     let row = this.store.document<CharacterRecord>('characters', personaId);

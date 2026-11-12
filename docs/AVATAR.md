@@ -35,3 +35,28 @@ Select `Frame animation` in Avatar. An optional directory contains `atlas.png` a
 Each clip has 1–120 frames and at most 30 FPS. Assign named clips for idle, working and speaking in the character's Avatar settings. Working follows Echo's conversation run events across inference backends. Speaking follows the native bubble lifetime and takes priority. An absent clip falls back to idle. The atlas and the total decoded frame budget are checked before the window loads the animation.
 
 Both renderers share native window movement. With roaming enabled, an idle character walks along the work area using the `walk` clip when supplied. Generation, a visible bubble and the reply composer interrupt idle roaming. Observation moves the character to the bottom-right and holds it there. Dragging tracks the pointer; an enhanced avatar plays `picked`, `fall`, and `land` when those clips are present. After a drop, a docked avatar returns to its corner.
+
+## Native renderer extensions
+
+`avatar.renderers@2` registers a material directory and an absolute native library
+path with `abi: 1`. The base `echo-avatar.exe` loads that library inside its existing
+process. The extension never creates its own bubble, input editor or avatar window.
+One host owns movement, work-area bounds, window ordering, conversation pinning,
+reply events and display receipts for both built-in frames and extension rendering.
+
+The small C ABI is defined in `native/avatar-sdk`: create, request, pixels and destroy.
+JSON carries bounded configuration/metadata and frame parameters; borrowed
+premultiplied BGRA buffers avoid allocation or image encoding on every frame.
+Renderers receive facing direction and can apply direction-sensitive depth ordering.
+An optional motion callback can supply bounded position/activity overrides for
+special body actions. Ordinary drag input, walking and inward idle facing remain
+owned by the base host. No second process or additional animation timer is needed.
+
+Disabling a provider removes its contribution and reloads ordinary frames without
+changing the saved renderer or material selection. Reloading/replacing a renderer
+destroys its instance before unloading its library. ABI versions are explicit;
+legacy `avatar.renderers@1` executable providers remain supported for existing
+extensions, but new extensions should use the shared-host contract.
+
+Conversation names are routing metadata, not bubble or composer headers. A message
+may still contain its own topic or report title as ordinary message content.

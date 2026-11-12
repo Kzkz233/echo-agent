@@ -65,7 +65,7 @@ export class Personas {
         this.router.context(
           {
             id: 'persona',
-            blocks: [{ id: 'persona.profile', layer: 'stable' }],
+            blocks: [{ id: 'persona.profile', layer: 'stable', label: '角色人设', worker: 'default' }],
             prepare: ({ conversation }) => ({
               'persona.profile': [{ text: this.get(conversation.personaId)?.prompt ?? '' }],
             }),
