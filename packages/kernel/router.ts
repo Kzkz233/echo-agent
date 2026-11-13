@@ -721,12 +721,19 @@ export class Router {
             ((m.meta.attachments as any[]) ?? []).map((a) => a.id),
             m.conversationId,
           );
+          const target = (m.meta.delivery as DeliveryPlan | undefined)?.targets[0];
+          const reply = m.role === 'assistant' && target && ['progress', 'final'].includes(String(m.meta.replyPhase))
+            ? replySubmission.safeParse({ targetId: target.id, phase: m.meta.replyPhase,
+                ...(m.meta.replyTitle ? { title: m.meta.replyTitle } : {}), messages: m.meta.replyParts ?? [m.text] })
+            : undefined;
           return {
             id: m.id,
             role: m.role,
+            ...(m.role === 'system' ? { context: 'event' as const } : {}),
             text: [m.text, content.text].filter(Boolean).join('\n\n'),
             images: content.images,
             messageContext: storedMessageContext(m, timezone),
+            ...(reply?.success ? { reply: reply.data } : {}),
           };
         }),
     );

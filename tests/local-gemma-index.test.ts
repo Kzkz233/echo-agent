@@ -4,6 +4,7 @@ import { writeFile, readFile, copyFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setup, until } from './helpers.ts';
 import { openPortableIndex } from '../plugins/semantic/portable-index.ts';
+import { listenBrowserHttp } from '../packages/kernel/http-listener.ts';
 test('GGUF artifacts define the vector space; device, residency and file relocation do not', async (t) => {
   const app = await setup(t);
   await app.plugins.enable('local-models');
@@ -187,7 +188,7 @@ test('migrated structural vectors return original evidence, respect filters and 
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ data: [{ index: 0, embedding: [1, 0] }] }));
     });
-  await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+  await listenBrowserHttp(server);
   t.after(() => new Promise<void>((ok) => server.close(() => ok())));
   await app.router.inference.saveConnection({
     id: 'emb',

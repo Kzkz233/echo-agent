@@ -111,7 +111,8 @@ test('core memory precedes history, fresh recall follows it, and knowledge remai
   assert.equal(first.at(-1)!.text, '小猫名字是什么');
   assert.equal(second[0].text, first[0].text);
   assert.equal(second.filter((message) => message.text.includes('小猫名字叫团子')).length, 1);
-  assert(second.every((message) => !message.context));
+  assert(second.every((message) => message.context !== 'turn'));
+  assert.equal(second.find((message) => message.text.includes('小猫名字叫团子'))?.context, 'event');
   assert(!JSON.stringify(backend.calls).includes('KNOWLEDGE_SENTINEL'));
   assert(!JSON.stringify(backend.calls).includes('OLD_KNOWLEDGE'));
   assert(app.store.allMessages(c.id).some((message) => message.text === 'OLD_KNOWLEDGE'));

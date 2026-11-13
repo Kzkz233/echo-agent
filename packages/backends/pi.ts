@@ -98,6 +98,8 @@ export class PiBackend implements Backend {
     ];
   }
   async generate(request: GenerateRequest): Promise<GenerateResult> {
+    const provenance = new Map(request.messages.filter(message => message.id && message.reply)
+      .map(message => [message.id!, message.messageContext]));
     request = { ...request, messages: request.messages.map(materializeMessage) };
     const [
       { Agent },
@@ -216,7 +218,20 @@ export class PiBackend implements Backend {
       .join('\n\n');
     const history: any[] = earlier
       .filter((m) => !isStableContext(m))
-      .map((m) =>
+      .flatMap<any>((m, index) => hasDelivery && m.role === 'assistant' && m.reply
+        ? [{
+            role: 'assistant',
+            content: [{ type: 'toolCall', id: 'echo_history_' + index, name: 'echo_respond', arguments: m.reply }],
+            api: model.api, provider: providerId, model: model.id, timestamp: 0, stopReason: 'toolUse',
+            usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+              cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+          }, {
+            role: 'toolResult', toolCallId: 'echo_history_' + index, toolName: 'echo_respond',
+            content: [{ type: 'text', text: JSON.stringify({ accepted: true, historical: true,
+              ...(m.id ? { messageContext: provenance.get(m.id) } : {}) }) }],
+            isError: false, timestamp: 0,
+          }]
+        : [
         m.role === 'assistant'
           ? {
               role: 'assistant',
@@ -236,7 +251,7 @@ export class PiBackend implements Backend {
               },
             }
           : m.role === 'system'
-            ? { role: 'system', content: m.text, timestamp: Date.now() }
+            ? { role: 'system', content: m.text, timestamp: Date.now(), echoContext: m.context }
             : {
                 role: 'user',
                 content: [
@@ -245,7 +260,7 @@ export class PiBackend implements Backend {
                 ],
                 timestamp: Date.now(),
               },
-      );
+      ]);
     const baseline = createInitialSystemMessage(
       systemPrompt,
       tools.map(({ name, description, parameters }) => ({ name, description, parameters })),
@@ -369,7 +384,8 @@ export class PiBackend implements Backend {
             // authorized work tools. No corrective generation or auto-forward.
             // Anthropic models/settings can reject forced tool choice; keep
             // their native automatic selection and the same completion checks.
-            if (hasDelivery && model.api !== 'anthropic-messages')
+            if (hasDelivery && model.api !== 'anthropic-messages' &&
+              !(model.api === 'openai-completions' && (prepared as any)?.thinking?.type === 'enabled'))
               prepared = { ...(prepared as object), tool_choice: 'required' };
             Object.assign(diagnostic!, requestShape(prepared ?? payload));
             return prepared;

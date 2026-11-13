@@ -130,6 +130,7 @@ for (const protocol of generationProtocol.options)
               messages: [
                 { role: 'system', text: 'STABLE_PERSONA' },
                 { id: 'prior-human', role: 'user', text: 'OLD_USER_REQUEST' },
+                { id: 'prior-event', role: 'system', context: 'event', text: 'OLD_APPLICATION_EVENT' },
                 { id: 'prior-reply', role: 'assistant', text: 'OLD_ASSISTANT_REPLY' },
                 {
                   id: 'turn-context',
@@ -169,6 +170,10 @@ for (const protocol of generationProtocol.options)
               'Current ' + source + ' event was hoisted ahead of the prior user request',
             );
             const wire = JSON.stringify(input);
+            const historicalEvent = input.find((message: any) => JSON.stringify(message).includes('OLD_APPLICATION_EVENT'));
+            assert.equal(historicalEvent.role, 'user', 'Historical application data must not become system instructions');
+            assert(JSON.stringify(historicalEvent).includes('<echo_application_event>'));
+            assert(wire.indexOf('OLD_APPLICATION_EVENT') > wire.indexOf('OLD_USER_REQUEST'));
             if (protocol === 'openai-responses') {
               assert.equal(
                 input[0].role,
@@ -193,7 +198,8 @@ for (const protocol of generationProtocol.options)
                 JSON.stringify(body.tools).includes('echo_respond'),
                 'Reply tool must be declared on the wire',
               );
-            assert.equal(body.tool_choice, backend.kind === 'pi' && protocol !== 'anthropic-messages'
+            assert.equal(body.tool_choice, backend.kind === 'pi' && protocol !== 'anthropic-messages' &&
+              !(protocol === 'openai-completions' && effort === 'high')
               ? 'required' : undefined, 'Delivery must use native protocol tool choice without changing thinking');
             assert(
               wire.indexOf('CURRENT_CHANNEL_CONTRACT') > wire.indexOf('OLD_ASSISTANT_REPLY'),

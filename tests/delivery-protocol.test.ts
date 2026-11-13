@@ -55,6 +55,36 @@ async function fixture(t: TestContext, protocol: string, next: (body: any, step:
 }
 
 for (const protocol of generationProtocol.options) {
+  test(protocol + ' replays verified deliveries as past tool calls without sending them again', async t => {
+    const f = await fixture(t, protocol, body => {
+      const input = body.input ?? body.messages;
+      const history = JSON.stringify(input);
+      assert(history.includes('historical'));
+      assert(history.includes('2026-01-02T03:04:05Z'));
+      assert(history.includes('Unverified ordinary reply'));
+      const calls = protocol === 'openai-responses' ? input.filter((i: any) => i.type === 'function_call')
+        : protocol === 'openai-completions' ? input.flatMap((i: any) => i.tool_calls ?? [])
+        : input.flatMap((i: any) => Array.isArray(i.content) ? i.content.filter((p: any) => p.type === 'tool_use') : []);
+      assert.equal(calls.length, 1);
+      const args = protocol === 'anthropic-messages' ? calls[0].input
+        : JSON.parse(calls[0].arguments ?? calls[0].function.arguments);
+      assert.deepEqual(args, { targetId: 'core.chat', phase: 'final', messages: ['Earlier rendered reply'] });
+      return answer(protocol, 'echo_respond', { targetId: 'core.chat', phase: 'final', messages: ['Current reply'] });
+    });
+    const pi = new PiBackend(f.app.registry, async () => 'fixture-key');
+    let deliveries = 0;
+    await pi.generate({ profile: f.profile, requestId: 'history', signal: AbortSignal.timeout(6000),
+      replyTargets: ['core.chat'], respond: input => { deliveries++; assert.equal(input.messages[0], 'Current reply'); return { accepted: true }; },
+      messages: [{ role: 'system', text: 'Stable persona' },
+        { id: 'historical-delivery', role: 'assistant', text: 'Earlier rendered reply',
+          messageContext: { time: '2026-01-02T03:04:05Z', timezone: 'Asia/Shanghai', sender: 'Synthetic role', channel: 'Chat' },
+          reply: { targetId: 'core.chat', phase: 'final', messages: ['Earlier rendered reply'] } },
+        { id: 'ordinary', role: 'assistant', text: 'Unverified ordinary reply' },
+        { role: 'user', text: 'Current request' }] });
+    assert.equal(deliveries, 1);
+    assert.equal(f.requests.length, 1);
+  });
+
   test(protocol + ' requires delivery tools before generation, including optional silence and working tool loops', async t => {
     const deliveries: any[] = [];
     const f = await fixture(t, protocol, (body, step) => {
@@ -126,7 +156,9 @@ test('A task without delivery targets keeps normal text output; required replies
   });
   const pi = new PiBackend(f.app.registry, async () => 'fixture-key');
   const request = { profile: f.profile, requestId: 'no-delivery', signal: AbortSignal.timeout(6000),
-    messages: [{ role: 'user' as const, text: 'Synthetic worker task' }] };
+    messages: [{ id: 'old-delivery', role: 'assistant' as const, text: 'Prior channel reply',
+      reply: { targetId: 'core.chat', phase: 'final' as const, messages: ['Prior channel reply'] } },
+      { role: 'user' as const, text: 'Synthetic worker task' }] };
   assert.equal((await pi.generate(request)).text, 'Synthetic internal text');
   let delivered = 0;
   await pi.generate({ ...request, replyTargets: ['core.chat'], respond: () => { delivered++; return { accepted: true }; } });

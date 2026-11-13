@@ -115,18 +115,20 @@ export class ApiBackend implements Backend {
     invariant(profile.model, 'missing_model', '请填写模型名称。');
     const key = await this.secrets(profile.apiKeyRef);
     if (profile.protocol !== 'openai-completions') return this.generateWithProtocol(request, key);
-    const messages = request.messages.map((m) => ({
-      role: m.role === 'tool' ? 'user' : m.role,
+    const messages = request.messages.map((m) => {
+      const text = m.context === 'event' ? '<echo_application_event>\n' + m.text + '\n</echo_application_event>' : m.text;
+      return {
+      role: m.role === 'tool' || m.context === 'event' ? 'user' : m.role,
       content: m.images?.length
         ? [
-            { type: 'text', text: m.text },
+            { type: 'text', text },
             ...m.images.map((i) => ({
               type: 'image_url',
               image_url: { url: `data:${i.mimeType};base64,${i.data}` },
             })),
           ]
-        : m.text,
-    }));
+        : text,
+    }; });
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(profile.timeoutMs)]);
     let response: Response;
     try {
@@ -271,7 +273,7 @@ export class ApiBackend implements Backend {
     const stream = streams.streamSimple(model, protocolTranscript(normalizeContext({
       messages: request.messages.map((message) => {
         if (message.role === 'system')
-          return { role: 'system', content: message.text, timestamp: Date.now() };
+          return { role: 'system', content: message.text, timestamp: Date.now(), echoContext: message.context };
         if (message.role === 'assistant')
           return {
             role: 'assistant', content: [{ type: 'text', text: message.text }],

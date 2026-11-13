@@ -1,7 +1,7 @@
 import type { ModelInput } from '../contracts/index.ts';
 
 export const isStableContext = (message: ModelInput) =>
-  message.role === 'system' && !message.id && message.context !== 'turn';
+  message.role === 'system' && !message.id && !message.context;
 
 export function textWithTurnContext(current: ModelInput, context: ModelInput[]) {
   if (!context.length) return current.text;

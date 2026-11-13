@@ -39,19 +39,28 @@ The task owner declares an `outputs` configuration field. The unified trigger pa
 
 Main chat is a presentation destination. Generated replies stay in canonical context even when shown only elsewhere. TaskResults records automation and delegation results in the parent context. A task can retain its result without waking the parent, or request a parent reporting turn using its selected destinations and reporting instructions. The parent calls `echo_respond` separately for each destination. The task result remains available regardless of selected destinations; presentation receipts do not duplicate it as human input.
 
-For Pi turns with delivery targets, Chat Completions and Responses requests use
+For Pi turns with delivery targets, supported Chat Completions and Responses requests use
 `tool_choice: required` from the first step. This permits authorized work tools as
 well as `echo_respond`; it does not force an immediate reply. Callers that already
 permit a quiet outcome also expose `echo_silence`, which terminates without a send
 and is unavailable after a reply has started. Turns without delivery targets keep
-normal model output. Anthropic retains native automatic tool selection because
-forced selection is incompatible with some models and thinking settings. All
+normal model output. Anthropic and DeepSeek Chat thinking turns retain native
+automatic tool selection where forced selection is incompatible. All
 protocols retain the same completion checks: ordinary assistant text is never
 forwarded or regenerated to compensate for a missing delivery call.
 
 Responses input normalization omits empty `annotations` on replayed output-text
 parts. It preserves actual citations, tool-call/result pairs, tool payloads and
 canonical stored messages. Program-added provenance headers are not reply text.
+
+Canonical system events carry `context: event` at the model boundary. Adapters
+replay them chronologically as marked application data instead of promoting past
+task requests and retrieved references into current system instructions. Fixed
+role rules and the current turn's channel contract keep their instruction role.
+Verified prior channel replies carry their submission metadata; Pi replays these
+as historical `echo_respond` calls paired with receipts when delivery is available.
+Their message headers belong to receipt provenance, not to the reply arguments.
+This is transcript reconstruction only: no old tool runs or deliveries execute.
 
 The role editor owns task output choices. Runtime task pages show results and receipts, with inspect/retry controls. Legacy binding subscriptions are retained for compatibility, but current automation settings are migrated to task-level choices. Destination bindings and credentials are local resources, so exported role packages require output choices to be checked again after import.
 

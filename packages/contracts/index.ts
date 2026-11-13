@@ -156,8 +156,10 @@ export type ModelInput = {
   role: 'system' | 'user' | 'assistant' | 'tool';
   text: string;
   images?: ImageInput[];
-  context?: 'turn';
+  context?: 'turn' | 'event';
   messageContext?: import('./message-context.ts').MessageContext;
+  /** A verified channel submission, replayed as a past tool action, never executed. */
+  reply?: import('./delivery.ts').ReplySubmission;
 };
 export type AgentPrincipal = {
   conversationId: string;

@@ -14,11 +14,12 @@ export function protocolTranscript(
 ): TranscriptContext {
   const anthropic = protocol === 'anthropic-messages';
   const lastIndex = context.messages.length - 1;
-  const wrap = (index: number) =>
+  const isEvent = (index: number) => (context.messages[index] as { echoContext?: string }).echoContext === 'event';
+  const wrap = (index: number) => isEvent(index) ||
     index > 0 && (anthropic || (protocol === 'openai-responses' && index === lastIndex));
   if (!context.messages.some((message, index) => message.role === 'system' && wrap(index)))
     return context;
-  const initial = context.messages[0]?.role === 'system' ? context.messages[0] : undefined;
+  const initial = context.messages[0]?.role === 'system' && !isEvent(0) ? context.messages[0] : undefined;
   const tools = getCurrentTools(context.messages);
   const header = {
     role: 'system' as const,

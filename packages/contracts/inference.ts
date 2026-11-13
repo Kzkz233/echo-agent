@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { id, reasoning, profileSchema } from './index.ts';
+import { replySubmission } from './delivery.ts';
 import { reasoningStyle, reasoningLevel } from './reasoning.ts';
 export const modality = z.enum(['text', 'image', 'audio', 'video']);
 export const modelProfileSchema = z
@@ -105,7 +106,8 @@ export const generationInput = z.object({
       id: z.string().optional(),
       role: z.enum(['system', 'user', 'assistant', 'tool']),
       text: z.string(),
-      context: z.literal('turn').optional(),
+      context: z.enum(['turn', 'event']).optional(),
+      reply: replySubmission.optional(),
       images: z.array(z.object({ mimeType: z.string(), data: z.string() })).optional(),
     }),
   ),
