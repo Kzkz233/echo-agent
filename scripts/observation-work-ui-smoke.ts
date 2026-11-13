@@ -28,8 +28,8 @@ const role = await app.registry.call('persona.character.commit', { requestId: 'f
 }) }, internal);
 const work = app.router.workSessions.list('fixture').find(work => work.origin.id === 'fixture-screen')!;
 assert(work);
-await app.router.workSessions.infer({ id: work.id, task: inferenceTasks.vision, requestId: 'fixture-vision', profileId: 'fixture',
-  messages: [{ role: 'system', text: 'Synthetic instructions' }, { role: 'user', text: 'Synthetic frame metadata' }] }, new AbortController().signal);
+assert.equal(work.profileId, 'fixture');
+
 const http = await serve(app, { webRoot: join(project, 'dist/web') });
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
@@ -43,6 +43,10 @@ try {
   const rows = page.getByRole('button', { name: /Fixture visual work.*持续任务/ });
   assert.equal(await rows.count(), 1); // No synthetic duplicate "background" row.
   await rows.click();
+  await page.getByText('等待任务执行', { exact: true }).waitFor();
+  assert.match(await page.locator('.chat-title-main').innerText(), /Fixture model/);
+  await app.router.workSessions.infer({ id: work.id, task: inferenceTasks.vision, requestId: 'fixture-vision', profileId: 'fixture',
+    messages: [{ role: 'system', text: 'Synthetic instructions' }, { role: 'user', text: 'Synthetic frame metadata' }] }, new AbortController().signal);
   await page.getByText('SYNTHETIC_VISION_ACTIVITY', { exact: true }).waitFor();
   assert.equal(await page.getByRole('textbox', { name: '聊天消息' }).count(), 0);
   assert.equal(await page.getByRole('button', { name: '来源自动化任务', exact: true }).count(), 1);

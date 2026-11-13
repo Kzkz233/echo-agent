@@ -741,6 +741,7 @@ export class Observations {
       personaId: config.personaId, parentConversationId: config.conversationId, title: config.name,
       origin: { type: 'observation.tasks', id: config.id, name: config.name, owner: 'observation' },
       persistent: true, execution: 'inference',
+      profileId: config.visionProfileId,
       // A perception task has no filesystem or application-tool authority.
       contextBlocks: [],
     });

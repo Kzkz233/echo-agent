@@ -10240,5 +10240,7 @@
   ["缓存写入", "Cache write"],
   ["角色主工作会话", "Main work conversation"],
   ["阶段汇报间隔（秒）", "Report interval (seconds)"],
-  ["添加补充材料", "Include supplementary materials"]
+  ["添加补充材料", "Include supplementary materials"],
+  ["等待任务执行", "Waiting for task execution"],
+  ["执行后将显示请求、结果与用量。", "Requests, results and usage will appear after execution."]
 ]

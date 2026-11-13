@@ -145,7 +145,8 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
     (p: Profile) =>
       p.id ===
       (conversation?.binding?.profileId ??
-        (conversation?.kind === 'main' ? undefined : data.routes[inferenceTasks.chat])),
+        workSession?.profileId ??
+        (conversation?.kind === 'main' || inferenceSession ? undefined : data.routes[inferenceTasks.chat])),
   );
   const hasDraft = Boolean(text.trim() || attachments.items.length);
   const steering = !dialogue && busy && sendMode === 'steer';
@@ -803,10 +804,10 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
               ) : (
                 visibleMessages.length === 0 && (
                   <EmptyState
-                    title={t('和 {name} 聊聊吧', { name: persona?.name ?? 'Echo' })}
+                    title={inferenceSession ? t('等待任务执行') : t('和 {name} 聊聊吧', { name: persona?.name ?? 'Echo' })}
                     icon="chat"
                   >
-                    {t('从一个想法、一件小事开始。')}
+                    {t(inferenceSession ? '执行后将显示请求、结果与用量。' : '从一个想法、一件小事开始。')}
                   </EmptyState>
                 )
               )}

@@ -21,6 +21,7 @@ export type WorkSession = {
   error?: string;
   persistent?: boolean;
   execution?: 'agent' | 'inference';
+  profileId?: string;
 };
 
 /** Owns agent work sessions, independently of who triggered the work. */
@@ -67,6 +68,7 @@ export class WorkSessions {
     contextBlocks?: string[];
     persistent?: boolean;
     execution?: 'agent' | 'inference';
+    profileId?: string;
   }) {
     const store = this.router.store;
     const parent = store.conversation(input.parentConversationId);
@@ -93,6 +95,7 @@ export class WorkSessions {
       parentConversationId: input.parentConversationId, title: input.title, origin: input.origin,
       state: previous?.state ?? 'idle', persistent: input.persistent ?? true,
       execution: input.execution ?? previous?.execution ?? 'agent',
+      profileId: input.profileId ?? previous?.profileId,
       createdAt: previous?.createdAt ?? now, updatedAt: now };
     store.put('work-sessions', row.id, row);
     this.router.events.emit('work.updated', { id: row.id, personaId: row.personaId });
