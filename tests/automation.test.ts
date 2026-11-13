@@ -68,7 +68,7 @@ test('Review renders registered prompt fields and scopes the model guidance to t
   const observationField = initial.fields.find(
     (field: { key: string }) => field.key === 'sourcePrompt.observation.source',
   );
-  assert.deepEqual(observationField.when, { key: 'sourceIds', value: 'observation.source' });
+  assert.deepEqual(observationField.when, [{ key: 'includeSources', value: true }, { key: 'sourceIds', value: 'observation.source' }]);
   assert(
     initial.fields.some((field: { key: string }) => field.key === 'targetPrompt.reflections.state'),
   );
@@ -82,6 +82,7 @@ test('Review renders registered prompt fields and scopes the model guidance to t
       packetChars: 2000,
       prompt: 'GLOBAL_RULE',
       sourceIds: ['observation.source'],
+      includeSources: true,
       targetIds: ['reflections.state'],
       'sourcePrompt.core.conversation': 'CHAT_RULE',
       'sourcePrompt.observation.source': 'OBSERVATION_RULE',

@@ -5,6 +5,7 @@ import { Button, EmptyState, useConfirm, PathInput } from './ui.tsx';
 import { ModelChoice } from './model-choice.tsx';
 import { ReasoningSelect } from './reasoning-select.tsx';
 import { WorkContextSettings } from './work-settings.tsx';
+import { WorkConversationStatus } from './conversation-status.tsx';
 import { ChatView } from './chat-view.tsx';
 import { ConversationInteractions, subtaskApprovalLabel } from './host-interactions.tsx';
 const RunTrace = lazy(() => import('./run-trace.tsx'));
@@ -480,6 +481,7 @@ export function DelegationView({
             <span className="state-pill">{t(states[task.state])}</span>
           </div>
           <p>{task.acceptance}</p>
+          <WorkConversationStatus data={data} conversationId={task.workerConversationId} />
           <div className="row wrap">
             <span className="state-pill">
               {t(task.lifetime === 'continuous' ? '持续任务' : '一次性任务')}

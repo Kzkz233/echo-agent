@@ -98,10 +98,6 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
       label: ({ running: '执行中', waiting: '等待确认', idle: '等待触发', failed: '执行失败',
         unknown: '结果待核对', cancelled: '已停止' } as Record<string, string>)[work.state],
     })),
-    ...automations.filter((task: any) => task.type === 'observation.tasks').map((task: any) => ({
-      ...task, key: 'background-' + task.key, kind: 'worker', background: true, lifetime: 'continuous',
-      inactive: !task.item.enabled || task.item.suspendedByCharacter,
-    })),
     ...workers.map((task: any) => ({
       key: task.id,
       id: task.id,
@@ -149,7 +145,7 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
         >
           {t('自动化')}
         </button>
-        {delegation && (
+        {(delegation || workSessions.length > 0) && (
           <button
             role="tab"
             aria-selected={view === 'work'}

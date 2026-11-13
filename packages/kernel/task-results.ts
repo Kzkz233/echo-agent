@@ -9,6 +9,7 @@ export type TaskResultInput = {
   task: string; report: boolean; delivery?: DeliveryPlan; reportPrompt?: string;
   reasoning?: import('../contracts/index.ts').Reasoning; expiresAt?: number;
   bubble?: boolean; localOnly?: boolean; triggerKind?: string;
+  context?: { workSessionId?: string; evidenceIds?: string[]; reviewable?: boolean };
 };
 /** One durable, model-visible result; waking the role is a separate decision. */
 export class TaskResults {
@@ -37,9 +38,11 @@ export class TaskResults {
     if (!messageId) store.transaction(() => {
       messageId = store.append(input.conversationId, 'system', input.source, text, undefined, {
         taskResultId: input.id, report: input.report,
+        taskResult: { id: input.id, task: input.task, text: input.text, ...input.context },
         messageContext,
       }).id;
       store.saveReceipt(key, { text: input.text, conversationId: input.conversationId,
+        context: input.context,
         report: input.report, messageId, composedText: text,
         request: { delivery: input.delivery, reasoning: input.reasoning, expiresAt: input.expiresAt,
           bubble: input.bubble, localOnly: input.localOnly, triggerKind: input.triggerKind,

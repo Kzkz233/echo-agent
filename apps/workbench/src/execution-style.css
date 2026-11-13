@@ -116,8 +116,8 @@
 .conversation-context-track { stroke: var(--border); }
 .conversation-context-fill { stroke: var(--accent); stroke-linecap: round; }
 .conversation-context-card {
-  position: absolute; z-index: 35; inset-inline-end: 0; bottom: calc(100% + 8px);
-  width: min(320px, 100%); padding: 15px 16px; border-radius: 14px;
+  position: fixed; z-index: 1000; max-height: min(560px, calc(100vh - 24px)); overflow: auto;
+  width: min(360px, calc(100vw - 24px)); padding: 15px 16px; border-radius: 14px; font-size: 12px;
   background: var(--panel); color: var(--muted); border: 1px solid var(--border);
   box-shadow: 0 9px 30px #18223c24;
 }

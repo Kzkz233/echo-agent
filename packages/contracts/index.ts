@@ -174,6 +174,7 @@ export type GenerateRequest = {
   onInteraction?: (request: HostInteraction, signal: AbortSignal) => Promise<HostAnswer>;
   signal: AbortSignal;
   onDelta?: (text: string) => void;
+  onMetrics?: (metrics: GenerationMetrics) => void;
   onNativeRun?: (id: string) => void;
   onItem?: (item: ExecutionUpdate) => void;
   respond?: (input: import('./delivery.ts').ReplySubmission) => {
@@ -319,6 +320,8 @@ export const browserAllowRuleSchema = z.object({
 });
 export const observationConfigSchema = z.object({
   outputTargets: outputTargets.optional(),
+  report: z.boolean().default(true),
+  reportIntervalSeconds: z.number().int().min(30).max(86400).default(300),
   id: id.default('default'),
   name: z.string().trim().min(1).max(80).default('桌面观察'),
   ...observationPromptsSchema.shape,
@@ -377,6 +380,8 @@ export type Observation = {
   summary: string;
   interesting: boolean;
   attention?: string;
+  periodSummary?: string;
+  periodAfter?: string;
   latestFrame?: {
     source: string;
     title: string;

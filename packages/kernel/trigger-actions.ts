@@ -28,6 +28,7 @@ export const triggerAction = z.discriminatedUnion('action', [
     delivery: deliveryPlan.optional(),
     recordOnly: z.boolean().default(false),
     reportPrompt: z.string().max(10000).optional(),
+    resultContext: z.object({ workSessionId: id.optional(), evidenceIds: z.array(z.string().max(512)).max(100).optional(), reviewable: z.boolean().optional() }).optional(),
     messageSource: z.enum(['observation', 'care', 'review', 'trigger', 'handoff']).optional(),
     kind: id,
     requestId: id,
@@ -172,6 +173,7 @@ export class TriggerActions {
     return this.router.taskResults.submit({ id: requestId, conversationId: input.conversationId,
       text: input.text, source: messageSource, task: source.label.slice(0, 160),
       report: !input.recordOnly, reportPrompt: input.reportPrompt, delivery: plan as any,
+      context: input.resultContext,
       reasoning: input.reasoning, expiresAt: input.expiresAt,
       bubble: input.bubble, localOnly: input.localOnly, triggerKind: input.kind }, signal);
   }

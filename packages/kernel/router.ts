@@ -950,6 +950,9 @@ export class Router {
   }
   send(input: Submission, signal?: AbortSignal): Promise<Run> {
     if (this.updating) return Promise.reject(new EchoError('updating', 'Echo 正在重启更新，请稍后执行。'));
+    if (this.store.documents<{ conversationId: string; execution?: string }>('work-sessions')
+      .some(work => work.conversationId === input.conversationId && work.execution === 'inference'))
+      return Promise.reject(new EchoError('work_managed', '此子任务由来源自动化任务执行，请在来源任务中配置。'));
     const task = this.execute(input, signal);
     this.tasks.add(task);
     void task.finally(() => this.tasks.delete(task)).catch(() => {});
@@ -1300,6 +1303,12 @@ export class Router {
           compaction: conversationCompaction(this.store, conversation),
           reasoning: input.reasoning ?? conversation.reasoning,
           signal: combined,
+          onMetrics: metrics => {
+            if (combined.aborted || !run || this.store.run(run.id)?.state !== 'running') return;
+            run = { ...run, meta: { ...run.meta, generationMetrics: metrics } };
+            this.store.updateRun(run);
+            this.events.emit('run.metrics', { run });
+          },
           ...(targets.length ? { respond, replyTargets: targets.map(({ id }) => id) } : {}),
           ...(['human', 'delegation', 'group', 'handoff', 'review', 'observation', 'care', 'trigger'].includes(source)
             ? {
@@ -1354,6 +1363,7 @@ export class Router {
                 ? 'cancelled'
                 : 'failed',
           error: e instanceof Error ? e.message : '执行失败',
+          meta: { ...run.meta, ...((e as { metrics?: unknown })?.metrics ? { generationMetrics: (e as { metrics: unknown }).metrics } : {}) },
         };
         this.store.updateRun(run);
         this.execution.finish(run.id, run.state as 'failed' | 'cancelled' | 'unknown');
@@ -1371,6 +1381,7 @@ export class Router {
     this.running.get(conversationId)?.abort();
   }
   private recordReply(run: Run, text: string, meta: Record<string, unknown> = {}, decorated?: { text: string; image?: ReplyImage }) {
+    const taskResult = this.store.receipt('task-result.' + run.requestId);
     const target = (meta.delivery as DeliveryPlan | undefined)?.targets[0];
     const reply = decorated ?? this.replyDecorator?.(run, text, target) ?? { text };
     invariant(reply.text.trim(), 'reply_empty', '回复正文为空。');
@@ -1382,6 +1393,7 @@ export class Router {
     const message = this.store.append(run.conversationId, 'assistant', run.source === 'human' ? 'chat' : run.source, reply.text, run.id, {
       ...(run.meta.delivery ? { delivery: run.meta.delivery } : {}),
       ...(run.meta.workSession ? { workSession: true } : {}),
+      ...(taskResult ? { taskResultId: run.requestId, taskResultReviewable: taskResult.context?.reviewable !== false } : {}),
       ...(run.meta.triggerKind ? { triggerKind: run.meta.triggerKind } : {}),
       ...(reply.image ? { image: reply.image } : {}),
       ...meta,

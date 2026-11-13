@@ -2,6 +2,8 @@
 
 Delegated tasks and Agent automation use the same `WorkSessions` runtime. A work session belongs to one character and has one parent conversation, one backend binding and at most one active execution. Its origin identifies the task type, task ID and owning plugin. The task workspace shows these sessions alongside manually delegated work.
 
+API-backed task steps also use this lifecycle (`execution: inference`). They call the registered inference task directly, with no second Agent or tool authority. Their explicit request context is independent of the retained transcript: keeping a persistent work record does not replay its complete history. Text and image counts are retained; screenshot bytes remain transient. The owning automation is the only execution/configuration entry point. Cancellation, character suspension and plugin shutdown revoke outstanding results.
+
 An automation owns its execution settings. Its work-session view links to that automation instead of offering another editable configuration. Continuing tasks reuse their conversation; tasks configured for fresh context create a separate session for each run. Paused Review batches retain their frozen materials without preventing later batches from collecting new material.
 
 ## Context and limits
@@ -20,6 +22,8 @@ Review reads sources through `review.readMaterial`, checkpoints each packet, sea
 
 `TaskResults` records one durable, model-visible result in the parent conversation. Its idempotency key prevents duplicate records and inference. Channel presentation records remain separate.
 
+The existing parent-history row carries the result body, owning work session, optional evidence references and whether it is eligible as memory evidence. These are metadata on the same message, not another source database. Instructions for reporting remain separate from the evidence body. Maintenance results can remain visible to the parent without becoming new memory evidence; their channel expressions inherit that classification.
+
 - **Report results off:** retain the result without waking the character or sending to a channel.
 - **Report results on:** wake or queue the parent to report through the selected channels, using the task's reporting instructions and `echo_respond`.
 
@@ -32,3 +36,15 @@ Interrupted reviews include a count of journal-confirmed ordinary-memory operati
 Application schedules, including mailbox synchronization, remain outside character configuration. Characters choose mailbox access and reminder tasks. Editing, disabling or removing a character's mail capability does not alter application synchronization plans.
 
 General prompt tasks are supplied by the Task System through the ordinary automation type registry. `delegation.schedule` creates a prompt task, while `automation.manage` manages registered task types within the current character's authorization. Plugins still supply specialized scheduling, material readers and execution logic; the runtime does not execute arbitrary uploaded scripts.
+
+## Observation and memory sources
+
+Observation uses a persistent API work session per character/task/parent binding. The existing visual request updates both the current-frame description and a bounded rolling overview of the unreported period. Previous-period state is cleared at the next reporting boundary; rejected context is quarantined from both ordinary history and the overview. Legacy providers that omit the overview still return usable frame descriptions. A bounded excerpt is explicitly identified when it cannot represent every retained record.
+
+At the configured interval, new activity becomes a concise TaskResult. With reporting enabled and fresh interesting content, the parent is woken through the existing trigger/result path, retaining the character's interaction cooldown and channel choices. Otherwise it is recorded without inference. Unchanged results are coalesced. A durable acceptance advances the result cursor even if the parent's generation or channel delivery later fails, preventing automatic replay of the same evidence. Raw observations remain available through the existing optional material provider.
+
+New Review tasks default to the main work conversation and no supplementary sources. Review reads durable incremental history, including eligible TaskResult bodies, independently of model-context compaction. Task-linked channel replies retain their shared origin and are labelled as expressions of the same result rather than independent evidence. Registered supplementary sources and explicit legacy selections remain supported; disabling supplementary reading preserves their saved selections, prompts and cursors.
+
+## Usage inspection
+
+Main and child conversations share the context inspector. Agent sessions display the effective inherited or task-specific compaction policy; API steps display the known model window and do not invent one if absent. Context occupancy uses the latest request. Execution totals sum all reported model steps, including steps completed before a later failure. Missing provider usage remains unknown. Stored totals describe the execution, not a billing guarantee or a count of the entire retained transcript.

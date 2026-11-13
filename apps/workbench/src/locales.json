@@ -10230,5 +10230,15 @@
   [
     "已处理",
     "Processed"
-  ]
+  ],
+  ["任务指引", "Task instructions"],
+  ["任务输入", "Task input"],
+  ["本次执行累计用量", "Usage across this execution"],
+  ["输入", "Input"],
+  ["输出", "Output"],
+  ["缓存读取", "Cache read"],
+  ["缓存写入", "Cache write"],
+  ["角色主工作会话", "Main work conversation"],
+  ["阶段汇报间隔（秒）", "Report interval (seconds)"],
+  ["添加补充材料", "Include supplementary materials"]
 ]

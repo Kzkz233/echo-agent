@@ -83,12 +83,13 @@ const taskSchema = reviewConfigSchema.extend({
     .optional(),
   name: z.string().trim().min(1).max(80).default('记忆整理'),
   personaId: id,
-  conversationScope: z.enum(['marked', 'selected']).default('marked'),
+  conversationScope: z.enum(['main', 'marked', 'selected']).default('main'),
   conversationIds: z.array(id).max(100).default([]),
   sourcePrompts: z.record(id, z.string().max(10000)).default({}),
   targetPrompts: z.record(id, z.string().max(10000)).default({}),
   reportPrompt: z.string().max(10000).default(''),
   sourceStreams: z.record(id, z.array(id).max(100)).default({}),
+  includeSources: z.boolean().optional(),
 });
 type ReviewTask = z.infer<typeof taskSchema>;
 type Draft = z.input<typeof draftSchema>;
@@ -212,7 +213,8 @@ export class Reviews {
   }
   tasks(): ReviewTask[] {
     const saved = this.store.get<ReviewTask[] | null>('review.tasks', null);
-    if (saved) return saved.map(task => taskSchema.parse(task));
+    if (saved) return saved.map(task => taskSchema.parse({ ...task,
+      conversationScope: task.conversationScope ?? 'marked' }));
     if (!this.store.get('review.config', null)) return [];
     const legacy = this.legacyConfig();
     const personas = new Set(
@@ -229,6 +231,7 @@ export class Reviews {
     return taskSchema.parse({
       ...policy,
       runtimeVersion: 1,
+      conversationScope: 'marked',
       personaId,
       targetPrompts: policy.targetIds.includes('reflections.state')
         ? {
@@ -381,12 +384,15 @@ export class Reviews {
     this.publishRetention(task.personaId);
   }
   conversations(task: ReviewTask) {
+    const mainId = this.store.document<{ mainConversationId: string }>('characters', task.personaId)?.mainConversationId
+      ?? this.store.conversations().find(c => c.personaId === task.personaId && c.kind === 'main')?.id;
     return this.store
       .conversations()
       .filter(
         (c) =>
           c.personaId === task.personaId &&
-          (task.conversationScope === 'marked' ? c.review : task.conversationIds.includes(c.id)),
+          (task.conversationScope === 'main' ? (mainId ? c.id === mainId : c.review && c.kind !== 'worker')
+            : task.conversationScope === 'marked' ? c.review : task.conversationIds.includes(c.id)),
       );
   }
   private publishRetention(personaId: string) {
@@ -518,12 +524,18 @@ export class Reviews {
     const selected: Material[] = [];
     for (const conversation of this.conversations(policy)) {
       const watermark = this.store.get<number>(this.conversationCursor(policy, conversation.id), 0);
-      for (const message of this.store.allMessages(conversation.id, watermark))
+      for (const message of this.store.allMessages(conversation.id, watermark)) {
+        const taskResult = message.meta.taskResult as { id: string; task: string; text: string; workSessionId?: string; reviewable?: boolean } | undefined;
+        if (taskResult && taskResult.reviewable !== false && (!before || message.createdAt < before)) {
+          selected.push({ id: message.id, personaId, text: `后台任务结果（${taskResult.task}；来源 ${taskResult.id}${taskResult.workSessionId ? '；子任务 ' + taskResult.workSessionId : ''}）：${taskResult.text}`,
+            timestamp: message.createdAt, conversationId: conversation.id, seq: message.seq });
+          continue;
+        }
         if (
           (!before || message.createdAt < before) &&
+          message.meta.taskResultReviewable !== false &&
           (message.source === 'human' ||
-            (message.role === 'assistant' &&
-              ['chat', 'observation', 'care'].includes(message.source)))
+            (message.role === 'assistant' && !message.meta.workSession))
         ) {
           const observationRun =
             message.source === 'observation' && message.runId
@@ -543,14 +555,16 @@ export class Reviews {
           selected.push({
             id: message.id,
             personaId,
-            text: `${author}：${message.text}`,
+            text: `${author}${message.meta.taskResultId ? `（同一任务 ${message.meta.taskResultId} 的渠道表达，不是独立事实证据）` : ''}：${message.text}`,
             timestamp: message.createdAt,
             conversationId: conversation.id,
             seq: message.seq,
           });
         }
+      }
     }
     for (const source of this.sources.entries.values()) {
+      if (policy.includeSources === false) continue;
       if (!policy.sourceIds.includes(source.id)) continue;
       const fallback = this.store.get<{ timestamp: string; id: string }>(
         materialWatermarkKey(source.id, personaId, undefined, policy.id),
@@ -1271,6 +1285,7 @@ export class Reviews {
           action: 'conversation', kind: outcome === 'failed' ? 'review.failed' : 'review.completed', requestId: key, conversationId,
           delivery: targetIds && job.delivery ? { ...job.delivery, targets: job.delivery.targets.filter(target => targetIds.includes(target.id)) } : job.delivery,
           text: notice.text, messageSource: 'review', recordOnly: !(job.policy?.report ?? true),
+          resultContext: { workSessionId: 'review-' + (job.policy ?? this.policy(job.personaId)).id, reviewable: false },
           reportPrompt: (job.policy?.report ?? true) ? job.policy?.reportPrompt : undefined,
           outputTargets: targetIds ?? (job.policy ?? this.policy(job.personaId)).outputTargets,
           task: { type: 'review.policies', id: (job.policy ?? this.policy(job.personaId)).id },
@@ -1785,7 +1800,8 @@ export class Reviews {
                 corePrompt: coreGuidance,
                 contextMode: 'continue',
                 timezone: configuredTimezone(this.store),
-                conversationScope: 'marked',
+                conversationScope: 'main',
+                includeSources: false,
                 conversationIds: [],
                 ...modes(),
               },
@@ -1812,6 +1828,7 @@ export class Reviews {
                   label: '会话材料范围',
                   kind: 'select',
                   options: [
+                    { value: 'main', label: '角色主工作会话' },
                     { value: 'marked', label: '使用会话的纳入整理开关' },
                     { value: 'selected', label: '只读取所选会话' },
                   ],
@@ -1830,9 +1847,13 @@ export class Reviews {
                   kind: 'textarea',
                 },
                 {
+                  key: 'includeSources', label: '添加补充材料', kind: 'boolean',
+                },
+                {
                   key: 'sourceIds', portability: 'value',
                   label: '可选材料来源',
                   kind: 'multi',
+                  when: { key: 'includeSources', value: true },
                   options: sources.map((s) => ({
                     value: s.id,
                     label: s.label ?? s.id,
@@ -1847,7 +1868,7 @@ export class Reviews {
                       key: mode,
                       label: (source.label ?? source.id) + ' · ' + '任务范围',
                       kind: 'select' as const,
-                      when: enabled,
+                      when: [{ key: 'includeSources', value: true }, enabled],
                       options: [
                         { value: 'all', label: '此角色的全部任务' },
                         { value: 'selected', label: '只读取所选任务' },
@@ -1857,7 +1878,7 @@ export class Reviews {
                       key: 'streams.' + source.id,
                       label: (source.label ?? source.id) + ' · ' + '所选任务',
                       kind: 'multi' as const,
-                      when: [enabled, { key: mode, value: 'selected' }],
+                      when: [{ key: 'includeSources', value: true }, enabled, { key: mode, value: 'selected' }],
                       filterBy: 'personaId',
                       options: streams.map((row) => ({
                         value: row.id,
@@ -1871,7 +1892,7 @@ export class Reviews {
                   key: 'sourcePrompt.' + source.id,
                   label: (source.label ?? source.id) + ' · ' + '材料整理指引',
                   kind: 'textarea' as const,
-                  when: { key: 'sourceIds', portability: 'value', value: source.id },
+                  when: [{ key: 'includeSources', value: true }, { key: 'sourceIds', portability: 'value', value: source.id }],
                 })),
                 {
                   key: 'targetIds', portability: 'value',
@@ -1986,6 +2007,7 @@ export class Reviews {
                   persistedSettings: task,
                   settings: {
                     ...task,
+                    includeSources: task.includeSources ?? Boolean(task.sourceIds.length),
                     memoryOperations: task.memoryOperations ?? ['add'],
                     memoryPrompt: task.memoryPrompt ?? ordinaryGuidance,
                     corePrompt: task.corePrompt ?? coreGuidance,

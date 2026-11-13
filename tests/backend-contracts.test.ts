@@ -469,12 +469,16 @@ test('DSH keeps a query timeout unknown after request submission', async (t) => 
 });
 test('embedded pi completes a genuine tool loop against a local synthetic model', async (t) => {
   const app = await setup(t);
-  let calls = 0;
+  let calls = 0, failSecond = false;
   const server = createServer(async (req, res) => {
     let body = '';
     for await (const part of req) body += part;
     const request = JSON.parse(body);
     calls++;
+    if (failSecond && calls === 2) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: { message: 'Synthetic upstream failure' } })); return;
+    }
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     const frame = (data: any) =>
       res.write(
@@ -547,11 +551,19 @@ test('embedded pi completes a genuine tool loop against a local synthetic model'
   assert.equal(calls, 2);
   assert.equal(result.metrics?.modelSteps, 2);
   assert.equal(result.metrics?.inputTokens, 120);
+  assert.deepEqual(result.metrics?.totalUsage, { input: 200, output: 18, cacheRead: 64, cacheWrite: 0 });
   assert.equal(result.metrics?.cacheHitPercent, 32);
   assert((result.metrics?.tokensPerSecond ?? 0) > 0);
   assert(Object.values(result.metrics?.context ?? {}).every((count) => count > 0));
   assert(result.metrics?.details?.some((item) => item.group === 'tools' && item.source === 'system_status'));
   assert(result.metrics?.details?.some((item) => item.group === 'turn' && item.source === 'execution'));
+  calls = 0; failSecond = true;
+  await assert.rejects(new PiBackend(app.registry, async () => undefined).generate({ profile,
+    messages: [{ role: 'user', text: 'Check system status.' }], requestId: 'pi-failure-usage',
+    signal: new AbortController().signal }), (error: any) => {
+      assert.deepEqual(error.metrics?.totalUsage, { input: 80, output: 7, cacheRead: 0, cacheWrite: 0 });
+      return true;
+    });
 });
 
 test('pi can generate from an application signal without changing its author to human', async (t) => {

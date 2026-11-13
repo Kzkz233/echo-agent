@@ -119,6 +119,8 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
   current.current = selected;
   const stored = data.conversations.find((c: Conversation) => c.id === selected);
   const conversation = stored ? { ...stored, ...overrides[selected] } : undefined;
+  const workSession = (data.workSessions ?? []).find((work: any) => work.conversationId === selected);
+  const inferenceSession = workSession?.execution === 'inference';
   const persona = data.personas.find((p: Persona) => p.id === conversation?.personaId);
   const inactive = data.characterActivities?.[conversation?.personaId]?.enabled === false;
   const managed =
@@ -150,8 +152,8 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
   const toolMode = conversation?.permissions?.pi?.tools ?? 'read';
   const modelWindow = backend?.modelOptions?.contextWindowTokens;
   const contextLimit = Math.min(
-    conversation?.compaction?.triggerTokens ?? defaultContextLimit,
-    typeof modelWindow === 'number' ? Math.max(0, modelWindow - backend.maxOutputTokens) : Infinity,
+    workSession?.compaction?.triggerTokens ?? conversation?.compaction?.triggerTokens ?? defaultContextLimit,
+    typeof modelWindow === 'number' ? Math.max(0, modelWindow - (conversation?.maxOutputTokens ?? backend.maxOutputTokens)) : Infinity,
   );
   const statusRun = lastRun?.conversationId === selected && lastRun?.profileId === backend?.id
     ? lastRun : undefined;
@@ -196,7 +198,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
     for (const run of runs as Run[]) if (!streamsInChat(run)) hiddenRuns.current.add(run.id);
     setBusy(response.busy || runs.some((run: any) => run.state === 'running'));
     setActiveRun(runs.find((run: any) => run.state === 'running')?.id);
-    setLastRun((runs as Run[]).find((run) => run.state === 'succeeded'));
+    setLastRun((runs as Run[]).find((run) => run.meta.generationMetrics || run.state === 'succeeded'));
     setFailedRuns(Object.fromEntries(
       (runs as Run[])
         .filter((run) => run.state === 'failed' && run.error)
@@ -229,6 +231,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
         return;
       }
       if ((e.data.conversationId ?? e.data.run?.conversationId) !== selected) return;
+      if (e.type === 'run.metrics') setLastRun(e.data.run);
       if (e.type === 'run.started') {
         if (!streamsInChat(e.data.run)) hiddenRuns.current.add(e.data.run.id);
         setBusy(true);
@@ -962,6 +965,8 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
               </button>
             )}
             <div className="chat-composer-area">
+              {inferenceSession ? <ConversationStatus key={selected} run={statusRun}
+                limit={typeof statusRun?.meta.contextLimit === 'number' ? statusRun.meta.contextLimit : undefined} /> : <>
               <ConversationInteractions key={selected} id={selected} act={act} openSession={dialogue ? openSession : undefined} />
               {!backend ? (
                 <div className="composer-warning">
@@ -1148,7 +1153,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                         )}
                       </span>
                     )}
-                    {!dialogue && conversation.kind === 'main' && backend && (
+                    {!dialogue && backend && (
                       <ConversationStatus key={selected} run={statusRun} limit={contextLimit} />
                     )}
                     {!dialogue && busy && (
@@ -1205,6 +1210,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                   </div>
                 </div>
               </div>
+              </>}
             </div>
           </>
         )}

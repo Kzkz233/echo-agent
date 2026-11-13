@@ -236,6 +236,7 @@ export class PiBackend implements Backend {
     let contextBreakdown: ContextBreakdown = { system: 0, tools: 0, messages: 0 };
     let details: ContextDetail[] | undefined;
     let modelSteps = 0, timedOutput = 0, generationMs = 0;
+    const totalUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
     let lastInput = 0, totalInput = 0, cachedInput = 0, cacheReported = false, cacheComplete = true;
     const agent = new Agent({
       ...(request.compaction && request.toolPolicy !== 'none' ? {
@@ -417,18 +418,26 @@ export class PiBackend implements Backend {
         modelSteps++;
         lastInput = usage.input + usage.cacheRead + usage.cacheWrite;
         totalInput += lastInput;
+        totalUsage.input += lastInput; totalUsage.output += usage.output;
+        totalUsage.cacheRead += usage.cacheRead; totalUsage.cacheWrite += usage.cacheWrite;
         cachedInput += usage.cacheRead;
         cacheComplete &&= lastInput > 0 && (cacheReported || usage.cacheRead > 0);
         if (durationMs && durationMs > 0 && usage.output > 0) {
           timedOutput += usage.output;
           generationMs += durationMs;
         }
+        request.onMetrics?.(metrics());
       }
       const item = piEvent(event);
       if (item) request.onItem?.(item);
       if (event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta')
         request.onDelta?.(event.assistantMessageEvent.delta);
     });
+    const metrics = () => ({ context: contextBreakdown, ...(details ? { details } : {}), modelSteps,
+      ...(lastInput > 0 ? { inputTokens: lastInput } : {}),
+      ...(modelSteps ? { totalUsage: { ...totalUsage } } : {}),
+      ...(generationMs > 0 ? { tokensPerSecond: timedOutput * 1000 / generationMs } : {}),
+      ...(cacheComplete && totalInput > 0 ? { cacheHitPercent: Math.min(100, cachedInput * 100 / totalInput) } : {}) });
     const abort = () => agent.abort();
     request.signal.addEventListener('abort', abort, { once: true });
     const started = Date.now();
@@ -488,20 +497,13 @@ export class PiBackend implements Backend {
       return {
         text,
         usage: result.usage,
-        metrics: {
-          context: contextBreakdown,
-          ...(details ? { details } : {}),
-          modelSteps,
-          ...(lastInput > 0 ? { inputTokens: lastInput } : {}),
-          ...(generationMs > 0 ? { tokensPerSecond: timedOutput * 1000 / generationMs } : {}),
-          ...(cacheComplete && totalInput > 0 ? { cacheHitPercent: Math.min(100, cachedInput * 100 / totalInput) } : {}),
-        },
+        metrics: metrics(),
       };
     } catch (error) {
-      if (error instanceof EchoError) throw error;
+      if (error instanceof EchoError) throw Object.assign(error, { metrics: metrics() });
       let message = error instanceof Error ? error.message : 'Pi execution interrupted';
       if (key) message = message.replaceAll(key, '[redacted]');
-      throw new EchoError('pi_failed', message.slice(0, 500), mutationPossible);
+      throw Object.assign(new EchoError('pi_failed', message.slice(0, 500), mutationPossible), { metrics: metrics() });
     } finally {
       this.active.delete(request.requestId);
       off();

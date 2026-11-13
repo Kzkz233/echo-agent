@@ -12,6 +12,8 @@ export type GenerationMetrics = {
   modelSteps: number;
   tokensPerSecond?: number;
   cacheHitPercent?: number;
+  /** Sum of all model requests in this execution; inputTokens above is the latest context. */
+  totalUsage?: { input: number; output: number; cacheRead: number; cacheWrite: number };
 };
 
 export function estimateTokens(text: string) {
