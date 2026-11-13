@@ -160,6 +160,7 @@ export type ModelInput = {
   messageContext?: import('./message-context.ts').MessageContext;
   /** A verified channel submission, replayed as a past tool action, never executed. */
   reply?: import('./delivery.ts').ReplySubmission;
+  native?: import('./transcript.ts').TranscriptMessage;
 };
 export type AgentPrincipal = {
   conversationId: string;
@@ -182,6 +183,9 @@ export type GenerateRequest = {
   onMetrics?: (metrics: GenerationMetrics) => void;
   onNativeRun?: (id: string) => void;
   onItem?: (item: ExecutionUpdate) => void;
+  /** Commit finalized messages before tool execution/the following model step. */
+  onTranscript?: (message: import('./transcript.ts').TranscriptMessage) => string;
+  onCompaction?: (input: { messageIds: string[]; summary: string }) => void;
   respond?: (input: import('./delivery.ts').ReplySubmission) => {
     accepted: true; completedTargets?: string[]; remainingTargets?: string[];
   };

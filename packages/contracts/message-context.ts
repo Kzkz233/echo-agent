@@ -66,7 +66,9 @@ const value = (text: string) => (/[\r\n\[\]|"\\]/.test(text) ? JSON.stringify(te
 export function renderMessageText(message: {
   text: string;
   messageContext?: MessageContext;
+  native?: import('./transcript.ts').TranscriptMessage;
 }): string {
+  if (message.native) return JSON.stringify(message.native);
   const context = message.messageContext;
   if (!context) return message.text;
   const fields = [

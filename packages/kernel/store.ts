@@ -3,6 +3,8 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Binding, Conversation, Message, Run } from '../contracts/index.ts';
+import { persistentTranscript, transcriptText, type TranscriptMessage } from '../contracts/transcript.ts';
+import { normalizeHistory } from './conversation-history.ts';
 
 export class Store {
   readonly db: DatabaseSync;
@@ -24,6 +26,29 @@ export class Store {
       CREATE INDEX IF NOT EXISTS queued_inputs ON receipts(json_extract(data,'$.input.conversationId'),json_extract(data,'$.createdAt'))
         WHERE json_extract(data,'$.kind')='input' AND json_extract(data,'$.state')='queued';
     `);
+    this.db.exec(`CREATE TABLE IF NOT EXISTS session_entries (
+      id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      seq INTEGER NOT NULL, message_id TEXT REFERENCES messages(id) ON DELETE CASCADE,
+      run_id TEXT, data TEXT, UNIQUE(conversation_id,seq));
+      CREATE INDEX IF NOT EXISTS session_entries_run ON session_entries(conversation_id,run_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS session_entries_message ON session_entries(message_id);`);
+    if (!this.get('session.transcript.v1', false)) this.transaction(() => {
+      // Add references; never rewrite original messages, sequence numbers or data.
+      const insert = this.db.prepare(`INSERT OR IGNORE INTO session_entries
+        (id,conversation_id,seq,message_id,run_id) VALUES (?,?,
+        (SELECT COALESCE(MAX(seq),0)+1 FROM session_entries WHERE conversation_id=?),?,?)`);
+      for (const row of this.db.prepare('SELECT id,conversation_id,data FROM messages ORDER BY conversation_id,seq').all() as
+        { id: string; conversation_id: string; data: string }[])
+        insert.run('message:' + row.id, row.conversation_id, row.conversation_id, row.id, JSON.parse(row.data).runId ?? null);
+      this.set('session.transcript.v1', true);
+    });
+    // The reference and message are committed atomically, including old callers
+    // that append through Store rather than a particular backend or feature.
+    this.db.exec(`CREATE TRIGGER IF NOT EXISTS session_message_insert AFTER INSERT ON messages BEGIN
+      INSERT INTO session_entries (id,conversation_id,seq,message_id,run_id)
+      VALUES ('message:'||NEW.id, NEW.conversation_id,
+        (SELECT COALESCE(MAX(seq),0)+1 FROM session_entries WHERE conversation_id=NEW.conversation_id),
+        NEW.id,json_extract(NEW.data,'$.runId')); END;`);
     for (const run of this.unresolved())
       if (run.state === 'running')
         this.updateRun({
@@ -147,6 +172,48 @@ export class Store {
         .prepare('SELECT data FROM messages WHERE conversation_id=? AND seq>? ORDER BY seq')
         .all(id, after) as { data: string }[]
     ).map((r) => JSON.parse(r.data));
+  }
+  appendTranscript(conversationId: string, runId: string, value: TranscriptMessage): string {
+    const id = 'native-' + randomUUID();
+    const data = persistentTranscript(value);
+    this.db.prepare(`INSERT INTO session_entries (id,conversation_id,seq,run_id,data)
+      VALUES (?,?,(SELECT COALESCE(MAX(seq),0)+1 FROM session_entries WHERE conversation_id=?),?,?)`)
+      .run(id, conversationId, conversationId, runId, JSON.stringify(data));
+    return id;
+  }
+  /** Model history is a projection of input/delivery facts and native messages.
+   * A rendered reply does not duplicate the same run's native assistant action. */
+  modelMessages(id: string, after = 0, limit = 10000, recent = false): Message[] {
+    const rows = this.db.prepare(`SELECT e.id,e.seq,e.run_id,e.data,m.data AS message
+      FROM session_entries e LEFT JOIN messages m ON m.id=e.message_id
+      WHERE e.conversation_id=? AND e.seq>? AND NOT (
+        m.id IS NOT NULL AND json_extract(m.data,'$.role')='assistant' AND EXISTS (
+          SELECT 1 FROM session_entries n WHERE n.conversation_id=e.conversation_id AND n.run_id=e.run_id AND n.data IS NOT NULL))
+      ORDER BY e.seq ${recent ? 'DESC' : 'ASC'} LIMIT ?`).all(id, after, limit) as
+      { id: string; seq: number; run_id: string | null; data: string | null; message: string | null }[];
+    if (recent) rows.reverse();
+    return normalizeHistory(rows.map(row => {
+      if (row.message) {
+        const message = JSON.parse(row.message) as Message;
+        return { ...message, seq: row.seq, meta: { ...message.meta, canonicalSeq: message.seq } };
+      }
+      const native = JSON.parse(row.data!) as TranscriptMessage;
+      return { id: row.id, conversationId: id, seq: row.seq,
+        role: native.role === 'assistant' ? 'assistant' as const : 'tool' as const,
+        source: 'tool' as const, runId: row.run_id ?? undefined,
+        createdAt: new Date(native.timestamp).toISOString(), text: transcriptText(native), meta: { native } };
+    }));
+  }
+  modelPosition(id: string): number | undefined {
+    const row = this.db.prepare('SELECT seq FROM session_entries WHERE id=? OR message_id=?').get(id, id) as
+      { seq: number } | undefined;
+    return row?.seq;
+  }
+  legacyModelPosition(conversationId: string, through: number): number {
+    const row = this.db.prepare(`SELECT e.seq FROM messages m JOIN session_entries e ON e.message_id=m.id
+      WHERE m.conversation_id=? AND m.seq<=? ORDER BY m.seq DESC LIMIT 1`).get(conversationId, through) as
+      { seq: number } | undefined;
+    return row?.seq ?? 0;
   }
   recentMessages(id: string, limit = 1000): Message[] {
     return (

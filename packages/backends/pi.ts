@@ -212,21 +212,28 @@ export class PiBackend implements Backend {
       : { tools: [], validate: async (_name: string, _args: any) => {} };
     tools.push(...native.tools);
     const earlier = request.messages.slice(0, -1);
+    const persistedIds = new WeakMap<object, string>();
     const systemPrompt = earlier
       .filter(isStableContext)
       .map((m) => m.text)
       .join('\n\n');
     const history: any[] = earlier
       .filter((m) => !isStableContext(m))
-      .flatMap<any>((m, index) => hasDelivery && m.role === 'assistant' && m.reply
+      .flatMap<any>((m, index) => {
+        if (m.native) {
+          const message = structuredClone(m.native);
+          if (m.id) persistedIds.set(message, m.id);
+          return [message];
+        }
+        const messages = hasDelivery && m.role === 'assistant' && m.reply
         ? [{
             role: 'assistant',
-            content: [{ type: 'toolCall', id: 'echo_history_' + index, name: 'echo_respond', arguments: m.reply }],
+            content: [{ type: 'toolCall', id: 'echo_history_' + (m.id ?? index), name: 'echo_respond', arguments: m.reply }],
             api: model.api, provider: providerId, model: model.id, timestamp: 0, stopReason: 'toolUse',
             usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
               cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
           }, {
-            role: 'toolResult', toolCallId: 'echo_history_' + index, toolName: 'echo_respond',
+            role: 'toolResult', toolCallId: 'echo_history_' + (m.id ?? index), toolName: 'echo_respond',
             content: [{ type: 'text', text: JSON.stringify({ accepted: true, historical: true,
               ...(m.id ? { messageContext: provenance.get(m.id) } : {}) }) }],
             isError: false, timestamp: 0,
@@ -260,7 +267,10 @@ export class PiBackend implements Backend {
                 ],
                 timestamp: Date.now(),
               },
-      ]);
+      ];
+        if (m.id) for (const message of messages) persistedIds.set(message, m.id);
+        return messages;
+      });
     const baseline = createInitialSystemMessage(
       systemPrompt,
       tools.map(({ name, description, parameters }) => ({ name, description, parameters })),
@@ -294,7 +304,10 @@ export class PiBackend implements Backend {
             }
             return result.text;
           },
-          completed: (removed, summary) => { compactedDuringExecution = true; progressAt = Date.now(); request.onItem?.({ id: 'context-compaction',
+          completed: (removed, summary, messages) => { compactedDuringExecution = true; progressAt = Date.now();
+            request.onCompaction?.({ summary,
+              messageIds: messages.flatMap(message => persistedIds.has(message) ? [persistedIds.get(message)!] : []) });
+            request.onItem?.({ id: 'context-compaction',
             kind: 'status', state: 'completed', title: '上下文已压缩',
             text: `归纳 ${removed} 条执行消息，保留近期原文。`, detail: summary }); },
         }),
@@ -467,6 +480,16 @@ export class PiBackend implements Backend {
     };
     const off = agent.subscribe((event) => {
       progressAt = Date.now();
+      if (event.type === 'message_end') {
+        const message = event.message;
+        if (message.role === 'assistant' || message.role === 'toolResult') {
+          const safe = key ? JSON.parse(JSON.stringify(message).replaceAll(key, '[redacted]')) : message;
+          const id = request.onTranscript?.(safe);
+          if (id) persistedIds.set(message, id);
+        } else if (request.messages.at(-1)?.id) {
+          persistedIds.set(message, request.messages.at(-1)!.id!);
+        }
+      }
       if (event.type === 'message_end' && event.message.role === 'assistant') {
         const { usage, durationMs } = event.message;
         modelSteps++;

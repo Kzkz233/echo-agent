@@ -1,5 +1,13 @@
 # Model context
 
+## Durable agent history
+
+Echo's session stream preserves finalized Pi assistant messages (including native tool calls and provider replay fields) and their paired tool results. Per-run Agent objects may be released; restoring one does not flatten that history into ordinary text. Inputs, task results and deliveries retain their original application records. Native records reference the same conversation and run without becoming duplicate visible replies or automatic Review evidence.
+
+Both between-run and in-run compaction operate on that history. Compaction records a versioned position and summary, keeps recent complete tool batches, and leaves original records intact. In-run checkpoints are also reusable after restart. Historical calls are context only: restoration never executes them or grants their former permissions. An interrupted call without a durable result receives an explicit unknown-outcome projection, not a fabricated success. Older execution logs may be truncated and are never guessed back into native calls; verified legacy deliveries retain their existing compatibility projection.
+
+Tool-private details and transient media bytes are not added to durable model history. An omitted tool image has an explicit historical placeholder; user attachments keep their existing attachment lifecycle. Native tool text is not truncated to the UI log's size limit. Adapters for external worker hosts keep native resumption and attributed snapshot import separate.
+
 ## Message headers
 
 Canonical message bodies stay unchanged. Model inputs also carry a typed

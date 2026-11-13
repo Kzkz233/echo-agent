@@ -163,9 +163,11 @@ cannot override the host identity. Feature selection alone is not an authorizati
 
 `Binding` records one profile, a monotonically increasing epoch and an optional native session ID. One conversation has at most one active run. Durable accepted input receipts can queue human messages. Duplicate request IDs with conflicting content are rejected. A stale epoch cannot deliver results.
 
-Switching checks unresolved work, freezes the binding, archives or detaches the old native session, creates a new session with the complete Echo record, and activates the new epoch only after acknowledgement. DSH's SDK does not expose native archive/history insertion; its old session is detached in Echo and preserved, while the new session receives an explicitly attributed history capsule. Codex uses native history insertion. This difference is explicit rather than hidden behind fabricated events.
+Main conversations execute through Pi. Selecting another language model changes its binding; the same Echo conversation, native tool history and compaction checkpoint remain authoritative. It is not a full lifetime-history import into another harness. Unresolved operations still block rebinding.
 
-All backends are peers. API requests perform generation; pi adds a bounded read-tool loop; external Harnesses own their supported native execution. Switching does not transfer live tools, approvals or backend caches. Character budgets are configurable; normal requests select bounded recent history, while full import is rejected if it exceeds the target budget.
+Direct API calls are task-scoped inference. Codex and DSH are optional worker executors with their own native session restoration. Replacing an external worker session imports an explicitly attributed snapshot when native history insertion is unavailable; it does not promise a lossless transfer of host-private execution state. Switching never transfers live tools, approvals or backend caches.
+
+The conversation module maintains one ordered `session_entries` stream. Existing input and delivery messages are referenced by ID without rewriting their bodies or sequence numbers. Finalized Pi assistant actions and tool results are separate structured entries committed before tool preflight and the next model step. The model projection restores those native records, while channel views and Review continue to select their own domain records. Rendered deliveries do not duplicate native actions in model history. The bounded execution log is a UI/diagnostic projection, not a replay source. Feature and external MCP tools participate through the common executor; plugins do not implement their own history restoration. See [Context](CONTEXT.md).
 
 ## Content and source identity
 

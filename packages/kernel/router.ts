@@ -40,6 +40,7 @@ import { estimateTokens, type ContextDetail } from '../contracts/generation-metr
 import { messageContextRules, renderMessageText, type MessageOrigin } from '../contracts/message-context.ts';
 import { captureMessageContext, storedMessageContext, messageSourcePoint } from './message-context.ts';
 import { configuredTimezone } from './time.ts';
+import { historyGroups, nativeMessage } from './conversation-history.ts';
 
 type Submission = {
   conversationId: string;
@@ -698,16 +699,14 @@ export class Router {
     let size = 0;
     let tokens = 0;
     const selected: Message[] = [];
-    for (const m of [...messages].reverse()) {
-      if (!eligibleHistory(m)) continue;
-      const text = renderMessageText({ text: m.text, messageContext: storedMessageContext(m, timezone) });
+    for (const group of historyGroups(messages.filter(eligibleHistory)).reverse()) {
+      const text = group.map(m => nativeMessage(m) ? JSON.stringify(nativeMessage(m)) :
+        renderMessageText({ text: m.text, messageContext: storedMessageContext(m, timezone) })).join('\n');
       if (size + text.length > limit) break;
-      if (tokenLimit !== Infinity) {
-        tokens += estimateTokens(text) + 4;
-        if (tokens > tokenLimit) break;
-      }
+      tokens += estimateTokens(text) + 4 * group.length;
+      if (tokens > tokenLimit) break;
       size += text.length;
-      selected.unshift(m);
+      selected.unshift(...group);
     }
     return selected;
   }
@@ -717,6 +716,8 @@ export class Router {
       messages
         .filter((m) => !m.meta.presentationOnly && !(m.source === 'import' && typeof m.meta.knowledgeVersion === 'string'))
         .map(async (m) => {
+          const native = nativeMessage(m);
+          if (native) return { id: m.id, role: m.role, text: m.text, native };
           const content = await this.attachments.content(
             ((m.meta.attachments as any[]) ?? []).map((a) => a.id),
             m.conversationId,
@@ -881,7 +882,10 @@ export class Router {
     this.locks.add(conversationId);
     let switching = false;
     try {
-      const history = await this.input(this.store.allMessages(conversationId));
+      // Pi restores Echo's structured session at execution time, with the same
+      // compaction policy. Selecting another language model is not a full export
+      // into an external host and must not require all lifetime history to fit.
+      const history = backend.kind === 'pi' ? [] : await this.input(this.store.modelMessages(conversationId));
       invariant(
         profile.vision || !history.some((message) => message.images?.length),
         'vision_required',
@@ -1079,7 +1083,7 @@ export class Router {
           : expression?.channels?.[style] ?? (target.presentation === 'external' ? expression?.external : undefined);
         return { id: target.id, label: target.label, text: text ?? '', supportsImages: target.supportsImages };
       });
-      const recent = this.store.recentMessages(conversation.id).filter(message => message.id !== input.recordedInputId);
+      const recent = this.store.modelMessages(conversation.id, 0, 1000, true).filter(message => message.id !== input.recordedInputId);
       const contextInput = {
         action: 'prepare',
         conversation,
@@ -1242,7 +1246,8 @@ export class Router {
         if (summary) add('history', 'summary', summary, 4);
         historyInput.forEach((message, index) => {
           const stored = history[index];
-          add('history', stored.meta.memoryVersion ? 'memory.recall' : stored.source, renderMessageText(message), 4);
+          add('history', stored.meta.memoryVersion ? 'memory.recall' : stored.meta.native ? 'execution' : stored.source,
+            message.native ? JSON.stringify(message.native) : renderMessageText(message), 4);
         });
         for (const item of context.turn) add('turn', item.source, item.text, 4);
         add(current.role === 'user' ? 'history' : 'turn', current.source, renderMessageText(currentInput), 4);
@@ -1342,12 +1347,21 @@ export class Router {
             run!.nativeRunId = id;
             this.store.updateRun(run!);
           },
+          onTranscript: (message) => {
+            // Settled cancellation/error messages are facts too. Revocation
+            // prevents new actions, not recording an action's actual outcome.
+            invariant(this.store.binding(conversation.id)?.epoch === run!.epoch, 'stale_epoch', '旧绑定不再记录会话。');
+            return this.store.appendTranscript(conversation.id, run!.id, message);
+          },
+          onCompaction: ({ messageIds, summary }) => {
+            combined.throwIfAborted();
+            invariant(this.store.binding(conversation.id)?.epoch === run!.epoch, 'stale_epoch', '旧绑定不再压缩会话。');
+            const through = Math.max(0, ...messageIds.map(id => this.store.modelPosition(id) ?? 0));
+            if (through) this.store.put('conversation-compactions', conversation.id, { version: 2, through, text: summary });
+          },
           onItem: (item) => {
             if (!combined.aborted && this.store.binding(conversation.id)?.epoch === run!.epoch) {
               this.execution.update(run!.id, item);
-              if (item.id === 'context-compaction' && item.state === 'completed' && item.detail)
-                this.store.append(conversation.id, 'system', 'import',
-                  '本次执行过程摘要（历史资料）：\n' + item.detail, run!.id, { executionSummary: true });
             }
           },
         })

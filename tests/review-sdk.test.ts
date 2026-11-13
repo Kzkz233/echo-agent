@@ -73,4 +73,12 @@ test('actual Pi SDK checkpoints, searches, reads, updates and hands Review to tw
   assert.equal(workerSteps, 9); assert.equal(reports, 2);
   assert.equal(app.store.document<any>('memories', memory.id).text, 'Orchid needs watering twice a week.');
   assert.equal(app.store.documents('memory-changes').length, 1);
+  const history = app.store.modelMessages(app.reviews.jobs().find(row => row.id === job.id)!.workerConversationId!);
+  const calls = history.flatMap(message => (message.meta.native as any)?.role === 'assistant'
+    ? (message.meta.native as any).content.filter((part: any) => part.type === 'toolCall') : []);
+  assert(calls.some(call => call.name === 'memory_change'));
+  const results = history.filter(message => (message.meta.native as any)?.role === 'toolResult');
+  assert.equal(calls.length, results.length);
+  assert(!app.store.allMessages(role.mainConversationId).some(message => message.meta.native),
+    'Worker traces do not become parent Review material or channel messages');
 });

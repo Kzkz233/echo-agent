@@ -6,7 +6,7 @@ import { estimateTokens } from '../contracts/generation-metrics.ts';
 export function agentCompactor(input: {
   profile: Profile; policy: ContextCompaction;
   summarize: (text: string, signal?: AbortSignal) => Promise<string>;
-  completed?: (removed: number, summary: string) => void;
+  completed?: (removed: number, summary: string, messages: any[]) => void;
 }) {
   const removed = new Set<object>();
   let summary = '';
@@ -30,6 +30,13 @@ export function agentCompactor(input: {
       tokens += next; cut--;
     }
     while (cut > 0 && rest[cut]?.role === 'toolResult') cut--;
+    // A single large result batch can exceed the whole window. Move that entire
+    // batch into the summary rather than retaining an oversized orphaned tail.
+    while (cut < rest.length && (rest.slice(cut).reduce((sum, message) => sum + size(message), 0) > limit * 0.85 ||
+      JSON.stringify(rest.slice(cut)).length > input.profile.contextChars * 0.85)) {
+      cut++;
+      while (cut < rest.length && rest[cut]?.role === 'toolResult') cut++;
+    }
     if (cut === 0) throw new EchoError('context_limit', '当前任务指令或工具结果超过上下文预算，请分段读取。');
     const text = rest.slice(0, cut).map(message => JSON.stringify(message)).join('\n');
     const chunkSize = Math.max(512, Math.min(input.profile.contextChars - 12000, Math.floor(limit)));
@@ -44,7 +51,7 @@ export function agentCompactor(input: {
     if (result.reduce((total, message) => total + size(message), 0) > limit ||
         JSON.stringify(result).length > input.profile.contextChars)
       throw new EchoError('context_limit', '固定上下文或近期工具结果超过预算，未静默丢弃任务信息。');
-    input.completed?.(cut, summary);
+    input.completed?.(cut, summary, rest.slice(0, cut));
     return result;
   };
 }
