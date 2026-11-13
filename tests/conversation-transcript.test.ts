@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { createServer } from 'node:http';
+import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { Application } from '../apps/server/application.ts';
@@ -90,7 +91,7 @@ async function fixture(t: TestContext, protocol: string, next: (body: any, step:
   await open();
   const chat = conversation(app!, { kind: 'main' });
   t.after(async () => { await app.close(); for (const fn of cleanup) await fn(); });
-  return { get app() { return app; }, requests, chat, get reads() { return reads; },
+  return { get app() { return app; }, runtime, requests, chat, get reads() { return reads; },
     get committedBeforeExecution() { return committedBeforeExecution; },
     restart: async () => { await app.close(); await open(); } };
 }
@@ -121,6 +122,36 @@ for (const protocol of generationProtocol.options) test(protocol + ' restores al
   assert.equal(f.reads, 1, 'Reading historical calls must never execute them');
   assert.equal(f.app.store.allMessages(f.chat.id).length, 6, 'Native history does not duplicate visible messages or Review evidence');
   assert(f.app.store.modelMessages(f.chat.id).some(message => message.role === 'tool' && message.text.includes('EVIDENCE_SENTINEL')));
+  // Also load it in an entirely new Node process, with no Agent/Application state
+  // or SDK module cache inherited from this test process.
+  const code = `
+    import {Store} from './packages/kernel/store.ts';
+    import {Registry} from './packages/kernel/registry.ts';
+    import {PiBackend} from './packages/backends/pi.ts';
+    const input=JSON.parse(process.env.ECHO_TRANSCRIPT_FIXTURE);
+    const store=new Store(input.path);
+    try {
+      const history=store.modelMessages(input.conversation).map(m=>({id:m.id,role:m.role,text:m.text,
+        ...(m.meta.native?{native:m.meta.native}:{}),...(m.role==='system'?{context:'event'}:{})}));
+      let replies=0;
+      await new PiBackend(new Registry(),async()=>undefined).generate({profile:input.profile,
+        requestId:'fresh-process',messages:[...history,{role:'user',text:'Continue from persisted history'}],
+        replyTargets:['core.chat'],respond:()=>{replies++;return{accepted:true}},signal:AbortSignal.timeout(8000)});
+      if(replies!==1)throw Error('Missing fresh-process reply');
+    } finally {store.close()}
+  `;
+  await new Promise<void>((done, reject) => {
+    const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '--eval', code], {
+      cwd: project, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'],
+      env: { ...process.env, ECHO_TRANSCRIPT_FIXTURE: JSON.stringify({ path: join(f.runtime, 'echo.sqlite'),
+        conversation: f.chat.id, profile: f.app.router.profile('fixture') }) },
+    });
+    let error = ''; child.stderr.on('data', chunk => { error += chunk; });
+    const timer = setTimeout(() => { child.kill(); reject(Error('Fresh-process fixture timed out')); }, 10000);
+    child.once('error', reason => { clearTimeout(timer); reject(reason); });
+    child.once('exit', status => { clearTimeout(timer); status === 0 ? done() : reject(Error(error)); });
+  });
+  assert.equal(f.reads, 1);
 });
 
 for (const mode of ['between runs', 'during execution']) test('automatic compaction ' + mode + ' retains recent tool pairs and survives restart', async t => {
