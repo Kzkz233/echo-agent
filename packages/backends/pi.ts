@@ -238,6 +238,7 @@ export class PiBackend implements Backend {
     let modelSteps = 0, timedOutput = 0, generationMs = 0;
     const totalUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
     let lastInput = 0, totalInput = 0, cachedInput = 0, cacheReported = false, cacheComplete = true;
+    let compactedDuringExecution = false;
     const agent = new Agent({
       ...(request.compaction && request.toolPolicy !== 'none' ? {
         transformContext: agentCompactor({ profile: request.profile, policy: request.compaction,
@@ -251,9 +252,16 @@ export class PiBackend implements Backend {
                   id: 'compaction-request-failure', title: '上下文压缩请求诊断' });
               },
               signal: signal ? AbortSignal.any([signal, request.signal]) : request.signal });
+            if (result.metrics?.totalUsage) {
+              const usage = result.metrics.totalUsage;
+              for (const field of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) totalUsage[field] += usage[field];
+              totalInput += usage.input; cachedInput += usage.cacheRead;
+              modelSteps += result.metrics.modelSteps;
+              cacheComplete &&= result.metrics.cacheHitPercent !== undefined;
+            }
             return result.text;
           },
-          completed: (removed, summary) => { progressAt = Date.now(); request.onItem?.({ id: 'context-compaction',
+          completed: (removed, summary) => { compactedDuringExecution = true; progressAt = Date.now(); request.onItem?.({ id: 'context-compaction',
             kind: 'status', state: 'completed', title: '上下文已压缩',
             text: `归纳 ${removed} 条执行消息，保留近期原文。`, detail: summary }); },
         }),
@@ -272,7 +280,7 @@ export class PiBackend implements Backend {
         context = protocolTranscript(context, model.api);
         cacheReported = false;
         contextBreakdown = { system: 0, tools: 0, messages: 0 };
-        details = request.contextDetails && [...request.contextDetails];
+        details = request.contextDetails && request.contextDetails.filter(item => !compactedDuringExecution || item.group === 'prefix');
         let additionalTokens = 0;
         for (const [index, message] of context.messages.entries()) {
           if (message.role === 'system') {
@@ -293,9 +301,14 @@ export class PiBackend implements Backend {
         const definitions = getCurrentTools(context.messages);
         if (definitions.length) contextBreakdown.tools = estimateTokens(JSON.stringify(definitions));
         if (details) {
+          // After compaction the old per-source history no longer represents the
+          // wire context. Keep the fixed prefix, and count the retained compacted
+          // history as one group instead of displaying obsolete source totals.
+          if (compactedDuringExecution) details.push({ group: 'history', source: 'summary',
+            tokens: Math.max(0, contextBreakdown.system + contextBreakdown.messages - details.reduce((sum, item) => sum + item.tokens, 0)) });
           for (const tool of definitions)
             details.push({ group: 'tools', source: tool.name, tokens: estimateTokens(JSON.stringify(tool)) });
-          if (additionalTokens)
+          if (additionalTokens && !compactedDuringExecution)
             details.push({ group: 'turn', source: 'execution', tokens: additionalTokens });
         }
         return models.streamSimple(model, context, {
