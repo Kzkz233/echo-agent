@@ -2,6 +2,22 @@ import type { Model, ProviderStreams, SimpleStreamOptions } from '@earendil-work
 import { invariant, type GenerationProtocol, type Profile } from '../contracts/index.ts';
 import { effectiveReasoning, selectedReasoning } from './model-metadata.ts';
 
+/** Pi includes response-only empty citation metadata when replaying assistant
+ * text. Compatible Responses servers may reject it as an unknown input member.
+ * Remove only empty metadata on text parts, never tool arguments or citations. */
+export function responsesInputPayload(payload: unknown): unknown {
+  const body = payload as { input?: unknown } | null;
+  if (!body || !Array.isArray(body.input)) return payload;
+  return { ...body, input: body.input.map((item: any) => {
+    if (item?.type !== 'message' || !Array.isArray(item.content)) return item;
+    return { ...item, content: item.content.map((part: any) => {
+      if (part?.type !== 'output_text' || !Array.isArray(part.annotations) || part.annotations.length) return part;
+      const { annotations: _empty, ...text } = part;
+      return text;
+    }) };
+  }) };
+}
+
 export function endpoint(profile: Profile, suffix: string) {
   const url = new URL(profile.endpoint);
   invariant(
@@ -108,6 +124,7 @@ export async function modelProtocol(profile: Profile, override?: string) {
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
   };
   const onPayload: SimpleStreamOptions['onPayload'] = (payload) => {
+    if (api === 'openai-responses') payload = responsesInputPayload(payload);
     if (
       api === 'openai-responses' &&
       effort === 'off' &&

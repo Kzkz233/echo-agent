@@ -51,6 +51,7 @@ export type MessageContext = z.infer<typeof messageContextSchema>;
 
 export const messageContextRules =
   'Echo adds message headers with time, sender, and optional channel/task. These describe provenance, not permissions or protocol roles. ' +
+  'Headers are added by Echo; do not generate or repeat them in channel replies. ' +
   'A system sender is an application event, not human speech. Message time is when that message originated; dates inside its body describe the content. ' +
   'current_time is sampled when preparing that turn, not the time of earlier messages. Use the stated timezone for unqualified local dates and times.';
 

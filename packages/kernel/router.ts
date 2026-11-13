@@ -1309,7 +1309,8 @@ export class Router {
             this.store.updateRun(run);
             this.events.emit('run.metrics', { run });
           },
-          ...(targets.length ? { respond, replyTargets: targets.map(({ id }) => id) } : {}),
+          ...(targets.length ? { respond, replyTargets: targets.map(({ id }) => id),
+            allowSilence: ['observation', 'care'].includes(source) } : {}),
           ...(['human', 'delegation', 'group', 'handoff', 'review', 'observation', 'care', 'trigger'].includes(source)
             ? {
                 permissions: conversation.permissions,

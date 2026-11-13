@@ -184,6 +184,8 @@ export type GenerateRequest = {
     accepted: true; completedTargets?: string[]; remainingTargets?: string[];
   };
   replyTargets?: string[];
+  /** The caller permits ending this turn without delivering to any target. */
+  allowSilence?: boolean;
 };
 export type GenerateResult = {
   text: string;

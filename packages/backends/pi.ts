@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { replySubmission } from '../contracts/delivery.ts';
 import {
   EchoError,
+  observationSilence,
   type Backend,
   type GenerateRequest,
   type GenerateResult,
@@ -170,6 +171,8 @@ export class PiBackend implements Backend {
       },
     }));
     const finalTargets = new Set<string>();
+    const hasDelivery = Boolean(request.respond && request.replyTargets?.length && request.toolPolicy !== 'none');
+    let replyStarted = false, silenced = false;
     if (request.respond && request.toolPolicy !== 'none')
       tools.push({
         name: 'echo_respond', label: '提交回复',
@@ -179,12 +182,27 @@ export class PiBackend implements Backend {
           : replySubmission, { io: 'input' }),
         execute: async (_id: string, args: unknown) => {
           const input = replySubmission.parse(args);
+          if (silenced) throw new EchoError('reply_complete', '本轮已选择静默，不能再提交回复。');
           const receipt = request.respond!(input);
+          replyStarted = true;
           if (input.phase === 'final') finalTargets.add(input.targetId);
           return {
             content: [{ type: 'text', text: JSON.stringify(receipt) }],
             terminate: input.phase === 'final' && Boolean(request.replyTargets?.every((id) => finalTargets.has(id))),
           };
+        },
+      });
+    if (hasDelivery && request.allowSilence)
+      tools.push({
+        name: 'echo_silence', label: '保持安静',
+        description: '结束本轮，不向任何渠道发送消息。仅在本轮允许保持安静且尚未提交任何回复时使用；任务中的跳过标记也通过此工具表达。',
+        parameters: z.toJSONSchema(z.object({}).strict(), { io: 'input' }),
+        execute: async (_id: string, args: unknown) => {
+          z.object({}).strict().parse(args);
+          if (replyStarted) throw new EchoError('reply_started', '已经开始回复，须完成剩余目标，不能再选择静默。');
+          request.signal.throwIfAborted();
+          silenced = true;
+          return { content: [{ type: 'text', text: '{"silent":true}' }], terminate: true };
         },
       });
     const native = this.dataRoot
@@ -346,6 +364,13 @@ export class PiBackend implements Backend {
               delete clean.reasoning_effort;
               prepared = { ...clean, ...thinking(request.profile, request.reasoning) };
             }
+            // A channel reply is a tool action, not ordinary assistant text.
+            // Enforce that from the first request, while still allowing all
+            // authorized work tools. No corrective generation or auto-forward.
+            // Anthropic models/settings can reject forced tool choice; keep
+            // their native automatic selection and the same completion checks.
+            if (hasDelivery && model.api !== 'anthropic-messages')
+              prepared = { ...(prepared as object), tool_choice: 'required' };
             Object.assign(diagnostic!, requestShape(prepared ?? payload));
             return prepared;
           },
@@ -495,7 +520,7 @@ export class PiBackend implements Backend {
         .filter((c: any) => c.type === 'text')
         .map((c: any) => c.text)
         .join('');
-      if (result.stopReason === 'length' || (!text.trim() && !finalTargets.size)) {
+      if (result.stopReason === 'length' || (!text.trim() && !finalTargets.size && !silenced)) {
         const truncated = result.stopReason === 'length';
         const thinkingChars = result.content
           .filter((c: any) => c.type === 'thinking')
@@ -508,7 +533,7 @@ export class PiBackend implements Backend {
         );
       }
       return {
-        text,
+        text: silenced ? observationSilence : text,
         usage: result.usage,
         metrics: metrics(),
       };

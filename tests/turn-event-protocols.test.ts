@@ -193,6 +193,8 @@ for (const protocol of generationProtocol.options)
                 JSON.stringify(body.tools).includes('echo_respond'),
                 'Reply tool must be declared on the wire',
               );
+            assert.equal(body.tool_choice, backend.kind === 'pi' && protocol !== 'anthropic-messages'
+              ? 'required' : undefined, 'Delivery must use native protocol tool choice without changing thinking');
             assert(
               wire.indexOf('CURRENT_CHANNEL_CONTRACT') > wire.indexOf('OLD_ASSISTANT_REPLY'),
               'Current channel contract was hoisted into the historical prefix',
