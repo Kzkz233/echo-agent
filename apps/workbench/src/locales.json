@@ -5556,8 +5556,8 @@
     "Manage task settings in character configuration"
   ],
   [
-    "忽略遮挡的窗口",
-    "Windows ignored as occluders"
+    "忽略的叠加窗口",
+    "Excluded overlay windows"
   ],
   [
     "这些窗口不会遮断白名单画面。按进程名或完整路径匹配，可选填写标题；新观察任务默认包含桌宠和 NVIDIA Overlay 规则，均可编辑、停用或移除。",
@@ -10234,5 +10234,9 @@
   ["阶段汇报间隔（秒）", "Report interval (seconds)"],
   ["添加补充材料", "Include supplementary materials"],
   ["等待任务执行", "Waiting for task execution"],
-  ["执行后将显示请求、结果与用量。", "Requests, results and usage will appear after execution."]
+  ["执行后将显示请求、结果与用量。", "Requests, results and usage will appear after execution."],
+  [
+    "排除这些窗口的画面，并观察下方获准内容；无法排除时暂停该帧。",
+    "Exclude these windows from captured images and observe approved content underneath. Skip the frame if exclusion is unavailable."
+  ]
 ]

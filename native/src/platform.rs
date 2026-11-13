@@ -224,6 +224,12 @@ fn browser_document(hwnd: HWND) -> Option<BrowserDocument> {
     None
 }
 #[derive(Clone)]
+struct AuthorizedWindow {
+    hwnd: HWND,
+    regions: Vec<Rect>,
+    behind_ignored_window: bool,
+}
+#[derive(Clone)]
 struct Scene {
     width: i32,
     height: i32,
@@ -231,7 +237,7 @@ struct Scene {
     sources: Vec<Source>,
     proof: String,
     denial_reason: String,
-    authorized_windows: Vec<(HWND, Rect)>,
+    authorized_windows: Vec<AuthorizedWindow>,
 }
 fn window_regions(hwnd: HWND, bounds: Rect) -> Vec<Rect> {
     unsafe {
@@ -419,7 +425,8 @@ fn scene(rules: &[Rule], browser_rules: &[Rule], occlusion_rules: &[Rule]) -> Re
         let mut proof = Sha256::new();
         let mut denial_reason = String::new();
         let mut large_layered_covers: Vec<(Rect, String)> = Vec::new();
-        let mut authorized_windows: Vec<(HWND, Rect)> = Vec::new();
+        let mut authorized_windows = Vec::new();
+        let mut ignored_above: Vec<Rect> = Vec::new();
         let mut window = GetTopWindow(None).ok();
         let mut count = 0;
         while let Some(hwnd) = window {
@@ -471,6 +478,14 @@ fn scene(rules: &[Rule], browser_rules: &[Rule], occlusion_rules: &[Rule]) -> Re
             let ignored_occluder = occlusion_rules
                 .iter()
                 .any(|rule| rule_matches_window(rule, &executable, &window_title));
+            // Ignore wins over an allow rule. Its pixels are never an observation source.
+            if ignored_occluder {
+                ignored_above.extend(shape);
+                if ignored_above.len() > 4096 {
+                    return Err("忽略窗口的区域过于复杂，已暂停此帧".into());
+                }
+                continue;
+            }
             let mut visible = shape.clone();
             for cover in &covered {
                 visible = visible
@@ -549,9 +564,11 @@ fn scene(rules: &[Rule], browser_rules: &[Rule], occlusion_rules: &[Rule]) -> Re
                             .collect();
                     }
                     if !admitted.is_empty() {
-                        proof.update(format!("{:?}:{:?}:{}", hwnd, admitted, source));
-                        regions.extend(admitted);
-                        authorized_windows.push((hwnd, rect));
+                        let behind_ignored_window = admitted.iter().any(|area|
+                            ignored_above.iter().any(|overlay|area.intersect(*overlay).is_some()));
+                        proof.update(format!("{:?}:{:?}:{}:{}", hwnd, admitted, source, behind_ignored_window));
+                        regions.extend(admitted.iter().copied());
+                        authorized_windows.push(AuthorizedWindow { hwnd, regions:admitted, behind_ignored_window });
                         sources.push(Source {
                             rule_id: rule.id.clone(),
                             source,
@@ -560,16 +577,14 @@ fn scene(rules: &[Rule], browser_rules: &[Rule], occlusion_rules: &[Rule]) -> Re
                     }
                 }
             }
-            // Every visible top-level window occludes lower content, including the avatar.
+            // Unmatched windows still occlude lower content; ignored windows were handled above.
             if GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_LAYERED.0 as isize != 0
                 && (rect.right - rect.left) as i64 * (rect.bottom - rect.top) as i64
                     > (width as i64 * height as i64 * 95 / 100)
             {
                 large_layered_covers.push((rect, process));
             }
-            if !ignored_occluder {
-                covered.extend(shape);
-            }
+            covered.extend(shape);
             if covered.len() > 4096 {
                 return Err("窗口区域过于复杂，已暂停此帧".into());
             }
@@ -935,14 +950,15 @@ fn print_window_pixels(scene: &Scene, width: u32) -> Result<RgbImage, String> {
             ((width as f64 * scene.height as f64 / scene.width as f64).round() as u32).max(1);
         let mut result = RgbImage::new(width, height);
         let mut printed = false;
-        for (hwnd, _) in &scene.authorized_windows {
+        for window in &scene.authorized_windows {
+            let hwnd = window.hwnd;
             let mut bounds = RECT::default();
-            if GetWindowRect(*hwnd, &mut bounds).is_err() {
+            if GetWindowRect(hwnd, &mut bounds).is_err() {
                 continue;
             }
             let window_width = (bounds.right - bounds.left).max(1) as u32;
             let window_height = (bounds.bottom - bounds.top).max(1) as u32;
-            let dpi_scale = (GetDpiForWindow(*hwnd).max(96) as f64) / 96.0;
+            let dpi_scale = (GetDpiForWindow(hwnd).max(96) as f64) / 96.0;
             let scale_x = if bounds.left <= 0 && window_width as f64 > scene.width as f64 * 1.2 {
                 window_width as f64 / scene.width as f64
             } else {
@@ -983,7 +999,7 @@ fn print_window_pixels(scene: &Scene, width: u32) -> Result<RgbImage, String> {
                 continue;
             };
             let old = SelectObject(target, bitmap.into());
-            let ok = PrintWindow(*hwnd, target, PRINT_WINDOW_FLAGS(2)).as_bool();
+            let ok = PrintWindow(hwnd, target, PRINT_WINDOW_FLAGS(2)).as_bool();
             if ok && !bits.is_null() {
                 printed = true;
                 let bytes = std::slice::from_raw_parts(
@@ -992,7 +1008,8 @@ fn print_window_pixels(scene: &Scene, width: u32) -> Result<RgbImage, String> {
                 );
                 let sx = width as f64 / scene.width as f64;
                 let sy = height as f64 / scene.height as f64;
-                for region in scaled_regions(scene, width, height) {
+                let own_scene = Scene { regions:window.regions.clone(), ..scene.clone() };
+                for region in scaled_regions(&own_scene, width, height) {
                     let left = region.left.max(0) as u32;
                     let top = region.top.max(0) as u32;
                     let right = region.right.min(width as i32).max(0) as u32;
@@ -1032,6 +1049,22 @@ fn print_window_pixels(scene: &Scene, width: u32) -> Result<RgbImage, String> {
     }
 }
 fn pixels(scene: &Scene, width: u32) -> Result<(RgbImage, &'static str), String> {
+    if scene.authorized_windows.iter().any(|w|w.behind_ignored_window) {
+        // Desktop capture contains ignored overlay pixels. Window capture reads the
+        // underlying application and copies only its own locally authorized regions.
+        // Never fall back to the composited desktop when exclusion cannot be honored.
+        let height=((width as f64*scene.height as f64/scene.width as f64).round() as u32).max(1);
+        let mut image=RgbImage::new(width,height);
+        let deadline=std::time::Instant::now()+std::time::Duration::from_millis(1800);
+        crate::window_capture::with_device(|device|{
+            for window in &scene.authorized_windows {
+                device.copy_window(window.hwnd,&mut image,(scene.width,scene.height),&window.regions,deadline)?;
+            }
+            Ok(())
+        })?;
+        return Ok((image,"wgc"));
+    }
+    crate::window_capture::release_device();
     match gdi_pixels(scene, width) {
         Ok(image) if has_authorized_signal(scene, &image) => Ok((image, "gdi")),
         Ok(image) => match dxgi_pixels(scene, width) {
@@ -1052,6 +1085,83 @@ fn pixels(scene: &Scene, width: u32) -> Result<(RgbImage, &'static str), String>
                 .map_err(|_| gdi_error),
         },
     }
+}
+
+#[cfg(test)]
+mod capture_acceptance {
+    use super::*;
+    use std::{sync::mpsc, thread, time::Instant};
+    use windows::{core::w, Win32::{Foundation::{HINSTANCE,COLORREF,WPARAM,LPARAM}, System::LibraryLoader::GetModuleHandleW}};
+
+    // Synthetic windows only. No image is persisted or sent to an inference provider.
+    unsafe extern "system" fn paint(hwnd:HWND,message:u32,w:windows::Win32::Foundation::WPARAM,l:windows::Win32::Foundation::LPARAM)->windows::Win32::Foundation::LRESULT {
+        unsafe {
+            if message==WM_PAINT {
+                let mut ps=PAINTSTRUCT::default();let dc=BeginPaint(hwnd,&mut ps);
+                let brush=CreateSolidBrush(COLORREF(GetWindowLongPtrW(hwnd,GWLP_USERDATA) as u32));
+                let _=FillRect(dc,&ps.rcPaint,brush);let _=DeleteObject(brush.into());let _=EndPaint(hwnd,&ps);
+                return windows::Win32::Foundation::LRESULT(0);
+            }
+            DefWindowProcW(hwnd,message,w,l)
+        }
+    }
+    struct Fixture { target:HWND, overlay:HWND, thread_id:u32, worker:Option<thread::JoinHandle<()>> }
+    impl Drop for Fixture {fn drop(&mut self){unsafe{let _=PostThreadMessageW(self.thread_id,WM_QUIT,WPARAM(0),LPARAM(0));}if let Some(t)=self.worker.take(){let _=t.join();}}}
+    impl Fixture {fn open()->Self {
+        let (tx,rx)=mpsc::sync_channel(1);
+        let worker=thread::spawn(move||unsafe{
+            initialize();let module=GetModuleHandleW(None).unwrap();let instance=HINSTANCE(module.0);
+            let class=w!("EchoCaptureAcceptanceFixture");
+            let _=RegisterClassW(&WNDCLASSW{lpfnWndProc:Some(paint),hInstance:instance,lpszClassName:class,..Default::default()});
+            let target=CreateWindowExW(WS_EX_TOOLWINDOW,class,w!("Allowed capture fixture"),WS_POPUP,80,80,360,240,None,None,Some(instance),None).unwrap();
+            SetWindowLongPtrW(target,GWLP_USERDATA,0x0028b414);
+            let overlay=CreateWindowExW(WS_EX_TOOLWINDOW,class,w!("Excluded capture fixture"),WS_POPUP,160,140,100,80,None,None,Some(instance),None).unwrap();
+            SetWindowLongPtrW(overlay,GWLP_USERDATA,0x00d214e6);
+            let _=SetWindowPos(target,Some(HWND_TOPMOST),80,80,360,240,SWP_NOACTIVATE|SWP_SHOWWINDOW);
+            let _=SetWindowPos(overlay,Some(HWND_TOPMOST),160,140,100,80,SWP_NOACTIVATE|SWP_SHOWWINDOW);
+            let _=UpdateWindow(target);let _=UpdateWindow(overlay);
+            tx.send((target.0 as usize,overlay.0 as usize,GetCurrentThreadId())).unwrap();
+            let mut message=MSG::default();while GetMessageW(&mut message,None,0,0).as_bool(){let _=TranslateMessage(&message);DispatchMessageW(&message);}
+            let _=DestroyWindow(overlay);let _=DestroyWindow(target);
+        });
+        let (target,overlay,thread_id)=rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+        Self{target:HWND(target as *mut c_void),overlay:HWND(overlay as *mut c_void),thread_id,worker:Some(worker)}
+    }}
+    #[test]
+    #[ignore = "requires an interactive Windows desktop; run explicitly during native acceptance"]
+    fn excluded_overlay_is_removed_without_revealing_masked_pixels(){unsafe{
+        initialize();let fixture=Fixture::open();let _=windows::Win32::Graphics::Dwm::DwmFlush();
+        let screen=(GetSystemMetrics(SM_CXSCREEN),GetSystemMetrics(SM_CYSCREEN));
+        let bounds=Rect{left:80,top:80,right:440,bottom:320};
+        // Model an unapproved occluder with a hole in this window's admitted regions.
+        let private=Rect{left:300,top:240,right:400,bottom:300};
+        let regions=bounds.subtract(private);
+        let scene=Scene{width:screen.0,height:screen.1,regions:regions.clone(),sources:vec![],proof:String::new(),denial_reason:String::new(),
+            authorized_windows:vec![AuthorizedWindow{hwnd:fixture.target,regions,behind_ignored_window:true}]};
+        let desktop=gdi_pixels(&scene,screen.0 as u32).unwrap();
+        assert_eq!(desktop.get_pixel(200,180).0,[230,20,210],"fixture overlay must be present in desktop capture");
+        let start=Instant::now();let (image,backend)=pixels(&scene,screen.0 as u32).unwrap();
+        assert_eq!(backend,"wgc");
+        assert_eq!(image.get_pixel(200,180).0,[20,180,40],"must recover underlying target pixels");
+        assert_eq!(image.get_pixel(350,270).0,[0,0,0],"unapproved content must remain masked");
+        assert_eq!(image.get_pixel(20,20).0,[0,0,0],"outside target must remain masked");
+        SetWindowLongPtrW(fixture.overlay,GWL_EXSTYLE,GetWindowLongPtrW(fixture.overlay,GWL_EXSTYLE)|WS_EX_LAYERED.0 as isize);
+        let _=SetLayeredWindowAttributes(fixture.overlay,COLORREF(0),128,LWA_ALPHA);
+        let _=windows::Win32::Graphics::Dwm::DwmFlush();
+        let (transparent,backend)=pixels(&scene,screen.0 as u32).unwrap();
+        assert_eq!(backend,"wgc");
+        assert_eq!(transparent.get_pixel(200,180).0,[20,180,40],"transparent overlay must also be excluded");
+        let invalid=Scene{authorized_windows:vec![AuthorizedWindow{hwnd:HWND(1usize as *mut c_void),regions:scene.regions.clone(),behind_ignored_window:true}],..scene.clone()};
+        assert!(pixels(&invalid,320).is_err(),"failed exclusion must never fall back to desktop pixels");
+        let own_path=process_path(fixture.target);
+        assert!(!own_path.is_empty(),"fixture process must be identifiable");
+        let excluded=Rule{id:"custom-overlay".into(),r#type:"process".into(),value:own_path,title:"Excluded capture fixture".into(),enabled:true};
+        assert!(rule_matches_window(&excluded,&process_path(fixture.overlay),&title(fixture.overlay)));
+        assert!(!rule_matches_window(&excluded,&process_path(fixture.target),&title(fixture.target)));
+        let disabled=Rule{enabled:false,..excluded};
+        assert!(!rule_matches_window(&disabled,&process_path(fixture.overlay),&title(fixture.overlay)));
+        println!("window exclusion snapshot: {} ms; recovered target and retained all masks",start.elapsed().as_millis());
+    }}
 }
 fn signature(image: &RgbImage) -> Vec<u8> {
     let mut result = Vec::with_capacity(80 * 45 * 3);
@@ -1117,6 +1227,7 @@ pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
     }
     let before = scene(&rules, &browser_rules, &occlusion_rules)?;
     if before.regions.is_empty() {
+        crate::window_capture::release_device();
         let reason = if before.denial_reason.is_empty() {
             "没有可见的白名单内容"
         } else {

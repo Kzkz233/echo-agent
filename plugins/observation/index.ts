@@ -248,7 +248,7 @@ type NativeProbe = {
   reason?: string;
   proof?: string;
   visibility?: FrameVisibility;
-  captureBackend?: 'gdi' | 'dxgi' | 'printwindow';
+  captureBackend?: 'gdi' | 'dxgi' | 'printwindow' | 'wgc';
 };
 function sourceOnly(visibility?: FrameVisibility) {
   return (
@@ -276,7 +276,7 @@ class ObservationTask {
     reason: string;
     at: number;
     visibility?: FrameVisibility;
-    captureBackend?: 'gdi' | 'dxgi' | 'printwindow';
+    captureBackend?: 'gdi' | 'dxgi' | 'printwindow' | 'wgc';
   };
   private stats = {
     probes: 0,
@@ -356,7 +356,7 @@ class ObservationTask {
     allowed: boolean,
     reason = '',
     visibility?: FrameVisibility,
-    captureBackend?: 'gdi' | 'dxgi' | 'printwindow',
+    captureBackend?: 'gdi' | 'dxgi' | 'printwindow' | 'wgc',
   ) {
     const previous = this.lastSample;
     const now = Date.now();
@@ -1235,7 +1235,8 @@ export class Observations {
               },
               {
                 key: 'occlusionAllowlist',
-                label: '忽略遮挡的窗口',
+                label: '忽略的叠加窗口',
+                description: '排除这些窗口的画面，并观察下方获准内容；无法排除时暂停该帧。',
                 kind: 'records',
                 rowFields: [
                   { key: 'value', label: '进程名或完整路径', kind: 'text' },

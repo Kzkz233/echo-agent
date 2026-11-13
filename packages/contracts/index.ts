@@ -367,7 +367,7 @@ export type Frame = {
   ruleId: string;
   sourceHints?: string[];
   visibility?: FrameVisibility;
-  captureBackend?: 'gdi' | 'dxgi' | 'printwindow';
+  captureBackend?: 'gdi' | 'dxgi' | 'printwindow' | 'wgc';
   jpeg: Buffer;
   signature: Uint8Array;
   generation: number;
@@ -390,7 +390,7 @@ export type Observation = {
     title: string;
     hints?: string[];
     visibility?: FrameVisibility;
-    captureBackend?: 'gdi' | 'dxgi' | 'printwindow';
+    captureBackend?: 'gdi' | 'dxgi' | 'printwindow' | 'wgc';
   };
 };
 export const reviewConfigSchema = z.object({

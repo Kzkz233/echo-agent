@@ -3,6 +3,8 @@ pub mod avatar_motion;
 pub mod avatar_activity;
 #[cfg(windows)]
 pub mod avatar_renderer;
+#[cfg(windows)]
+mod window_capture;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rect {

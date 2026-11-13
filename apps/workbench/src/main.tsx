@@ -2069,9 +2069,11 @@ function Observation() {
                       backend:
                         status.captureBackend === 'dxgi'
                           ? 'DXGI'
-                          : status.captureBackend === 'printwindow'
-                            ? 'PrintWindow'
-                            : 'GDI',
+                          : status.captureBackend === 'wgc'
+                            ? 'Windows Graphics Capture'
+                            : status.captureBackend === 'printwindow'
+                              ? 'PrintWindow'
+                              : 'GDI',
                     })}
                     {status.lastVisibility.visiblePercent > 2 &&
                       status.lastVisibility.contentPercent === 0 &&

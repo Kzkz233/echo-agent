@@ -21,7 +21,7 @@ test('a capture denied after probe pauses status and later capture clears it', a
           ? { allowed: true, signature: 'AAAA', proof: 'fixture', sources: [] }
           : blocked
             ? { allowed: false, reason: 'Overlay appeared' }
-            : { allowed: true, jpeg: 'AAAA', timestamp: new Date().toISOString() },
+            : { allowed: true, jpeg: 'AAAA', timestamp: new Date().toISOString(), captureBackend: 'wgc' },
     } as unknown as StdioRpc);
   });
   app.observations.configure(
@@ -38,6 +38,7 @@ test('a capture denied after probe pauses status and later capture clears it', a
   await until(() => app.observations.status().selected === 1, 8000);
   assert.equal(app.observations.status().allowed, true);
   assert.equal(app.observations.status().samplingReason, '');
+  assert.equal(app.observations.status().captureBackend, 'wgc');
 });
 
 test('occlusion exclusions are user-owned and legacy defaults are disabled once', async (t) => {
