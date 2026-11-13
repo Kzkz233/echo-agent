@@ -53,6 +53,7 @@ const field = z.object({
     )
     .optional(),
   options: z.array(option).optional(),
+  allowEmpty: z.boolean().optional(),
   filterBy: id.optional(),
   when: z.union([condition, z.array(condition)]).optional(),
   min: z.number().optional(),

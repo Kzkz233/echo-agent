@@ -6,7 +6,7 @@ import test from 'node:test';
 import { promisify } from 'node:util';
 import { serve } from '../apps/server/http.ts';
 import { internal } from '../packages/kernel/registry.ts';
-import { FakeBackend, setup } from './helpers.ts';
+import { FakeBackend, setup, submitFixtureReplies } from './helpers.ts';
 
 const exec = promisify(execFile);
 
@@ -40,8 +40,11 @@ test('CLI uses the shared conversation and task state and cannot call workbench 
   await call('automation.save', {
     type: 'review.policies', id: policy.id, settings: { ...policy, sourceIds: [] },
   });
+  backend.responder = async request => request.replyTargets?.length
+    ? submitFixtureReplies(request) : { text: '{"notes":"Synthetic review","memories":[]}' };
   const review = await cli('task', 'run', 'review.policies', policy.id, '--request-id', 'cli-review', '--wait');
   assert.equal(review.state, 'completed');
+  assert(app.reviews.jobs().some(job => job.personaId === 'cli-role' && job.materials.some(material => material.text.includes('Hello'))));
   assert.equal(
     (await cli('task', 'status', 'review.policies', policy.id, '--request-id', 'cli-review')).runId,
     review.runId,

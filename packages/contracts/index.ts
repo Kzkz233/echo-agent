@@ -66,7 +66,6 @@ export const conversationSchema = z.object({
   title: z.string().min(1).max(160),
   personaId: id.default('companion'),
   injection: z.boolean().default(false),
-  review: z.boolean().default(false),
   permissions: conversationPermissions.optional(),
   compaction: contextCompaction.optional(),
   maxOutputTokens: z.number().int().min(64).max(131072).optional(),
@@ -100,7 +99,11 @@ export type Message = {
   runId?: string;
   meta: Record<string, unknown>;
 };
-export type Conversation = z.infer<typeof conversationSchema> & { id: string; createdAt: string };
+export type Conversation = z.infer<typeof conversationSchema> & {
+  id: string; createdAt: string;
+  /** Historical storage only. Review migrates this into explicit task sources. */
+  review?: boolean;
+};
 export const messageSchema = z.object({
   id,
   conversationId: id,

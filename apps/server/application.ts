@@ -1184,13 +1184,12 @@ export class Application {
     );
     op(
       'conversations.update',
-      '按会话设置人格注入和整理',
+      '修改会话标题、人格注入和思考强度',
       z.object({
         id,
         title: z.string().min(1).max(160).optional(),
         personaId: id.optional(),
         injection: z.boolean().optional(),
-        review: z.boolean().optional(),
         reasoning: reasoning.optional(),
       }),
       'conversation.write',

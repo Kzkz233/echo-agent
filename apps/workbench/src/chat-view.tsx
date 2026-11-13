@@ -643,8 +643,6 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                 <dd>{backend?.name ?? t('未选择')}</dd>
                 <dt>{t('人格与记忆')}</dt>
                 <dd>{conversation.injection ? t('已启用') : t('未启用')}</dd>
-                <dt>{t('记忆整理')}</dt>
-                <dd>{conversation.review ? t('纳入整理') : t('未启用')}</dd>
               </dl>
               <section className="conversation-tools">
                 <h3>

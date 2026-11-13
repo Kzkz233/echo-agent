@@ -111,13 +111,14 @@ test('a Review interrupted before its first packet is explicitly resumable', asy
   assert.equal(recovered.jobs().find((j) => j.id === 'pending-fixture')!.state, 'paused');
 });
 
-test('independent conversation toggles do not reset each other', async (t) => {
+test('conversation edits preserve injection and cannot alter task-owned review sources', async (t) => {
   const app = await setup(t),
     c = conversation(app);
   await app.registry.call('conversations.update', { id: c.id, injection: true }, internal);
   await app.registry.call('conversations.update', { id: c.id, review: true }, internal);
   assert.equal(app.store.conversation(c.id)!.injection, true);
-  assert.equal(app.store.conversation(c.id)!.review, true);
+  assert.equal(app.store.conversation(c.id)!.review, false);
+  assert.deepEqual(app.registry.list(internal).find(op => op.name === 'conversations.update')!.input.parse({ id: c.id, review: true }), { id: c.id });
 });
 test('durable queued input is accepted once and drains after active generation', async (t) => {
   const app = await setup(t),

@@ -403,7 +403,6 @@ export class Characters {
         title: existing?.title ?? draft.persona.name,
         personaId: roleId,
         injection: true,
-        review: false,
         ...existing,
         kind: 'main',
         permissions: draft.permissions,

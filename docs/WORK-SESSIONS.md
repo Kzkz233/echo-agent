@@ -18,6 +18,8 @@ Manual delegation and general prompt automation use the character's existing mod
 
 Review reads sources through `review.readMaterial`, checkpoints each packet, searches bounded memory candidates with `memory.search`, and reads full current records before `memory.change`. Ordinary changes are version checked. Core changes create a pending user approval; they do not modify active core memory. Optional Review targets remain registered contributions. The former JSON review implementation is retained only for historical checkpoints and explicit legacy configurations.
 
+Review source selection belongs to each automation task. New tasks read the character's main work conversation by default, or an explicit list of conversations when configured. Optional plugin material providers and their role-owned streams remain separate, selectable contributions. Historical per-conversation Review flags are migrated into fixed task-owned conversation lists; conversation create/update operations no longer expose the flag. Migration preserves the prior effective range, per-task cursors, source prompts, permissions, and frozen job inputs. Adding a later conversation does not silently expand a migrated list.
+
 ## Results
 
 `TaskResults` records one durable, model-visible result in the parent conversation. Its idempotency key prevents duplicate records and inference. Channel presentation records remain separate.

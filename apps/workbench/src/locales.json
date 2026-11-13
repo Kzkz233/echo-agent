@@ -2100,10 +2100,6 @@
     "System"
   ],
   [
-    "纳入整理",
-    "Include in review"
-  ],
-  [
     "纳入这些非核心记忆",
     "Apply these non-core memories"
   ],
@@ -2308,8 +2304,8 @@
     "No conversations yet. Use + to start."
   ],
   [
-    "还没有整理记录。先在对话里打开「纳入整理」，再选择运行。",
-    "No reviews yet. Include a conversation in review, then start one."
+    "还没有整理记录。请在角色的自动化任务中配置并运行记忆整理。",
+    "No reviews yet. Configure and run a memory review in the character’s automation tasks."
   ],
   [
     "还没有模型运行。",
@@ -6130,10 +6126,6 @@
   [
     "会话材料范围",
     "Conversation sources"
-  ],
-  [
-    "使用会话的纳入整理开关",
-    "Use each conversation’s Review setting"
   ],
   [
     "只读取所选会话",

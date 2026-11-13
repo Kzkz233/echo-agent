@@ -179,7 +179,6 @@ export class Groups {
             personaId: member,
             injection: true,
             contextProviders: ['persona.context', 'delegation.context'],
-            review: false,
             kind: 'group-member',
             groupId: group.id,
             permissions: this.store.conversation(main)?.permissions,

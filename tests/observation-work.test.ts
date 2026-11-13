@@ -30,7 +30,7 @@ test('Observe uses a real API work session, records quiet results in main histor
   const work = app.router.workSessions.list(main.personaId).find(w => w.origin.id === 'screen')!;
   assert(work); assert.equal(work.execution, 'inference'); assert.equal(work.state, 'idle');
   assert.equal(fake.calls.length, 1); assert.equal(fake.calls[0].toolPolicy, 'none');
-  assert.equal(app.store.conversation(work.conversationId)?.review, false);
+  assert(!Object.hasOwn(app.store.conversation(work.conversationId)!, 'review'));
   const run = app.store.run(work.runId!)!;
   assert.equal((run.meta.generationMetrics as any).inputTokens, 1250);
   assert.deepEqual((run.meta.generationMetrics as any).totalUsage, { input: 1250, output: 35, cacheRead: 1000, cacheWrite: 0 });

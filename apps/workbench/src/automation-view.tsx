@@ -232,7 +232,7 @@ export function TaskField({
               value={String(text)}
               onChange={(event) => onChange(field.key, event.target.value)}
             >
-              <option value="">{t('未选择')}</option>
+              {field.allowEmpty !== false && <option value="">{t('未选择')}</option>}
               {text && !options.some((o) => String(o.value) === String(text)) && (
                 <option value={text}>{String(text)}</option>
               )}

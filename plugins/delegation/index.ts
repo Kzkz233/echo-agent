@@ -389,7 +389,6 @@ export class Delegations {
         personaId: origin.personaId,
         kind: 'worker',
         injection: true,
-        review: false,
         createdAt: now,
         compaction: template.compaction,
         maxOutputTokens: template.maxOutputTokens,

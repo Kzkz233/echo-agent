@@ -84,7 +84,7 @@ export class WorkSessions {
     store.saveConversation({ ...old, id: conversationId, title: input.title.slice(0, 160),
       ...(old?.contextProviders?.length === 1 && old.contextProviders[0] === 'delegation.context'
         ? { contextProviders: undefined } : {}),
-      personaId: input.personaId, kind: 'worker', injection: true, review: false,
+      personaId: input.personaId, kind: 'worker', injection: true,
       createdAt: old?.createdAt ?? now,
       permissions: input.permissions ?? old?.permissions,
       compaction: input.compaction,

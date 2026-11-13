@@ -121,6 +121,8 @@ test('Review submits a frozen core proposal and approval checks the current task
   app.store.set('review.tasks', []);
   app.reviews.saveTask('review-core', {
     ...app.reviews.policy(chat.personaId),
+    conversationScope: 'selected',
+    conversationIds: [chat.id],
     memoryOperations: ['propose-core'],
     autoApply: false,
   });

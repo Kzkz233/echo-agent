@@ -83,7 +83,7 @@ const taskSchema = reviewConfigSchema.extend({
     .optional(),
   name: z.string().trim().min(1).max(80).default('记忆整理'),
   personaId: id,
-  conversationScope: z.enum(['main', 'marked', 'selected']).default('main'),
+  conversationScope: z.enum(['main', 'selected']).default('main'),
   conversationIds: z.array(id).max(100).default([]),
   sourcePrompts: z.record(id, z.string().max(10000)).default({}),
   targetPrompts: z.record(id, z.string().max(10000)).default({}),
@@ -211,11 +211,40 @@ export class Reviews {
   private legacyConfig() {
     return reviewConfigSchema.parse(this.store.get('review.config', {}));
   }
+  private mainConversationId(personaId: string) {
+    return this.store.document<{ mainConversationId: string }>('characters', personaId)?.mainConversationId
+      ?? this.store.conversations().find(c => c.personaId === personaId && c.kind === 'main')?.id;
+  }
+  private legacyConversationIds(personaId: string, excludeWorkers = false) {
+    return this.store.conversations().filter(c => c.personaId === personaId && c.review === true &&
+      (!excludeWorkers || c.kind !== 'worker')).map(c => c.id);
+  }
+  private migrateSelection(task: Record<string, any>) {
+    if (task.conversationScope === undefined || task.conversationScope === 'marked')
+      return { ...task, conversationScope: 'selected', conversationIds: this.legacyConversationIds(task.personaId) };
+    // Older "main" policies fell back to marked non-worker conversations when
+    // a role had no main session. Freeze that effective range before removing
+    // the fallback; an empty main range remains empty until a main is created.
+    if (!this.store.get('review.conversationSources.v2', false) &&
+        task.conversationScope === 'main' && !this.mainConversationId(task.personaId)) {
+      const ids = this.legacyConversationIds(task.personaId, true);
+      if (ids.length) return { ...task, conversationScope: 'selected', conversationIds: ids };
+    }
+    return task;
+  }
   tasks(): ReviewTask[] {
-    const saved = this.store.get<ReviewTask[] | null>('review.tasks', null);
-    if (saved) return saved.map(task => taskSchema.parse({ ...task,
-      conversationScope: task.conversationScope ?? 'marked' }));
-    if (!this.store.get('review.config', null)) return [];
+    const saved = this.store.get<Record<string, any>[] | null>('review.tasks', null);
+    if (saved) {
+      const migrated = saved.map(task => this.migrateSelection(task));
+      const parsed = migrated.map(task => taskSchema.parse(task));
+      if (migrated.some((task, index) => task !== saved[index])) this.store.set('review.tasks', migrated);
+      if (!this.store.get('review.conversationSources.v2', false)) this.store.set('review.conversationSources.v2', true);
+      return parsed;
+    }
+    if (!this.store.get('review.config', null)) {
+      if (!this.store.get('review.conversationSources.v2', false)) this.store.set('review.conversationSources.v2', true);
+      return [];
+    }
     const legacy = this.legacyConfig();
     const personas = new Set(
       this.store
@@ -225,13 +254,17 @@ export class Reviews {
     );
     const reportRole = this.store.conversation(legacy.reportConversationId)?.personaId;
     if (reportRole) personas.add(reportRole);
-    return [...personas].map((personaId) => this.legacyTask(personaId, legacy));
+    const migrated = [...personas].map((personaId) => this.legacyTask(personaId, legacy));
+    if (migrated.length) this.store.set('review.tasks', migrated);
+    if (!this.store.get('review.conversationSources.v2', false)) this.store.set('review.conversationSources.v2', true);
+    return migrated;
   }
   private legacyTask(personaId: string, policy: ReviewConfig) {
     return taskSchema.parse({
       ...policy,
       runtimeVersion: 1,
-      conversationScope: 'marked',
+      conversationScope: 'selected',
+      conversationIds: this.legacyConversationIds(personaId),
       personaId,
       targetPrompts: policy.targetIds.includes('reflections.state')
         ? {
@@ -248,13 +281,22 @@ export class Reviews {
     });
   }
   policy(personaId: string) {
-    return (
-      this.tasks().find((task) => task.personaId === personaId) ??
-      this.legacyTask(
-        personaId,
-        this.store.get('review.tasks', null) ? reviewConfigSchema.parse({}) : this.legacyConfig(),
-      )
-    );
+    const task = this.tasks().find((task) => task.personaId === personaId);
+    if (task) return task;
+    const legacy = this.legacyTask(personaId,
+      this.store.get('review.tasks', null) ? reviewConfigSchema.parse({}) : this.legacyConfig());
+    // Compatibility for historical direct Review callers. New tasks are always
+    // created through saveTask and never infer their sources from old flags.
+    const snapshotKey = 'review.legacyConversationSelections.v1';
+    const frozen = this.store.get<Record<string, string[]> | null>(snapshotKey, null);
+    if (!this.store.get('review.tasks', null) && (frozen?.[personaId] || legacy.conversationIds.length)) {
+      const snapshot = frozen ?? Object.fromEntries(
+        [...new Set(this.store.conversations().filter(c => c.review).map(c => c.personaId))]
+          .map(role => [role, this.legacyConversationIds(role)]));
+      if (!frozen) this.store.set(snapshotKey, snapshot);
+      return { ...legacy, conversationIds: snapshot[personaId] ?? [] };
+    }
+    return { ...legacy, conversationScope: 'main' as const, conversationIds: [] };
   }
   private belongs(job: ReviewJob, policy: ReviewTask) {
     return (
@@ -328,8 +370,10 @@ export class Reviews {
         sourceStreams[source] = (settings['streams.' + source] ?? []) as string[];
       else delete sourceStreams[source];
     }
+    const selection = settings.conversationScope === 'marked'
+      ? this.migrateSelection(settings) : settings;
     const task = taskSchema.parse({
-      ...settings,
+      ...selection,
       sourceStreams,
       id: taskId,
       sourcePrompts: {
@@ -384,15 +428,13 @@ export class Reviews {
     this.publishRetention(task.personaId);
   }
   conversations(task: ReviewTask) {
-    const mainId = this.store.document<{ mainConversationId: string }>('characters', task.personaId)?.mainConversationId
-      ?? this.store.conversations().find(c => c.personaId === task.personaId && c.kind === 'main')?.id;
+    const mainId = this.mainConversationId(task.personaId);
     return this.store
       .conversations()
       .filter(
         (c) =>
           c.personaId === task.personaId &&
-          (task.conversationScope === 'main' ? (mainId ? c.id === mainId : c.review && c.kind !== 'worker')
-            : task.conversationScope === 'marked' ? c.review : task.conversationIds.includes(c.id)),
+          (task.conversationScope === 'main' ? c.id === mainId : task.conversationIds.includes(c.id)),
       );
   }
   private publishRetention(personaId: string) {
@@ -1827,9 +1869,9 @@ export class Reviews {
                   key: 'conversationScope',
                   label: '会话材料范围',
                   kind: 'select',
+                  allowEmpty: false,
                   options: [
                     { value: 'main', label: '角色主工作会话' },
-                    { value: 'marked', label: '使用会话的纳入整理开关' },
                     { value: 'selected', label: '只读取所选会话' },
                   ],
                 },

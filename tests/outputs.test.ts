@@ -343,6 +343,8 @@ test('Review freezes destinations before reading and never sends to a replacemen
         personaId: 'companion',
         name: 'Synthetic review',
         enabled: false,
+        conversationScope: 'selected',
+        conversationIds: [f.chat.id],
         reportConversationId: f.chat.id,
         outputTargets: ['fixture.destination'],
         autoApply: false,
