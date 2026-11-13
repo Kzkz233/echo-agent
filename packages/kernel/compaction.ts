@@ -80,7 +80,7 @@ export async function compactConversation(input: {
       // that whole group instead of either splitting it or never compacting.
       boundary = start ? start - 1 : keepGroup.length - 1;
     }
-    const before = history[boundary]?.seq ?? 0;
+    const before = Math.max(0, ...history.slice(0, boundary + 1).map(message => message.seq));
     const lines: string[] = [];
     let through = checkpoint?.through ?? 0;
     let size = prompt.length + (checkpoint?.text.length ?? 0) + 64;
@@ -96,7 +96,7 @@ export async function compactConversation(input: {
       const tokens = text.reduce((sum, line) => sum + estimateTokens(line) + 4, 0);
       if (size + chars > profile.contextChars || estimated + tokens > summaryInputTokens) break;
       lines.push(...text); size += chars; estimated += tokens;
-      through = group.at(-1)!.seq;
+      through = Math.max(through, ...group.map(message => message.seq));
     }
     if (lines.length && through > (checkpoint?.through ?? 0)) {
       try {

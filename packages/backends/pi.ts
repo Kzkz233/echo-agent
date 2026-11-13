@@ -478,6 +478,7 @@ export class PiBackend implements Backend {
       mutationPossible = uncertainMutation || pendingMutations.size > 0;
       return undefined;
     };
+    let initialInputRecorded = false;
     const off = agent.subscribe((event) => {
       progressAt = Date.now();
       if (event.type === 'message_end') {
@@ -486,8 +487,9 @@ export class PiBackend implements Backend {
           const safe = key ? JSON.parse(JSON.stringify(message).replaceAll(key, '[redacted]')) : message;
           const id = request.onTranscript?.(safe);
           if (id) persistedIds.set(message, id);
-        } else if (request.messages.at(-1)?.id) {
-          persistedIds.set(message, request.messages.at(-1)!.id!);
+        } else if (!initialInputRecorded) {
+          initialInputRecorded = true;
+          if (request.messages.at(-1)?.id) persistedIds.set(message, request.messages.at(-1)!.id!);
         }
       }
       if (event.type === 'message_end' && event.message.role === 'assistant') {

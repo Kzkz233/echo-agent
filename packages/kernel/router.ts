@@ -1357,7 +1357,17 @@ export class Router {
             combined.throwIfAborted();
             invariant(this.store.binding(conversation.id)?.epoch === run!.epoch, 'stale_epoch', '旧绑定不再压缩会话。');
             const through = Math.max(0, ...messageIds.map(id => this.store.modelPosition(id) ?? 0));
-            if (through) this.store.put('conversation-compactions', conversation.id, { version: 2, through, text: summary });
+            const previous = this.store.document<{ version?: number; through: number }>('conversation-compactions', conversation.id);
+            const prior = previous ? previous.version === 2 ? previous.through
+              : this.store.legacyModelPosition(conversation.id, previous.through) : 0;
+            const included = new Set(messageIds);
+            // A queued/steered input may have been accepted between a call and
+            // its result without joining this compaction. Never advance across
+            // an unsummarized record; the ordinary between-run pass can handle it.
+            const uncovered = this.store.modelMessages(conversation.id, prior)
+              .some(message => message.seq <= through && !included.has(message.id));
+            if (through > prior && !uncovered)
+              this.store.put('conversation-compactions', conversation.id, { version: 2, through, text: summary });
           },
           onItem: (item) => {
             if (!combined.aborted && this.store.binding(conversation.id)?.epoch === run!.epoch) {

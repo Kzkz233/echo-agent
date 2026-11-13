@@ -19,7 +19,9 @@ export function normalizeHistory(messages: Message[]): Message[] {
       batch.push({ ...source, id: source.id + '.unconfirmed.' + createHash('sha256').update(id).digest('hex').slice(0, 16), role: 'tool',
         text: transcriptText(native), meta: { native, contextGroup: batch[0].id } });
     }
-    result.push(...batch, ...waiting); batch = []; waiting = []; pending.clear();
+    result.push(...batch, ...waiting.map(message => ({ ...message,
+      meta: { ...message.meta, contextGroup: batch[0].id } })));
+    batch = []; waiting = []; pending.clear();
   };
   for (const message of messages) {
     const native = nativeMessage(message);

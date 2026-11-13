@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { Application } from '../apps/server/application.ts';
 import { PiBackend } from '../packages/backends/pi.ts';
 import { Store } from '../packages/kernel/store.ts';
+import { historyGroups } from '../packages/kernel/conversation-history.ts';
 import { conversation, project, temporary } from './helpers.ts';
 import { seedProfile, seedRoutes } from '../scripts/inference-fixture.ts';
 import { generationProtocol, profileSchema } from '../packages/contracts/index.ts';
@@ -63,7 +64,9 @@ async function fixture(t: TestContext, protocol: string, next: (body: any, step:
       let text = ''; for await (const chunk of req) text += chunk;
       const body = JSON.parse(text); requests.push(body);
       const output = next(body, requests.length);
-      res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.end(output);
+      // Each fixture owns a short-lived loopback server. Do not leave pooled
+      // sockets pointing at a port the OS may immediately give another fixture.
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', Connection: 'close' }); res.end(output);
     } catch (error) { serverError = error; res.writeHead(400); res.end('{"error":{"message":"Fixture failed"}}'); }
   });
   await new Promise<void>(done => server.listen(0, '127.0.0.1', done));
@@ -105,7 +108,8 @@ for (const protocol of generationProtocol.options) test(protocol + ' restores al
   });
   const send = async (id: string) => {
     const run = await f.app.router.send({ conversationId: f.chat.id, requestId: id, text: id });
-    assert.equal(run.state, 'succeeded', run.error ?? 'Synthetic run failed');
+    assert.equal(run.state, 'succeeded', JSON.stringify({ error: run.error, requests: f.requests.length,
+      diagnostics: f.app.router.execution.list(run.id).filter(item => item.id === 'provider-request-failure') }));
   };
   await send('first'); await send('followup');
   assert.equal(f.reads, 1);
@@ -144,9 +148,13 @@ for (const mode of ['between runs', 'during execution']) test('automatic compact
   const first = await f.app.router.send({ conversationId: f.chat.id, requestId: 'large-first',
     text: 'Initial task '.repeat(mode === 'during execution' ? 100 : 1000) });
   assert.equal(first.state, 'succeeded', first.error ?? 'First run failed');
+  const initialSummaries = summaries;
+  if (mode === 'during execution') assert(initialSummaries > 0);
   if (mode === 'between runs') f.app.store.saveConversation({ ...f.chat, compaction: policy });
   const next = await f.app.router.send({ conversationId: f.chat.id, requestId: 'after-compaction', text: 'Continue' });
   assert.equal(next.state, 'succeeded', next.error ?? 'Continuation failed');
+  if (mode === 'during execution') assert.equal(summaries, initialSummaries,
+    'The in-run checkpoint must be reused, not recomputed at the next turn');
   const snapshot = f.app.store.document<any>('conversation-compactions', f.chat.id);
   assert.equal(snapshot.version, 2); assert(snapshot.through > 0);
   assert.equal(f.reads, 2);
@@ -206,6 +214,14 @@ test('interrupted tool outcomes remain unknown and paired; raw media is not arch
     timestamp: 2, content: [{ type: 'image', data: 'PRIVATE_SCREENSHOT_BYTES', mimeType: 'image/png' }] });
   assert(!JSON.stringify(store.db.prepare('SELECT data FROM session_entries').all()).includes('PRIVATE_SCREENSHOT_BYTES'));
   assert.match(JSON.stringify(store.modelMessages(c.id)), /transient/);
+  store.appendTranscript(c.id, 'interleaved', assistant('interleaved-call'));
+  store.append(c.id, 'user', 'human', 'Input accepted while a tool is running');
+  store.appendTranscript(c.id, 'interleaved', { role: 'toolResult', toolCallId: 'interleaved-call',
+    toolName: 'fixture_read', isError: false, timestamp: 3, content: [{ type: 'text', text: 'Confirmed result' }] });
+  const lastGroup = historyGroups(store.modelMessages(c.id)).at(-1)!;
+  assert.equal(lastGroup.length, 3);
+  assert.equal((lastGroup[1].meta.native as any).role, 'toolResult');
+  assert.equal(lastGroup[2].text, 'Input accepted while a tool is running');
 });
 
 test('legacy migration adds history references without rewriting messages, permissions or compaction records', async t => {
