@@ -10238,5 +10238,17 @@
   [
     "排除这些窗口的画面，并观察下方获准内容；无法排除时暂停该帧。",
     "Exclude these windows from captured images and observe approved content underneath. Skip the frame if exclusion is unavailable."
+  ],
+  [
+    "显示采集边框",
+    "Show capture border"
+  ],
+  [
+    "默认通过 Windows 授权隐藏边框；系统不允许时，可开启边框继续观察。",
+    "Hide the border with Windows authorization by default. If unavailable, enable the border to continue observation."
+  ],
+  [
+    "无边框采集",
+    "Borderless capture"
   ]
 ]

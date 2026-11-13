@@ -13,15 +13,20 @@ import { localTimestamp } from '../packages/kernel/time.ts';
 
 test('a capture denied after probe pauses status and later capture clears it', async (t) => {
   const app = await setup(t);
+  assert.equal(observationConfigSchema.parse({}).showCaptureBorder, false);
   let blocked = true;
   t.mock.method(app.observations, 'sample', async (work: (native: StdioRpc) => Promise<void>) => {
     await work({
-      call: async (method: string) =>
+      call: async (method: string, params: { showCaptureBorder?: boolean }) => {
+        assert.equal(params.showCaptureBorder, false);
+        return (
         method === 'probe'
           ? { allowed: true, signature: 'AAAA', proof: 'fixture', sources: [] }
           : blocked
             ? { allowed: false, reason: 'Overlay appeared' }
-            : { allowed: true, jpeg: 'AAAA', timestamp: new Date().toISOString(), captureBackend: 'wgc' },
+            : { allowed: true, jpeg: 'AAAA', timestamp: new Date().toISOString(), captureBackend: 'wgc', captureBorder: false }
+        );
+      },
     } as unknown as StdioRpc);
   });
   app.observations.configure(
@@ -39,6 +44,7 @@ test('a capture denied after probe pauses status and later capture clears it', a
   assert.equal(app.observations.status().allowed, true);
   assert.equal(app.observations.status().samplingReason, '');
   assert.equal(app.observations.status().captureBackend, 'wgc');
+  assert.equal(app.observations.status().captureBorder, false);
 });
 
 test('occlusion exclusions are user-owned and legacy defaults are disabled once', async (t) => {

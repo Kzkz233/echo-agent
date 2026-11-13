@@ -343,6 +343,7 @@ export const observationConfigSchema = z.object({
   interactionReasoning: reasoning.default('off'),
   width: z.number().int().min(280).max(1600).default(840),
   quality: z.number().int().min(35).max(95).default(75),
+  showCaptureBorder: z.boolean().default(false),
   minBubbleSeconds: z.number().int().min(30).max(86400).default(300),
   changedFraction: z.number().min(0).max(1).default(0.035),
   maxStillSeconds: z.number().int().min(5).max(3600).default(120),

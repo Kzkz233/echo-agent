@@ -18,7 +18,12 @@ desktop capture containing the excluded overlay.
 
 Window capture uses bounded, short-lived sessions which close after each sample, including on
 errors. It does not start a background recording stream, increase the local sampling frequency,
-or save screenshots. Windows may display its capture indicator around the target window.
+or save screenshots. By default Echo requests Windows borderless-capture authorization once
+per sampler process and sets `IsBorderRequired(false)` only after Windows returns `Allowed`.
+Permission requests run separately from capture; while a system consent prompt is pending, no
+window capture starts. Denied or unavailable access pauses the frame with an explanation.
+The task's **Show capture border** setting restores bordered capture when needed. Other
+applications capturing the same window may still cause Windows to display its indicator.
 Window exclusions do not grant access to applications, browser pages, or regions outside the
 original source whitelist.
 

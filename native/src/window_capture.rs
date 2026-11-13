@@ -4,7 +4,7 @@ use crate::Rect;
 use image::RgbImage;
 use std::{
     cell::RefCell,
-    sync::mpsc,
+    sync::{Arc, Condvar, Mutex, OnceLock, mpsc},
     time::{Duration, Instant},
 };
 
@@ -34,9 +34,13 @@ pub fn release_device() {
 use windows::{
     Foundation::TypedEventHandler,
     Graphics::{
-        Capture::{Direct3D11CaptureFramePool, GraphicsCaptureItem, GraphicsCaptureSession},
+        Capture::{
+            Direct3D11CaptureFramePool, GraphicsCaptureAccess, GraphicsCaptureAccessKind,
+            GraphicsCaptureItem, GraphicsCaptureSession,
+        },
         DirectX::{Direct3D11::IDirect3DDevice, DirectXPixelFormat},
     },
+    Security::Authorization::AppCapabilityAccess::AppCapabilityAccessStatus,
     Win32::{
         Foundation::{HWND, RECT},
         Graphics::{
@@ -53,6 +57,87 @@ use windows::{
     },
     core::{Interface, factory},
 };
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BorderlessAccess {
+    Pending,
+    Allowed,
+    Denied,
+    Unavailable,
+}
+struct AccessRequest {
+    state: Mutex<BorderlessAccess>,
+    completed: Condvar,
+}
+static BORDERLESS_ACCESS: OnceLock<Arc<AccessRequest>> = OnceLock::new();
+
+fn access_result(result: windows::core::Result<AppCapabilityAccessStatus>) -> BorderlessAccess {
+    match result {
+        Ok(AppCapabilityAccessStatus::Allowed) => BorderlessAccess::Allowed,
+        Ok(_) => BorderlessAccess::Denied,
+        Err(_) => BorderlessAccess::Unavailable,
+    }
+}
+
+/// Ask Windows once. A system consent dialog must never block the sampler RPC thread.
+pub fn borderless_access() -> BorderlessAccess {
+    let request = BORDERLESS_ACCESS.get_or_init(|| {
+        let request = Arc::new(AccessRequest {
+            state: Mutex::new(BorderlessAccess::Pending),
+            completed: Condvar::new(),
+        });
+        let worker = request.clone();
+        if std::thread::Builder::new()
+            .name("capture-border-permission".into())
+            .spawn(move || unsafe {
+                use windows::Win32::System::WinRT::{
+                    RO_INIT_MULTITHREADED, RoInitialize, RoUninitialize,
+                };
+                let initialized = RoInitialize(RO_INIT_MULTITHREADED).is_ok();
+                let result = GraphicsCaptureAccess::RequestAccessAsync(
+                    GraphicsCaptureAccessKind::Borderless,
+                )
+                .and_then(|operation| operation.join());
+                if let Ok(mut state) = worker.state.lock() {
+                    *state = access_result(result);
+                    worker.completed.notify_all();
+                }
+                if initialized {
+                    RoUninitialize();
+                }
+            })
+            .is_err()
+        {
+            *request.state.lock().unwrap() = BorderlessAccess::Unavailable;
+        }
+        request
+    });
+    let Ok(state) = request.state.lock() else {
+        return BorderlessAccess::Unavailable;
+    };
+    match request
+        .completed
+        .wait_timeout_while(state, Duration::from_millis(200), |s| {
+            *s == BorderlessAccess::Pending
+        }) {
+        Ok((state, _)) => *state,
+        Err(_) => BorderlessAccess::Unavailable,
+    }
+}
+pub fn borderless_issue(access: BorderlessAccess) -> Option<&'static str> {
+    match access {
+        BorderlessAccess::Allowed => None,
+        BorderlessAccess::Pending => {
+            Some("正在等待 Windows 无边框采集授权；如有系统提示，请手动允许。")
+        }
+        BorderlessAccess::Denied => {
+            Some("Windows 未允许无边框采集；可在任务设置中开启“显示采集边框”后继续。")
+        }
+        BorderlessAccess::Unavailable => {
+            Some("当前系统不支持无边框采集；可在任务设置中开启“显示采集边框”后继续。")
+        }
+    }
+}
 
 struct Snapshot {
     pool: Direct3D11CaptureFramePool,
@@ -114,6 +199,7 @@ impl Device {
         screen: (i32, i32),
         regions: &[Rect],
         deadline: Instant,
+        show_border: bool,
     ) -> Result<(), String> {
         let capture = (|| -> windows::core::Result<()> {
             unsafe {
@@ -143,7 +229,17 @@ impl Device {
                     }
                 };
                 let snapshot = Snapshot { pool, session };
-                // Do not request borderless privileges or change other applications' windows.
+                // Only the documented Windows grant may disable the system indicator.
+                if !show_border {
+                    if borderless_access() != BorderlessAccess::Allowed {
+                        return Err(windows::core::Error::from_hresult(
+                            windows::Win32::Foundation::E_ACCESSDENIED,
+                        ));
+                    }
+                    snapshot.session.SetIsBorderRequired(false)?;
+                    #[cfg(test)]
+                    assert!(!snapshot.session.IsBorderRequired()?,"Windows session still requires a border");
+                }
                 let _ = snapshot.session.SetIsCursorCaptureEnabled(false);
                 let (tx, rx) = mpsc::sync_channel(1);
                 snapshot
@@ -311,6 +407,43 @@ fn copy_regions(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "explicit Windows borderless-capture authorization probe"]
+    fn windows_borderless_permission_probe() {
+        crate::platform::initialize();
+        let result = windows::Graphics::Capture::GraphicsCaptureAccess::RequestAccessAsync(
+            windows::Graphics::Capture::GraphicsCaptureAccessKind::Borderless,
+        )
+        .and_then(|operation| operation.join());
+        println!("Windows borderless access: {result:?}");
+        assert!(
+            result.is_ok(),
+            "Official capture permission API unavailable"
+        );
+    }
+    #[test]
+    fn borderless_capture_requires_an_explicit_windows_grant() {
+        assert_eq!(
+            access_result(Ok(AppCapabilityAccessStatus::Allowed)),
+            BorderlessAccess::Allowed
+        );
+        for status in [
+            AppCapabilityAccessStatus::DeniedByUser,
+            AppCapabilityAccessStatus::DeniedBySystem,
+            AppCapabilityAccessStatus::NotDeclaredByApp,
+            AppCapabilityAccessStatus::UserPromptRequired,
+        ] {
+            assert_eq!(access_result(Ok(status)), BorderlessAccess::Denied);
+        }
+        assert_eq!(
+            access_result(Err(windows::core::Error::from_hresult(
+                windows::Win32::Foundation::E_FAIL
+            ))),
+            BorderlessAccess::Unavailable
+        );
+        assert!(borderless_issue(BorderlessAccess::Allowed).is_none());
+        assert!(borderless_issue(BorderlessAccess::Pending).is_some());
+    }
     #[test]
     fn window_copy_preserves_masks_and_negative_origins() {
         let bounds = Rect {

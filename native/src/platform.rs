@@ -1048,7 +1048,7 @@ fn print_window_pixels(scene: &Scene, width: u32) -> Result<RgbImage, String> {
         }
     }
 }
-fn pixels(scene: &Scene, width: u32) -> Result<(RgbImage, &'static str), String> {
+fn pixels(scene: &Scene, width: u32, show_capture_border: bool) -> Result<(RgbImage, &'static str), String> {
     if scene.authorized_windows.iter().any(|w|w.behind_ignored_window) {
         // Desktop capture contains ignored overlay pixels. Window capture reads the
         // underlying application and copies only its own locally authorized regions.
@@ -1058,7 +1058,7 @@ fn pixels(scene: &Scene, width: u32) -> Result<(RgbImage, &'static str), String>
         let deadline=std::time::Instant::now()+std::time::Duration::from_millis(1800);
         crate::window_capture::with_device(|device|{
             for window in &scene.authorized_windows {
-                device.copy_window(window.hwnd,&mut image,(scene.width,scene.height),&window.regions,deadline)?;
+                device.copy_window(window.hwnd,&mut image,(scene.width,scene.height),&window.regions,deadline,show_capture_border)?;
             }
             Ok(())
         })?;
@@ -1140,7 +1140,7 @@ mod capture_acceptance {
             authorized_windows:vec![AuthorizedWindow{hwnd:fixture.target,regions,behind_ignored_window:true}]};
         let desktop=gdi_pixels(&scene,screen.0 as u32).unwrap();
         assert_eq!(desktop.get_pixel(200,180).0,[230,20,210],"fixture overlay must be present in desktop capture");
-        let start=Instant::now();let (image,backend)=pixels(&scene,screen.0 as u32).unwrap();
+        let start=Instant::now();let (image,backend)=pixels(&scene,screen.0 as u32,true).unwrap();
         assert_eq!(backend,"wgc");
         assert_eq!(image.get_pixel(200,180).0,[20,180,40],"must recover underlying target pixels");
         assert_eq!(image.get_pixel(350,270).0,[0,0,0],"unapproved content must remain masked");
@@ -1148,11 +1148,15 @@ mod capture_acceptance {
         SetWindowLongPtrW(fixture.overlay,GWL_EXSTYLE,GetWindowLongPtrW(fixture.overlay,GWL_EXSTYLE)|WS_EX_LAYERED.0 as isize);
         let _=SetLayeredWindowAttributes(fixture.overlay,COLORREF(0),128,LWA_ALPHA);
         let _=windows::Win32::Graphics::Dwm::DwmFlush();
-        let (transparent,backend)=pixels(&scene,screen.0 as u32).unwrap();
+        let (transparent,backend)=pixels(&scene,screen.0 as u32,true).unwrap();
         assert_eq!(backend,"wgc");
         assert_eq!(transparent.get_pixel(200,180).0,[20,180,40],"transparent overlay must also be excluded");
+        let (borderless,backend)=pixels(&scene,screen.0 as u32,false).unwrap();
+        assert_eq!(backend,"wgc");
+        assert_eq!(borderless.get_pixel(200,180).0,[20,180,40],"borderless capture must still exclude overlays");
+        assert_eq!(borderless.get_pixel(350,270).0,[0,0,0],"borderless capture must retain privacy masks");
         let invalid=Scene{authorized_windows:vec![AuthorizedWindow{hwnd:HWND(1usize as *mut c_void),regions:scene.regions.clone(),behind_ignored_window:true}],..scene.clone()};
-        assert!(pixels(&invalid,320).is_err(),"failed exclusion must never fall back to desktop pixels");
+        assert!(pixels(&invalid,320,true).is_err(),"failed exclusion must never fall back to desktop pixels");
         let own_path=process_path(fixture.target);
         assert!(!own_path.is_empty(),"fixture process must be identifiable");
         let excluded=Rule{id:"custom-overlay".into(),r#type:"process".into(),value:own_path,title:"Excluded capture fixture".into(),enabled:true};
@@ -1235,14 +1239,20 @@ pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
         };
         return Ok(json!({"allowed":false,"sources":[],"reason":reason}));
     }
+    let show_capture_border=params.get("showCaptureBorder").and_then(Value::as_bool).unwrap_or(false);
+    if !show_capture_border && before.authorized_windows.iter().any(|w|w.behind_ignored_window) {
+        if let Some(reason)=crate::window_capture::borderless_issue(crate::window_capture::borderless_access()) {
+            return Ok(json!({"allowed":false,"sources":[],"reason":reason}));
+        }
+    }
     if method == "probe" {
-        let (image, capture_backend) = pixels(&before, 320)?;
+        let (image, capture_backend) = pixels(&before, 320, show_capture_border)?;
         let after = scene(&rules, &browser_rules, &occlusion_rules)?;
         if before.proof != after.proof {
             return Ok(json!({"allowed":false,"sources":[],"reason":"窗口切换中"}));
         }
         return Ok(
-            json!({"allowed":true,"signature":STANDARD.encode(signature(&image)),"sources":before.sources,"proof":before.proof,"visibility":visibility(&before,&image),"captureBackend":capture_backend}),
+            json!({"allowed":true,"signature":STANDARD.encode(signature(&image)),"sources":before.sources,"proof":before.proof,"visibility":visibility(&before,&image),"captureBackend":capture_backend,"captureBorder":capture_backend=="wgc"&&show_capture_border}),
         );
     }
     if method == "capture" {
@@ -1259,7 +1269,7 @@ pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
             .and_then(Value::as_u64)
             .unwrap_or(75)
             .clamp(35, 95) as u8;
-        let (image, capture_backend) = pixels(&before, width)?;
+        let (image, capture_backend) = pixels(&before, width, show_capture_border)?;
         let after = scene(&rules, &browser_rules, &occlusion_rules)?;
         if before.proof != after.proof {
             return Ok(json!({"allowed":false,"reason":"采集期间窗口发生变化"}));
@@ -1269,7 +1279,7 @@ pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
             .encode_image(&image)
             .map_err(|_| "JPEG 编码失败")?;
         return Ok(
-            json!({"allowed":true,"jpeg":STANDARD.encode(jpeg),"timestamp":chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis,true),"sources":before.sources,"visibility":visibility(&before, &image),"captureBackend":capture_backend}),
+            json!({"allowed":true,"jpeg":STANDARD.encode(jpeg),"timestamp":chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis,true),"sources":before.sources,"visibility":visibility(&before, &image),"captureBackend":capture_backend,"captureBorder":capture_backend=="wgc"&&show_capture_border}),
         );
     }
     Err("未知原生操作".into())

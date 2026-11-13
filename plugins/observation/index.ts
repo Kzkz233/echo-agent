@@ -101,6 +101,7 @@ function normalizeObservationConfig(config: ObservationConfig): ObservationConfi
     reportIntervalSeconds: config.reportIntervalSeconds ?? config.minBubbleSeconds ?? 300,
     frameCount: config.frameCount ?? 4,
     batchTimeoutSeconds: config.batchTimeoutSeconds ?? 120,
+    showCaptureBorder: config.showCaptureBorder ?? false,
     browserAllowlist:
       (config.browserAllowlist ?? DEFAULT_BROWSER_ALLOWLIST).map((rule) => ({
         ...rule, readerId: rule.readerId ?? 'observation.uia-document',
@@ -249,6 +250,7 @@ type NativeProbe = {
   proof?: string;
   visibility?: FrameVisibility;
   captureBackend?: 'gdi' | 'dxgi' | 'printwindow' | 'wgc';
+  captureBorder?: boolean;
 };
 function sourceOnly(visibility?: FrameVisibility) {
   return (
@@ -277,6 +279,7 @@ class ObservationTask {
     at: number;
     visibility?: FrameVisibility;
     captureBackend?: 'gdi' | 'dxgi' | 'printwindow' | 'wgc';
+    captureBorder?: boolean;
   };
   private stats = {
     probes: 0,
@@ -321,6 +324,7 @@ class ObservationTask {
       samplingReason: this.lastSample?.reason ?? '',
       lastVisibility: this.lastSample?.visibility,
       captureBackend: this.lastSample?.captureBackend,
+      captureBorder: this.lastSample?.captureBorder,
     };
   }
   start() {
@@ -357,10 +361,11 @@ class ObservationTask {
     reason = '',
     visibility?: FrameVisibility,
     captureBackend?: 'gdi' | 'dxgi' | 'printwindow' | 'wgc',
+    captureBorder?: boolean,
   ) {
     const previous = this.lastSample;
     const now = Date.now();
-    this.lastSample = { allowed, reason, at: now, visibility, captureBackend };
+    this.lastSample = { allowed, reason, at: now, visibility, captureBackend, captureBorder };
     this.stats.allowed = allowed;
     if (allowed !== previous?.allowed || reason !== previous?.reason)
       this.events.emit('observation.sampling.changed', { taskId: this.id });
@@ -422,6 +427,7 @@ class ObservationTask {
             allowlist: config.allowlist,
             browserAllowlist: readers.browserAllowlist,
             occlusionAllowlist: config.occlusionAllowlist,
+            showCaptureBorder: config.showCaptureBorder,
           },
           4000,
         );
@@ -432,7 +438,7 @@ class ObservationTask {
           return;
         }
         invariant(probe.signature, 'capture_protocol', '采集器未返回画面签名。');
-        this.publishSampling(true, '', probe.visibility, probe.captureBackend);
+        this.publishSampling(true, '', probe.visibility, probe.captureBackend, probe.captureBorder);
         const signature = Buffer.from(probe.signature, 'base64');
         const selectedAt = sampleNow();
         this.expireFrames(selectedAt, config);
@@ -450,6 +456,7 @@ class ObservationTask {
             allowlist: config.allowlist,
             browserAllowlist: readers.browserAllowlist,
             occlusionAllowlist: config.occlusionAllowlist,
+            showCaptureBorder: config.showCaptureBorder,
             proof: probe.proof,
             width: config.width,
             quality: config.quality,
@@ -463,7 +470,7 @@ class ObservationTask {
         }
         if (readers.revision !== this.owner.sourceRevision()) return;
         invariant(captured.jpeg, 'capture_protocol', '采集器未返回图片。');
-        this.publishSampling(true, '', captured.visibility, captured.captureBackend);
+        this.publishSampling(true, '', captured.visibility, captured.captureBackend, captured.captureBorder);
         const sources = probe.sources;
         const frame: Frame = {
           timestamp: captured.timestamp,
@@ -1244,6 +1251,8 @@ export class Observations {
                   { key: 'enabled', label: '启用', kind: 'boolean' },
                 ],
               },
+              { key: 'showCaptureBorder', label: '显示采集边框', kind: 'boolean',
+                description: '默认通过 Windows 授权隐藏边框；系统不允许时，可开启边框继续观察。' },
               { key: 'visionProfileId', label: '视觉模型', kind: 'model', inferenceTask: inferenceTasks.vision },
               { key: 'observationPrompt', label: '观察提示词', kind: 'textarea' },
               { key: 'interactionPrompt', label: '汇报要求', kind: 'textarea', when: { key: 'report', value: true } },

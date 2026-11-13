@@ -2075,6 +2075,9 @@ function Observation() {
                               ? 'PrintWindow'
                               : 'GDI',
                     })}
+                    {status.captureBackend === 'wgc' && status.captureBorder === false && (
+                      <span> · {t('无边框采集')}</span>
+                    )}
                     {status.lastVisibility.visiblePercent > 2 &&
                       status.lastVisibility.contentPercent === 0 &&
                       status.lastVisibility.litPercent === 0 &&
