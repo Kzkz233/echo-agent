@@ -291,6 +291,7 @@ export function KnowledgeSearch({
                         await rpc('semantic.index', {
                           filter: scope,
                           requestId: crypto.randomUUID(),
+                          pipeline: true,
                         });
                         await load(false);
                       }, t('向量任务已启动'));

@@ -1,4 +1,3 @@
-import { mediaExtensions } from '../../../packages/contracts/speech.ts';
 import type { ParserDescriptor } from '../../../packages/contracts/parsing.ts';
 import { libraryLabel } from './library-label.ts';
 import { locale } from './i18n.ts';
@@ -47,7 +46,6 @@ export function KnowledgeView({
     [panel, setPanel] = useState(''),
     [source, setSource] = useState(''),
     [importMode, setImportMode] = useState('parse'),
-    [importParser, setImportParser] = useState(''),
     [parserCatalog,setParserCatalog] = useState<ParserDescriptor[]>([]),
     [reparseParser,setReparseParser] = useState(''),
     [importFolder, setImportFolder] = useState(''),
@@ -163,11 +161,8 @@ export function KnowledgeView({
     window.addEventListener('echo-event', update);
     return () => window.removeEventListener('echo-event', update);
   }, [vault]);
-  const extension=/\.[^.\\/]+$/.exec(source)?.[0].toLowerCase();
-  const parsers=parserCatalog.filter(p=>!extension||p.version==='legacy'||p.extensions.includes(extension));
   const providerShape=JSON.stringify(data.providers);
   useEffect(()=>{let active=true;void rpc('knowledge.parsers',{}).then(value=>{if(active)setParserCatalog(value);}).catch(e=>setIssue(e.message));return()=>{active=false;};},[providerShape]);
-  useEffect(()=>{if(importParser&&!parsers.some(p=>p.id===importParser))setImportParser('');},[source,parserCatalog]);
   const scope = {
     vaultId: vault,
     kind: kind || 'all',
@@ -213,11 +208,13 @@ export function KnowledgeView({
           id: item.documentId ?? item.id,
           vaultId: item.vaultId ?? vault,
           offset: item.offset ?? 0,
+          nodeId: item.node?.id,
+          graphPolicy: item.node?.graphPolicy,
         }),
       '',
     );
     if (version === readVersion.current) {
-      if (result) setSelected({...result,timeRange:item.timeRange});
+      if (result) setSelected({...result,timeRange:result.timeRange ?? item.timeRange});
       setReading(false);
     }
   };
@@ -550,22 +547,7 @@ export function KnowledgeView({
                 <option value="archive">{t('只保存原件')}</option>
               </select>
             </label>
-            {importMode === 'parse' && parsers.length > 0 && (
-              <label className="field">
-                <span>{t('文档解析器')}</span>
-                <select
-                  value={importParser}
-                  onChange={(event) => setImportParser(event.target.value)}
-                >
-                  <option value="">{t('使用默认解析器')}</option>
-                  {parsers.map((p: any) => (
-                    <option key={p.id} value={p.id}>
-                      {t(p.label)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
+
           </div>
           <div className="row">
             <Button
@@ -583,7 +565,7 @@ export function KnowledgeView({
                       vaultId: vault,
                       source,
                       requestId: crypto.randomUUID(),
-                      parserProvider: importParser || undefined,
+
                       folder: importFolder,
                     });
                     await load();
@@ -647,45 +629,7 @@ export function KnowledgeView({
               {t('注册目录')}
             </Button>
           </div>
-          <details className="library-advanced">
-            <summary>{t('解析与检索提供方')}</summary>
-            <div className="form-grid">
-              {(['retrievalProvider', 'parserProvider', 'mediaParserProvider'] as const).map(
-                (key) => (
-                  <label className="field" key={key}>
-                    <span>
-                      {key === 'retrievalProvider'
-                        ? t('检索提供方')
-                        : key === 'mediaParserProvider'
-                          ? t('音视频解析器')
-                          : t('文档解析器')}
-                    </span>
-                    <select
-                      value={data.pluginSettings.knowledge?.[key] ?? ''}
-                      onChange={(e) =>
-                        act(() =>
-                          rpc('settings.save', {
-                            pluginId: 'knowledge',
-                            value: { ...data.pluginSettings.knowledge, [key]: e.target.value },
-                          }),
-                        )
-                      }
-                    >
-                      <option value="">{t('自动选择可用提供方')}</option>
-                      {(key==='retrievalProvider'?data.providers.filter((p:any)=>p.point==='core.retrieval@1'&&p.state==='active'):
-                        parserCatalog.filter(p=>p.version!=='legacy'&&(key==='mediaParserProvider'?
-                          p.extensions.some(e=>mediaExtensions.includes(e)):!p.extensions.some(e=>mediaExtensions.includes(e)))))
-                        .map((p: any) => (
-                          <option key={p.id} value={p.id}>
-                            {t(p.label)}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                ),
-              )}
-            </div>
-          </details>
+          <p className="muted">{t('默认解析与索引流程在知识系统设置中统一配置。')}</p>
         </div>
       )}
       {panel === 'export' && (

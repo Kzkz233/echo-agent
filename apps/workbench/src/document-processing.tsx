@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { rpc } from './client.ts';
 import { t, statusText } from './i18n.ts';
 import { Button, PathInput, useUnsavedChanges, sameData } from './ui.tsx';
+import IngestionView from './ingestion-view.tsx';
 export default function DocumentProcessing({ data, act }: any) {
   const [value, setValue] = useState<any>(data.pluginSettings.documents ?? {}),
     [provider, setProvider] = useState('documents.mineru-api'),
@@ -16,10 +17,10 @@ export default function DocumentProcessing({ data, act }: any) {
   useUnsavedChanges(!!secret || !sameData(value, data.pluginSettings.documents ?? {}), '文档解析');
   const set = (key: string, v: any) => setValue({ ...value, [key]: v });
   return (
-    <section className="card inference-form">
+    <><IngestionView data={data} act={act} /><section className="card inference-form">
       <h2>{t('文档解析连接')}</h2>
       <p className="muted">
-        {t('在这里管理共享解析连接；默认解析器与每次导入的解析方式在知识库中选择。')}
+        {t('在这里管理解析连接。文件类型路由与已有内容迁移统一在入库流程中配置。')}
       </p>
       <label className="field">
         <span>{t('解析提供方')}</span>
@@ -163,6 +164,6 @@ export default function DocumentProcessing({ data, act }: any) {
           <span>{statusText(j.state)}</span>
         </div>
       ))}
-    </section>
+    </section></>
   );
 }

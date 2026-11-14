@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { vendorNode } from './vendor-node.ts';
 import { vendorBge } from './vendor-bge.ts';
+import { vendorSilero } from './vendor-silero.ts';
 const root = resolve(import.meta.dirname, '..'),
   stage = join(root, 'dist', 'runtime');
 await mkdir(stage, { recursive: true });
@@ -68,6 +69,7 @@ for (const name of [
   'server.mjs',
   'cli.mjs',
   'embedding-worker.mjs',
+  'vad-worker.mjs',
   'process-guardian.mjs',
   'document-result-worker.mjs',
   'semantic-search-worker.mjs',
@@ -83,6 +85,7 @@ for (const name of [
   await cp(join(root, 'dist', name), join(stage, 'dist', name));
 const node = await vendorNode(root);
 await cp(await vendorBge(root),join(stage,'models'),{recursive:true});
+await cp(await vendorSilero(root), join(stage, 'models/silero-vad'), { recursive: true });
 await cp(join(root, 'native/target/release/echo-avatar.exe'), join(stage, 'echo-avatar.exe'));
 await cp(join(node, 'node.exe'), join(stage, 'node.exe'));
 await cp(join(root, 'scripts/echo-agent.cmd'), join(root, 'dist/echo-agent.cmd'));

@@ -731,6 +731,7 @@ export class Observations {
   private sampling = Promise.resolve();
   private timer?: NodeJS.Timeout;
   private active = false;
+  private maintenance = false;
   constructor(
     readonly store: Store,
     readonly router: Router,
@@ -953,6 +954,7 @@ export class Observations {
     return { id: taskId };
   }
   private tick() {
+    if (this.maintenance) return;
     for (const config of this.configurations()) {
       if (!config.enabled || !characterEnabled(this.store, config.personaId, 'observation')) continue;
       const task = this.task(config.id);
@@ -1168,6 +1170,12 @@ export class Observations {
       ),
       activate: (ctx) => {
         const { registry, dispose, capabilities } = ctx;
+        dispose(this.events.subscribe(event => {
+          if (event.type !== 'system.maintenance') return;
+          this.maintenance = Boolean(event.data.paused);
+          if (this.maintenance) { for (const task of this.tasks.values()) task.stop(); void this.closeNative(); }
+          else this.syncSampler();
+        }));
         defineSourceReaders(ctx);
         contributeSourceReader(ctx, 'observation.uia-document', {
           label: 'UI Automation document', kind: 'browser', strategy: 'uia-document',

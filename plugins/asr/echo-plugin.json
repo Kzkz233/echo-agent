@@ -16,6 +16,8 @@
     "inference.contribute",
     "inference.read",
     "asr.read",
+    "asr.provide",
+    "asr.use",
     "asr.write"
   ],
   "settings": [
@@ -60,6 +62,16 @@
         "/plan/options/profile/command",
         "/plan/options/profile/modelOptions/projector",
         "/plan/options/config/ffmpeg"
+      ]
+    },
+    {
+      "table": "documents",
+      "collection": "knowledge-migration-plans",
+      "pointers": [
+        "/documents/*/parsePlan/options/profile/model",
+        "/documents/*/parsePlan/options/profile/command",
+        "/documents/*/parsePlan/options/profile/modelOptions/projector",
+        "/documents/*/parsePlan/options/config/ffmpeg"
       ]
     }
   ]

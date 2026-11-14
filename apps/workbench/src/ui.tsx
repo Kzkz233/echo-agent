@@ -231,6 +231,8 @@ export function UiProvider({ busy, children }: { busy: boolean; children: ReactN
     if (label) guards.current.set(key, label);
     else guards.current.delete(key);
     void (window as any).Echo?.host?.('dirty', { dirty: guards.current.size > 0 }).catch(() => {});
+    if ('__TAURI_INTERNALS__' in window)
+      void import('@tauri-apps/api/core').then(({ invoke }) => invoke('report_dirty', { dirty: guards.current.size > 0 })).catch(() => {});
   }).current;
   const finish = (answer: boolean) => {
     resolver.current?.(answer);

@@ -1,8 +1,8 @@
 import { Events } from '../../packages/kernel/events.ts';
 import packageManifest from './echo-plugin.json' with { type: 'json' };
 import { defineManifest } from '../../packages/kernel/registry.ts';
-import { readFile, realpath, stat } from 'node:fs/promises';
-import { extname, basename } from 'node:path';
+import { realpath, stat } from 'node:fs/promises';
+import { extname } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
@@ -24,10 +24,11 @@ import { workerTask } from '../../packages/kernel/worker-task.ts';
 import { keywordCandidates, prepareKeywordIndex } from '../files/keyword-index.ts';
 import { type ParsedDocument } from '../../packages/contracts/documents.ts';
 import { documentTitle } from './title.ts';
-import { mediaExtensions } from '../../packages/contracts/speech.ts';
 import { parserAccepts } from '../../packages/contracts/parsing.ts';
 import { hashOriginal, maxOriginalBytes } from '../files/hash.ts';
 import { registerRetrievalOptions } from './retrieval-options.ts';
+import { KnowledgePipeline } from './pipeline.ts';
+import { contributeJobs } from '../../packages/kernel/jobs.ts';
 import {
   entryPersona,
   ownPersona,
@@ -43,6 +44,7 @@ const configuration = z.object({
 });
 const searchHitId = /^(\w[\w.-]{0,159}):(\w[\w.-]{0,159})\.c\.(\d{1,8})$/;
 export class Knowledge {
+  readonly pipeline = new KnowledgePipeline(this);
   private tasks = new Map<string, Promise<void>>();
   private importControllers = new Map<string, AbortController>();
   private life?: AbortSignal;
@@ -392,6 +394,7 @@ export class Knowledge {
     revision: number;
     requestId: string;
     parserProvider?: string;
+    plan?: import('../../packages/contracts/parsing.ts').ParsePlan;
   }) {
     return this.enqueue(async () => {
       this.files.assertWrite(v.vaultId);
@@ -416,6 +419,7 @@ export class Knowledge {
         undefined,
         requestedSource,
         doc,
+        v.plan,
       );
     });
   }
@@ -426,16 +430,12 @@ export class Knowledge {
     folder: string | undefined,
     requestedSource: string,
     document?: any,
+    frozenPlan?: import('../../packages/contracts/parsing.ts').ParsePlan,
   ) {
     const catalog = await this.files.parsers.list();
-    const media = mediaExtensions.includes(extname(original.name).toLowerCase());
-    const configured = media ? this.config().mediaParserProvider : this.config().parserProvider;
-    const compatible = catalog.filter((p) => parserAccepts(p, original.name, original.bytes));
     const parser = parserProvider
       ? catalog.find((p) => p.id === parserProvider)
-      : (compatible.find((p) => p.id === configured) ??
-        compatible.find((p) => p.id === 'files.text') ??
-        (compatible.length === 1 ? compatible[0] : undefined));
+      : await this.pipeline.parser(original);
     invariant(parser, 'parser_missing', '没有匹配此格式和大小的解析器，请选择或启用解析器');
     invariant(
       parserAccepts(parser, original.name, original.bytes) ||
@@ -443,7 +443,8 @@ export class Knowledge {
       'parser_unsupported',
       '当前解析器不支持此文件格式或大小',
     );
-    const plan = await this.files.parsers.freeze(parser, original, requestId);
+    invariant(!frozenPlan || frozenPlan.parser.id === parser.id && frozenPlan.parser.version === parser.version, 'parser_changed', '解析提供方已改变，请重新预览迁移');
+    const plan = frozenPlan ?? await this.files.parsers.freeze(parser, original, requestId);
     const active = this.store
       .documents<any>('knowledge-jobs')
       .find(
@@ -502,6 +503,15 @@ export class Knowledge {
     this.tasks.set(id, task);
     return task;
   }
+  async waitImport(id: string, signal: AbortSignal) {
+    signal.throwIfAborted();
+    const task = this.tasks.get(id);
+    if (!task) return;
+    const stop = () => this.importControllers.get(id)?.abort();
+    signal.addEventListener('abort', stop, { once: true });
+    try { await task; signal.throwIfAborted(); } finally { signal.removeEventListener('abort', stop); }
+  }
+  continueImport(id: string) { return this.executeImport(id); }
   private async runImport(id: string, localSignal: AbortSignal) {
     let job = this.store.document<any>('knowledge-jobs', id);
     if (!job || !this.life || this.life.aborted) return;
@@ -553,7 +563,7 @@ export class Knowledge {
           sourceHash: job.original.hash,
           sourceFileId: job.original.id,
           revision: job.revision,
-          parsed: { jobId: job.id, plan: job.plan, segments: parsed.segments },
+          parsed: { jobId: job.id, plan: job.plan, segments: parsed.segments, blocks: parsed.blocks, assessment: parsed.assessment },
           path:
             job.folder === undefined
               ? undefined
@@ -564,6 +574,7 @@ export class Knowledge {
         ...job,
         state: 'completed',
         documentId: doc.id,
+        assessment: parsed.assessment,
         completedAt: new Date().toISOString(),
       };
     } catch (e: any) {
@@ -571,10 +582,12 @@ export class Knowledge {
         ...job,
         state: signal.aborted ? 'paused' : 'failed',
         error: signal.aborted ? undefined : e.message,
+        finishedAt: new Date().toISOString(),
       };
     } finally {
       this.store.put('knowledge-jobs', id, job);
       this.events?.emit('knowledge.updated', { vaultId: job.vaultId });
+      if (job.state === 'completed') this.events?.emit('knowledge.import.completed', { vaultId: job.vaultId, documentId: job.documentId, jobId: id });
     }
   }
   vaults() {
@@ -621,26 +634,14 @@ export class Knowledge {
     signal: AbortSignal = new AbortController().signal,
   ) {
     this.files.assertWrite(vaultId);
-    const physical = await realpath(source),
-      info = await stat(physical);
-    invariant(info.isFile() && info.size <= 16000000, 'source_size', '文件需小于16 MB。');
-    const bytes = await readFile(physical),
-      hash = createHash('sha256').update(bytes).digest('hex');
-    const existing = (await this.list(vaultId)).find((d) => d.source === physical);
-    if (existing?.sourceHash === hash) return existing;
-    const text = await this.materializeParsed(
-      vaultId,
-      await this.parse(bytes, basename(physical), signal),
-      signal,
-    );
-    signal.throwIfAborted();
-    const original = await this.files.import(vaultId, physical, bytes);
-    return this.save(vaultId, documentTitle(basename(physical), text, physical), text, {
-      id: existing?.id,
-      source: physical,
-      sourceHash: hash,
-      sourceFileId: original.id,
-    });
+    const original = await this.files.import(vaultId, source);
+    const existing = (await this.list(vaultId)).find(d => d.sourceFileId === original.id);
+    if (existing?.sourceHash === original.hash) return existing;
+    const job = await this.enqueue(() => this.createImport(original, randomUUID(), undefined, undefined, source));
+    await this.waitImport(job.id, signal);
+    const final = this.store.document<any>('knowledge-jobs', job.id);
+    invariant(final?.state === 'completed', 'parse_failed', final?.error ?? '入库未完成，可从任务记录继续');
+    return this.find(final.documentId, vaultId);
   }
   async extract(bytes: Buffer, name: string, signal: AbortSignal) {
     return (await this.parse(bytes, name, signal)).text;
@@ -679,6 +680,7 @@ export class Knowledge {
         .join('](echo-asset:' + hash + ')')
         .split('](<' + name + '>)')
         .join('](echo-asset:' + hash + ')');
+      for (const block of parsed.blocks ?? []) if (block.asset === name) block.asset = 'echo-asset:' + hash;
     }
     return text;
   }
@@ -699,7 +701,7 @@ export class Knowledge {
     else {
       const providers =
           this.scope?.list('files.extract@1').filter((p) => p.state === 'active') ?? [],
-        selected = parserProvider ?? this.config().parserProvider,
+        selected = parserProvider ?? this.pipeline.policy().documentParser,
         provider = selected
           ? providers.find((p) => p.id === selected)
           : providers.length === 1
@@ -729,7 +731,8 @@ export class Knowledge {
       api: { version: 1, value: this },
       config: { schema: configuration },
       manifest: defineManifest(packageManifest),
-      activate: ({ registry, capabilities, dispose, signal }) => {
+      activate: (ctx) => {
+        const { registry, capabilities, dispose, signal } = ctx;
         this.life = signal;
         for (const j of this.store
           .documents<any>('knowledge-jobs')
@@ -740,6 +743,16 @@ export class Knowledge {
           this.life = undefined;
         });
         this.scope = capabilities;
+        this.pipeline.register(ctx);
+        capabilities.provide('core.ui.badges@1', 'knowledge.badges', '入库任务提醒', () => this.store.documents<any>('knowledge-jobs')
+          .filter(j => j.state === 'failed').map(j => ({ id: 'knowledge.' + j.id, page: 'knowledge', at: j.finishedAt ?? j.createdAt })));
+        contributeJobs(ctx, 'knowledge.imports', '知识入库', () => this.store.documents<any>('knowledge-jobs').map(j => ({
+          id: j.id, title: j.original?.name, state: j.state, createdAt: j.createdAt, error: j.error,
+          controls: ['running', 'queued'].includes(j.state) ? ['pause'] : ['paused', 'failed'].includes(j.state) ? ['resume'] : [],
+        })), async (action, id) => {
+          if (action === 'pause') { this.importControllers.get(id)?.abort(); await this.tasks.get(id); }
+          else void this.executeImport(id);
+        });
         registerRetrievalOptions(capabilities);
         dispose(() => {
           this.scope = undefined;
@@ -1058,10 +1071,18 @@ export class Knowledge {
             vaultId: id.optional(),
             offset: z.number().int().min(0).optional(),
             limit: z.number().int().min(1).max(30000).default(12000),
+            nodeId: id.optional(), graphPolicy: z.string().optional(),
           }),
           'knowledge.read',
-          (v, _s, caller) => {
+          async (v, _s, caller) => {
             const hit = searchHitId.exec(v.id);
+            if (v.nodeId) {
+              const documentId = hit?.[2] ?? v.id, vaultId = hit?.[1] ?? v.vaultId;
+              const doc = await this.files.entries.find(documentId, vaultId, caller);
+              const evidence = await this.pipeline.evidence(doc.vaultId, documentId, v.nodeId, v.graphPolicy);
+              const result = await this.files.entries.read(documentId, v.offset ?? evidence.node.offset ?? evidence.parent?.offset ?? 0, v.limit, doc.vaultId, caller);
+              return { ...result, evidence, ...(evidence.node.start !== undefined && evidence.node.sourceHash ? { timeRange: { start: evidence.node.start, end: evidence.node.end, sourceHash: evidence.node.sourceHash } } : {}) };
+            }
             if (!hit) return this.files.entries.read(v.id, v.offset, v.limit, v.vaultId, caller);
             const [, vaultId, documentId, offset] = hit;
             invariant(

@@ -13,7 +13,9 @@
     "knowledge.write",
     "character.contribute",
     "context.contribute",
-    "knowledge.enhance"
+    "knowledge.enhance",
+    "automation.contribute",
+    "ui.contribute"
   ],
   "characterPermissions": [
     "knowledge.read"

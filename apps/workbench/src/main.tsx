@@ -1,4 +1,5 @@
 import { StarterCharacters } from './starter-characters.tsx';
+import { UnreadDot, usePageBadges } from './badges.tsx';
 import { CharacterPortrait } from './character-portrait.tsx';
 import { inferenceTasks } from '../../../packages/contracts/inference.ts';
 import { CharacterLibrary } from './character-library.tsx';
@@ -365,6 +366,7 @@ function App() {
   ]);
   const role: Persona | undefined =
     newRole ?? data?.personas.find((p: Persona) => p.id === roleSelection) ?? data?.personas[0];
+  const unread = usePageBadges(connected, page, workspaceScope || settingsWindow ? undefined : role?.id);
   const roleSection =
     !settingsWindow &&
     !(extensionPage ? extensionPage.placement !== 'character' : workspaceScope) &&
@@ -864,6 +866,7 @@ function App() {
                   >
                     <CharacterPortrait className="role-initial" persona={persona} />
                     <span>{persona.name}</span>
+                    <UnreadDot count={unread(['character', 'character-session', 'automation'], persona.id)} />
                     {data.characterActivities?.[persona.id]?.enabled === false && <small>{t('已停用')}</small>}
                   </button>
                 ))}
@@ -924,6 +927,7 @@ function App() {
                       >
                         <Icon name={section.icon} />
                         <span>{t(section.text)}</span>
+                        <UnreadDot count={unread(views.map(view => view.id))} />
                       </button>
                     );
                   })}
@@ -1050,6 +1054,7 @@ function App() {
                       onClick={() => goPage(view.id)}
                     >
                       {t(view.text)}
+                      <UnreadDot count={unread([view.id], role.id)} />
                     </button>
                   ))}
               </div>
@@ -1101,6 +1106,7 @@ function App() {
                           onClick={() => goPage(view.id)}
                         >
                           {t(view.text)}
+                          <UnreadDot count={unread([view.id])} />
                         </button>
                       ))}
                     </div>

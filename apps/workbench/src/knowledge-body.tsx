@@ -86,7 +86,14 @@ export default function KnowledgeBody({ document, onOpenEntry }: any) {
       <button className="text-button markdown-toggle" onClick={() => setRaw(!raw)}>
         {raw ? t('Markdown preview') : t('Markdown source')}
       </button>
+      {document.assessment?.state === 'empty' && <p className="muted">{document.assessment.reason === 'no_audio' ? t('原件没有音轨') : t('未检测到可转录语音')}{' · '}{t('原件仍可播放和检索')}</p>}
+      {document.assessment?.state === 'needs_review' && <p className="muted">{t('部分转录待核对，可疑文字未纳入检索')}</p>}
+      {!document.content.trim() && /^(audio|video)\//.test(document.original?.mediaType ?? '') && asset(`echo-asset:${document.original.hash}`, document.original.name)}
       {document.timeRange && asset(`echo-asset:${document.timeRange.sourceHash}#t=${document.timeRange.start}`,t('播放命中片段'))}
+      {document.evidence && <details className="knowledge-attachments"><summary>{t('命中证据与上级内容')}{document.evidence.node.page ? ` · ${t('页码')} ${document.evidence.node.page}` : ''}</summary>
+        <p className="preserve-lines">{document.evidence.node.text}</p>
+        {document.evidence.parent?.text && <blockquote className="preserve-lines">{document.evidence.parent.text}</blockquote>}
+      </details>}
       {document.attachments?.length > 0 && (
         <details className="knowledge-attachments">
           <summary>

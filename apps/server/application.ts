@@ -53,6 +53,10 @@ import { Automation, defineAutomation } from '../../packages/kernel/automation.t
 import { TriggerActions, triggerAction } from '../../packages/kernel/trigger-actions.ts';
 import { Capabilities } from '../../packages/kernel/capabilities.ts';
 import { Clock } from '../../packages/kernel/clock.ts';
+import { Jobs } from '../../packages/kernel/jobs.ts';
+import { Lifecycle } from '../../packages/kernel/lifecycle.ts';
+import { CliCatalog } from '../../packages/kernel/cli-catalog.ts';
+import { Badges, badgeRead } from '../../packages/kernel/badges.ts';
 import { Files } from '../../plugins/files/index.ts';
 import { Agenda } from '../../plugins/agenda/index.ts';
 import { Scheduler } from '../../plugins/scheduler/index.ts';
@@ -91,6 +95,10 @@ import { effectiveReasoning } from '../../packages/backends/model-metadata.ts';
 import { reasoningStyle } from '../../packages/contracts/reasoning.ts';
 
 export class Application {
+  readonly jobs: Jobs;
+  readonly lifecycle: Lifecycle;
+  readonly cli: CliCatalog;
+  readonly badges: Badges;
   readonly store: Store;
   readonly events = new Events();
   readonly registry = new Registry();
@@ -153,7 +161,7 @@ export class Application {
       this.registry.resumeAfterUpdateFailure();
       this.router.resumeAfterUpdateFailure();
       this.clock.resume();
-    });
+    }, () => { void this.lifecycle.resumeSaved(); });
     this.secrets = new Secrets(join(runtime, 'credentials'));
     this.api = new ApiBackend((ref) => this.secrets.get(ref));
     this.router.backends.set('api', this.api);
@@ -245,6 +253,38 @@ export class Application {
       () => {},
     );
     this.automation = new Automation(core);
+    this.jobs = new Jobs(core);
+    this.lifecycle = new Lifecycle(this);
+    this.lifecycle.register();
+    this.cli = new CliCatalog(core, this.registry);
+    this.badges = new Badges(core, this.store);
+    this.registry.register({ name: 'frontend.badges', owner: 'core', description: '读取页面未读标记', input: z.object({}), output: z.unknown(), permission: 'system.read', mcp: false, run: () => this.badges.snapshot() });
+    this.registry.register({ name: 'frontend.read', owner: 'core', description: '确认已查看页面内容', input: badgeRead, output: z.unknown(), permission: 'system.write', mcp: false, run: v => this.badges.read(v.page, v.personaId, v.cursors) });
+    core.provide('core.ui.badges@1', 'core.chat-badges', '聊天未读', () => {
+      const rows = this.store.db.prepare(`SELECT json_extract(o.data,'$.personaId') personaId,MAX(r.rowid) sequence,
+        MAX(COALESCE(json_extract(r.data,'$.updatedAt'),json_extract(r.data,'$.createdAt'))) at FROM documents r
+        JOIN documents o ON o.namespace='outputs' AND o.id=json_extract(r.data,'$.outputId')
+        WHERE r.namespace='output-deliveries' AND json_extract(r.data,'$.state')='delivered' AND json_extract(r.data,'$.targetId')='core.chat'
+        GROUP BY json_extract(o.data,'$.personaId')`).all() as any[];
+      return rows.map(row => ({ id: 'core.chat.' + row.personaId + '.' + row.sequence + '.' + row.at, page: 'character', personaId: row.personaId, at: row.at }));
+    });
+    core.provide('core.ui.badges@1', 'core.interaction-badges', '会话待处理请求', () => this.store.conversations().flatMap(c =>
+      this.router.interactions.list(c.id).map(item => ({ id: 'core.interaction.' + item.id, page: c.kind === 'worker' ? 'automation' : 'character-session', personaId: c.personaId, at: new Date().toISOString(), pending: true }))));
+    core.provide('core.ui.badges@1', 'core.work-badges', '子任务待查看', () => this.router.workSessions.list()
+      .filter(w => ['failed', 'unknown'].includes(w.state)).map(w => ({ id: 'core.work.' + w.id, page: 'automation', personaId: w.personaId, at: w.updatedAt })));
+    core.provide('core.jobs.sources@1', 'core.work-sessions', '子任务会话', input => {
+      if (input.action === 'cancel') this.router.workSessions.cancel(input.id);
+      return { jobs: this.router.workSessions.list().map(w => ({ id: w.id, state: w.state, title: w.title, personaId: w.personaId,
+        conversationId: w.conversationId, parentId: w.parentConversationId, createdAt: w.createdAt, error: w.error,
+        taskId: w.origin.id, taskType: w.origin.type, controls: ['running', 'waiting'].includes(w.state) ? ['cancel'] : [] })) };
+    });
+    core.provide('core.jobs.sources@1', 'core.conversations', '会话执行', input => {
+      if (input.action === 'cancel') { const run = this.store.run(input.id); invariant(run?.state === 'running', 'job_state', '会话当前没有运行'); this.router.cancel(run.conversationId); }
+      return { jobs:
+      (this.store.db.prepare("SELECT id,json_extract(data,'$.state') state,json_extract(data,'$.conversationId') conversationId,json_extract(data,'$.createdAt') createdAt,json_extract(data,'$.error') error FROM runs ORDER BY rowid DESC LIMIT 100").all() as any[]).map(run => {
+        return { id: run.id, requestId: run.id, state: run.state, conversationId: run.conversationId,
+          createdAt: run.createdAt, ...(run.error ? { error: run.error } : {}), controls: run.state === 'running' ? ['cancel'] : [] };
+      }) }; });
     this.deliveries = new Deliveries(this.store, this.router, this.events, core);
     this.triggerActions = new TriggerActions(core, this.router, this.automation, this.deliveries);
     this.retrieval.define(core);
@@ -273,6 +313,7 @@ export class Application {
       this.retrieval,
       (filter) => this.knowledge.records(filter),
       this.events,
+      this.knowledge,
     );
     this.observations = new Observations(
       this.store,
@@ -1599,6 +1640,7 @@ export class Application {
     this.closing = true;
     const errors: unknown[] = [];
     for (const close of [
+      () => this.lifecycle.close(),
       () => this.deliveries.close(),
       () => this.plugins.close(),
       () => this.router.close(),

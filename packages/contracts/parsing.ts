@@ -29,7 +29,13 @@ export const parsePlan = z.object({
   options: z.record(z.string(), z.unknown()).default({}),
   provenance: z.record(z.string(), z.unknown()).default({}),
 });
+/** Provider-neutral publication decision, separate from successful job execution. */
+export const parseAssessment = z.object({
+  state: z.enum(['accepted', 'empty', 'needs_review']),
+  reason: z.string().max(200).optional(),
+});
 export const parsedContent = parsedDocument.extend({
+  assessment: parseAssessment.optional(),
   segments: z
     .array(
       z
@@ -38,12 +44,18 @@ export const parsedContent = parsedDocument.extend({
           end: z.number().nonnegative(),
           text: z.string(),
           language: z.string().optional(),
+          assessment: parseAssessment.optional(),
         })
-        .refine((v) => v.end >= v.start),
+        .refine((v) => v.end >= v.start)
+        .refine((v) => !v.assessment || v.assessment.state === 'accepted' || !v.text.trim(), 'Unaccepted transcript text must stay outside published content'),
     )
     .max(100000)
     .optional(),
-});
+}).refine(content => {
+  if (!content.assessment || content.assessment.state === 'accepted') return true;
+  const accepted = content.segments?.some(s => s.text.trim() && (!s.assessment || s.assessment.state === 'accepted'));
+  return content.assessment.state === 'needs_review' && accepted || !content.text.trim();
+}, 'Unaccepted content without accepted segments must publish empty text');
 export type ParserDescriptor = z.infer<typeof parserDescriptor>;
 export type ParsePlan = z.infer<typeof parsePlan>;
 export type ParsedContent = z.infer<typeof parsedContent>;

@@ -16,6 +16,7 @@ await build({
     server: 'apps/server/main.ts',
     cli: 'apps/cli/main.ts',
     'embedding-worker': 'plugins/local-models/embedding-worker.ts',
+    'vad-worker': 'plugins/asr/vad-worker.ts',
     'process-guardian': 'packages/kernel/process-guardian.ts',
     'document-result-worker': 'plugins/documents/result-worker.ts',
     'semantic-search-worker': 'plugins/semantic/search-worker.ts',

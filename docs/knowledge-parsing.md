@@ -51,9 +51,9 @@ lookup. Process-based and module-based parsers need not import Knowledge interna
 5. In one library transaction, publish the body revision, current asset references,
    source snapshot, safe provenance and structured segments. Check the expected
    entry revision both before parsing and at publication. User edits are preserved.
-6. Publish the existing knowledge update event. Keyword indexing uses the new body;
-   semantic candidates must match current chunk versions. Reindexing remains an
-   explicit existing operation; installation does not rebuild existing vectors.
+6. Publish the existing knowledge update event and an import-completed event.
+   Keyword indexing uses the new body; optional automatic indexing is queued through
+   the same generation manager used for migration. Installation never rebuilds existing vectors.
 
 An interrupted operational receipt is reconciled from `parse_generations.job_id`,
 so a library commit is not replayed. Failure/cancellation never replaces the
@@ -69,10 +69,54 @@ source and asset references. No historical object is physically removed by repar
 - **Update from source** imports the external file again and parses its new bytes.
 - **Rebind source** verifies the same original at a different external location.
 
-Audio/video import currently transcribes an audio track. Segment ranges are not
-word alignment or speaker diarization. A visual analysis provider can register its
-own descriptor and return the same public result shape; it is not silently run.
-Search results include segment ranges when a matching text chunk overlaps them.
+## Unified ingestion and evidence
+
+Knowledge owns one application-wide `echo-ingestion-v1` default: document parser,
+media transcription parser, optional image parser, embedding model and segmentation.
+Native text does not need a paid parser. Parser credentials remain in their owning
+plugins. Imports follow the default; explicit per-entry reparsing is an advanced operation.
+
+Each published body can have a derived evidence graph. It retains the Markdown,
+known page coordinates, ASR segment ranges and original asset hashes. Text, images,
+audio fragments and video fragments reference section/page/time parents. Page data
+is used only when supplied by the parser; old entries do not receive invented pages.
+Segment ranges are not word alignment or speaker diarization.
+
+The Files extension points `files.media-processors@1`, `files.prepare-media@1`,
+`files.media-inspect@1` and `files.media-encode@1` prepare bounded native inputs.
+Files supplies image normalization. ASR optionally supplies FFmpeg probing and media
+fragments without loading the transcription model. Extensions can replace these
+providers. Provider identity/version and operational options are frozen per migration.
+The target embedding model must declare the modality; unsupported modalities are
+listed in the preview, not passed to a text-only model.
+
+Native media uses sequential fragments, at most 60 seconds, rather than loading an
+entire recording into a request. FFmpeg uses two threads; video fragments are resized
+and sampled at one frame per second. Encoded fragments are limited to 12 MB and temporary
+files are removed after each operation. ASR loads only when transcription is needed.
+
+Search hits carry their evidence node and parent, with page/time coordinates when
+available. `knowledge.read` opens the matching passage. `knowledge.evidence@1` lets
+optional indexes resolve existing structural evidence without rechunking old vectors.
+
+## Pipeline migration
+
+The Knowledge System settings contain **Ingestion pipeline → Update existing content**.
+Choose libraries and preview before applying. Default migration reuses saved bodies,
+transcripts and attachments; the optional parsing update checks captured provenance.
+Unknown historical provenance is reused. Changes that would overwrite manual content
+or plugin-owned source material are blocked for explicit review.
+
+Migration stages a separate physical index with immutable content/model/processor
+identity. Saved vectors are reused on resume. Only a fully validated generation
+switches the selected documents' bindings; unselected libraries and documents retain
+their indexes. Queries use the active generation's model even when a different default
+has been saved. Concurrent content changes fail validation and retain the previous
+binding; preview a new migration instead of replaying stale writes.
+
+Restoring a previous index changes bindings only, never rewinds user edits or parsing.
+An index whose body hash no longer matches is excluded from search. Old vector spaces
+remain available for rollback. New graph/parse tables are additive within `echo-library-v1`.
 
 ## Storage, migration and resources
 
@@ -85,7 +129,7 @@ declare path-bearing plan fields with the existing `storagePaths` manifest contr
 
 Library bundle export includes current text, attachments, original bytes and the
 current provenance/segments, using streaming ZIP64. By default it omits external
-source paths and historical revisions. A mounted exported library can reparse its
+source paths, historical revisions and derived graph caches. A mounted exported library can reparse its
 archived original after a compatible parser has been configured on the new device.
 Markdown export preserves audio/video extensions and timestamp fragments.
 
@@ -103,3 +147,31 @@ old source versions, migration, portable export, schema preservation, format mat
 and resource leases with synthetic inference. `tests/asr.test.ts` covers chunk resume
 and immutable ASR settings. Real local transcription and large ZIP64 acceptance use
 explicit isolated paths; no personal library or paid model API is used by tests.
+# Speech detection and publication
+
+Audio/video parsing uses the ASR plugin's `asr.detectors@1` catalog and typed
+`asr.detect-speech@1` operation before transcription. The bundled default is the
+pinned Silero 16 kHz ONNX detector. It runs in a CPU worker only while a parse job
+holds it; completion, failure, pause and plugin disposal terminate the worker.
+Another plugin may provide a detector under these contracts without changing
+the knowledge system. The selected detector, version, artifact hash and options
+are frozen in each parse plan and continuation identity.
+
+No speech is a successful empty transcription (`assessment.state=empty`), not a
+retryable error. Videos without audio also succeed without loading ASR. Speech
+intervals retain original timestamps; silent intervals remain available to native
+audio/video indexing. ASR is invoked only on detected intervals. The generic
+parsed-content contract carries optional publication assessments on the document
+and its segments. Unaccepted segments must publish empty `text`; candidate words
+remain only in the operational job receipt, outside library text and retrieval.
+If detected speech yields empty or obviously degenerate/conflicting text, the
+result is `needs_review`, not a fabricated transcript. This does not guarantee
+transcription accuracy: music, singing and noise can still fool speech detection.
+
+Assessment and segment changes participate in entry identity and survive library
+export, original-preserving reparse, revision restoration and data relocation.
+Only accepted words create text nodes. Native media nodes use the original source
+and never encode transcript text as audio/video input. UI status messages are not
+part of the searchable Markdown. A new generation becomes active only after its
+index finishes; older parsing revisions and index generations remain available
+for recovery. No global reparse is required to repair an individual entry.

@@ -7,6 +7,11 @@ import { createHash, randomUUID } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { workerTask } from '../../packages/kernel/worker-task.ts';
 import { portableCoverage, portableNodeCount, documentKey } from './portable-index.ts';
+import { resolvePortableSpace } from './portable-index.ts';
+import { DatabaseSync } from 'node:sqlite';
+import { existsSync } from 'node:fs';
+import { IndexGenerations } from './generations.ts';
+import type { Knowledge } from '../knowledge/index.ts';
 
 import { z } from 'zod';
 import { invariant } from '../../packages/contracts/index.ts';
@@ -41,6 +46,7 @@ function validateVectors(vectors: number[][], count: number) {
   return vectors;
 }
 export class SemanticSearch {
+  readonly generations?: IndexGenerations;
   private indexing?: { controller: AbortController; promise: Promise<void>; fingerprint: string };
   private life?: AbortSignal;
   constructor(
@@ -51,7 +57,8 @@ export class SemanticSearch {
     readonly retrieval: Retrieval,
     readonly records: (filter: KnowledgeScope) => Promise<SearchRecord[]>,
     readonly events: Events,
-  ) {}
+    knowledge?: Knowledge,
+  ) { if (knowledge) this.generations = new IndexGenerations(this, knowledge); }
   config() {
     return semanticConfigSchema.parse(this.store.get('semantic.config', {}));
   }
@@ -85,10 +92,11 @@ export class SemanticSearch {
   async indexStatus(filter: KnowledgeScope) {
     const records = await this.records(filter),
       fingerprint = this.fingerprint('knowledge');
+    const generated = await this.generations?.coverage(records) ?? new Set<string>();
     const covered = portableCoverage(this.portableIndexPath, fingerprint, records);
     const indexed = records.filter(
       (r) =>
-        covered.has(documentKey(r)) ||
+        generated.has(r.id) || covered.has(documentKey(r)) ||
         this.store.document('vectors', this.vectorKey(fingerprint, r)),
     ).length;
     return {
@@ -98,6 +106,7 @@ export class SemanticSearch {
       fingerprint,
       migratedDocuments: covered.size,
       migratedNodes: portableNodeCount(this.portableIndexPath, fingerprint, covered),
+      structuredChunks: generated.size,
     };
   }
   async startIndex(filter: KnowledgeScope, requestId: string, signal: AbortSignal) {
@@ -205,6 +214,18 @@ export class SemanticSearch {
     signal: AbortSignal,
     _context: { personaId?: string } = {},
   ) {
+    if (scope === 'knowledge' && this.generations) {
+      const bindings = this.generations.bindings();
+      const bound = records.filter(r => bindings[documentKey(r)]);
+      if (bound.length) return [
+        ...await this.generations.rank(query, bound, signal),
+        ...await this.rankLegacy(scope, query, records.filter(r => !bindings[documentKey(r)]), signal, _context) ?? [],
+      ];
+    }
+    return this.rankLegacy(scope, query, records, signal, _context);
+  }
+  private async rankLegacy(scope: string, query: string, records: SearchRecord[], signal: AbortSignal, _context: { personaId?: string } = {}) {
+    if (!records.length) return [];
     const config = this.config();
     if (
       !config.collections
@@ -320,7 +341,23 @@ export class SemanticSearch {
     return {
       manifest: defineManifest(packageManifest),
       config: { schema: semanticConfigSchema },
-      activate: ({ registry, dispose, capabilities, signal: life }) => {
+      activate: (ctx) => {
+        const { registry, dispose, capabilities, signal: life } = ctx;
+        this.generations?.register(ctx);
+        capabilities.provide('knowledge.evidence@1', 'semantic.evidence', '语义索引证据', v => {
+          if (!existsSync(this.portableIndexPath)) return null;
+          const db = new DatabaseSync(this.portableIndexPath, { readOnly: true });
+          try {
+            const space = this.generations?.bindings()[documentKey(v)]?.space ?? resolvePortableSpace(db, this.fingerprint('knowledge'));
+            const row = db.prepare(`SELECT v.* FROM vectors v JOIN documents d ON d.space=v.space AND d.vault_id=v.vault_id AND d.document_id=v.document_id
+              WHERE v.space=? AND v.vault_id=? AND v.document_id=? AND v.node_id=? AND d.body_hash=?`).get(space, v.vaultId, v.documentId, v.nodeId, v.bodyHash) as any;
+            if (!row) return null;
+            const convert = (r: any) => { if (!r) return undefined; const m = JSON.parse(r.metadata); return { id: r.node_id, kind: r.modality, text: r.text, parentId: r.parent_id ?? undefined,
+              ...(typeof m.page === 'number' ? { page: m.page } : {}), ...(typeof m.time_start === 'number' ? { start: m.time_start, end: m.time_end } : {}) }; };
+            const parent = row.parent_id ? db.prepare('SELECT * FROM vectors WHERE space=? AND vault_id=? AND document_id=? AND node_id=?').get(space, v.vaultId, v.documentId, row.parent_id) : undefined;
+            return { node: convert(row), parent: convert(parent) };
+          } finally { db.close(); }
+        });
         capabilities.provide(
           'core.inference.kinds@1',
           'semantic.embedding-models',
@@ -539,9 +576,14 @@ export class SemanticSearch {
           owner: 'semantic',
           permission: 'semantic.write',
           mcp: false,
-          input: z.object({ filter: filterSchema, requestId: z.string().min(1) }),
+          input: z.object({ filter: filterSchema, requestId: z.string().min(1), pipeline: z.boolean().default(false) }),
           output: z.any(),
-          run: (v, _c, s) => this.startIndex(v.filter, v.requestId, s),
+          run: async (v, _c, s) => {
+            if (!v.pipeline || !this.generations) return this.startIndex(v.filter, v.requestId, s);
+            const records = await this.records(v.filter);
+            const plan = await this.generations.plan({ vaultIds: [...new Set(records.map(r => r.vaultId!))], documentIds: [...new Set(records.map(r => r.documentId!))] });
+            return this.generations.start(plan.id, v.requestId);
+          },
         });
         registry.register({
           name: 'semantic.cancel',
@@ -553,6 +595,7 @@ export class SemanticSearch {
           output: z.any(),
           run: () => {
             this.indexing?.controller.abort();
+            void this.generations?.pause();
             return { accepted: true };
           },
         });
@@ -599,7 +642,8 @@ export class SemanticSearch {
               config: this.config(),
               lastIssue: this.store.get('semantic.lastIssue', null),
               index,
-              jobs: this.store.documents('semantic-jobs').slice(-30),
+              jobs: [...this.store.documents('semantic-jobs'), ...this.store.documents<any>('knowledge-migrations').map(j => ({ ...j, filter: { vaultId: j.vaultIds.length === 1 ? j.vaultIds[0] : undefined } }))].slice(-30),
+              activeGenerations: this.generations?.bindings(),
             };
           },
         });

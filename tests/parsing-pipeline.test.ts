@@ -305,6 +305,8 @@ test('portable ZIP64 library retains current provenance and can reparse without 
   await writeFile(source, 'Portable audio');
   const job = await app.knowledge.queueImport('local', source, 'export');
   await done(app, job.id);
+  // Derived caches can contain historical content and are not portable source data.
+  await app.knowledge.pipeline.graph('local', job.documentId);
   const path = join(root, 'bundle.zip');
   await app.registry.call(
     'knowledge.export',
@@ -323,6 +325,7 @@ test('portable ZIP64 library retains current provenance and can reparse without 
   other = await setup(t);
   await addParser(other, { calls: 0, fail: false, seen: [] });
   await other.files.register({ id: 'portable', name: 'Portable', path: mounted });
+  assert.equal((await other.files.database('portable')).db.prepare("SELECT 1 FROM sqlite_master WHERE name='content_graphs'").get(), undefined);
   const doc = await other.knowledge.read(job.documentId, 0, 12000, 'portable');
   assert.equal(doc.source, undefined);
   assert.equal(doc.parsing.provenance.tag, 'alpha');

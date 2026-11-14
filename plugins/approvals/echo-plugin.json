@@ -10,7 +10,8 @@
     "approvals.read",
     "approvals.request",
     "approvals.decide",
-    "approvals.execute"
+    "approvals.execute",
+    "ui.contribute"
   ],
   "settings": [],
   "views": [

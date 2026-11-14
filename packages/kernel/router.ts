@@ -97,13 +97,16 @@ export class Router {
   private draining = new Set<string>();
   private closing = false;
   private updating = false;
+  private admissionPaused = false;
+  pauseAdmission() { this.admissionPaused = true; }
   private inferenceCalls = 0;
+  get idle() { return !this.tasks.size && !this.running.size && !this.locks.size && !this.inferenceCalls; }
   pauseForUpdate() {
     invariant(!this.tasks.size && !this.running.size && !this.locks.size && !this.inferenceCalls,
       'update_busy', '会话或推理任务仍在执行，请完成后再更新。');
     this.updating = true;
   }
-  resumeAfterUpdateFailure() { this.updating = false; }
+  resumeAfterUpdateFailure() { this.updating = false; this.admissionPaused = false; }
   private characterControllers = new Map<string,AbortController>();
   characterSignal(personaId:string) {
     if(!characterActive(this.store,personaId))return AbortSignal.abort(new EchoError('character_disabled','角色已停用。'));
@@ -393,7 +396,7 @@ export class Router {
     return this.profile(selected);
   }
   enqueue(input: Submission) {
-    invariant(!this.updating, 'updating', 'Echo 正在重启更新，请稍后发送。');
+    invariant(!this.updating && !this.admissionPaused, 'updating', 'Echo 正在重启更新，请稍后发送。');
     const personaId=this.store.conversation(input.conversationId)?.personaId;
     invariant(!personaId||characterActive(this.store,personaId),'character_disabled','角色已停用，请先启用角色。');
     if (input.attachmentIds?.length)

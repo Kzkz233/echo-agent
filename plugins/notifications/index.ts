@@ -87,6 +87,8 @@ export class Notifications {
       manifest: defineManifest(packageManifest),
       activate: (ctx) => {
         this.ctx = ctx;
+        ctx.capabilities.provide('core.ui.badges@1', 'notifications.badges', '通知未读', () =>
+          this.store.documents<Notice>('notifications').filter(n => n.state === 'pending').map(n => ({ id: 'notifications.' + n.id, page: 'notifications', at: n.createdAt })));
         ctx.capabilities.provide(deliveryPoint,'notifications.outputs','通知收件箱',input=>{
           if (input.action === 'list') return { targets: [{
             id: 'notifications.inbox',

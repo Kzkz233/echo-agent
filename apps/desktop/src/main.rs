@@ -255,11 +255,40 @@ async fn install_update(app: tauri::AppHandle, id: String) -> Result<(), String>
         return Err("请完整退出现有 Echo 后重新打开，再执行更新。".into());
     }
     let connection = app.state::<Runtime>().connection.clone();
-    tauri::async_runtime::spawn_blocking(move || rpc_with_timeout(&connection, "updates.handoff", serde_json::json!({"id": id}), Duration::from_secs(120)))
+    tauri::async_runtime::spawn_blocking(move || rpc(&connection, "system.lifecycle.request", serde_json::json!({"action":"update","updateId": id})))
         .await.map_err(|e| e.to_string())??;
-    app.state::<Runtime>().quitting.store(true, Ordering::SeqCst);
-    app.exit(0);
     Ok(())
+}
+#[tauri::command]
+fn report_dirty(window: tauri::WebviewWindow, dirty: bool) -> Result<(), String> {
+    let connection = window.state::<Runtime>().connection.clone();
+    rpc(&connection, "system.lifecycle.dirty", serde_json::json!({"window":window.label(),"dirty":dirty}))?;
+    Ok(())
+}
+fn lifecycle_control(app: tauri::AppHandle) {
+    std::thread::spawn(move || loop {
+        if app.state::<Runtime>().quitting.load(Ordering::SeqCst) { break; }
+        let connection = app.state::<Runtime>().connection.clone();
+        let request = rpc_with_timeout(&connection, "system.lifecycle.host", serde_json::json!({"pid":std::process::id()}), Duration::from_secs(30));
+        if let Ok(value) = request {
+            if value.is_null() { continue; }
+            let action = value["action"].as_str().unwrap_or("");
+            let id = value["id"].as_str().unwrap_or("");
+            let result = if action == "update" {
+                rpc_with_timeout(&connection, "updates.handoff", serde_json::json!({"id":value["updateId"]}), Duration::from_secs(120))
+            } else {
+                rpc(&connection, "system.lifecycle.handoff", serde_json::json!({"id":id}))
+            };
+            if let Err(error) = result {
+                let _ = rpc(&connection, "system.lifecycle.fail", serde_json::json!({"id":id,"error":error}));
+                continue;
+            }
+            app.state::<Runtime>().quitting.store(true, Ordering::SeqCst);
+            if action == "restart" { app.restart(); }
+            app.exit(0); break;
+        }
+        std::thread::sleep(Duration::from_secs(1));
+    });
 }
 #[tauri::command]
 fn open_workbench(app: tauri::AppHandle) -> Result<(), String> {
@@ -395,6 +424,7 @@ fn main() {
             desktop_info,
             desktop_ready,
             install_update,
+            report_dirty,
             open_settings,
             open_extension_window,
             open_workbench,
@@ -405,6 +435,7 @@ fn main() {
         .setup(|app| {
             let runtime = launch(app.handle()).map_err(std::io::Error::other)?;
             app.manage(runtime);
+            lifecycle_control(app.handle().clone());
             let open = MenuItem::with_id(app, "open", "打开 Echo", true, None::<&str>)?;
             let pet = MenuItem::with_id(app, "avatar", "显示桌宠", true, None::<&str>)?;
             let hide = MenuItem::with_id(app, "hide", "收起桌宠", true, None::<&str>)?;
@@ -465,6 +496,14 @@ fn main() {
             show_main(app.handle()).map_err(std::io::Error::other)?;
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                if let Some(state) = window.try_state::<Runtime>() {
+                    let connection = state.connection.clone(); let label = window.label().to_string();
+                    std::thread::spawn(move || { let _ = rpc(&connection, "system.lifecycle.dirty", serde_json::json!({"window":label,"dirty":false})); });
+                }
+            }
+        })
         .build(context)
         .expect("Echo desktop initialization failed");
     app.run(|handle, event| match event {
@@ -478,7 +517,7 @@ fn main() {
             if let Ok(mut child) = state.child.lock() {
                 if let Some(process) = child.as_mut() {
                     let _ = rpc(&state.connection, "system.shutdown", serde_json::json!({}));
-                    for _ in 0..40 {
+                    for _ in 0..600 {
                         if process.try_wait().ok().flatten().is_some() {
                             break;
                         }

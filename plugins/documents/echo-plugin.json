@@ -38,6 +38,14 @@
         "/plan/options/config/command",
         "/plan/options/config/args/*"
       ]
+    },
+    {
+      "table": "documents",
+      "collection": "knowledge-migration-plans",
+      "pointers": [
+        "/documents/*/parsePlan/options/config/command",
+        "/documents/*/parsePlan/options/config/args/*"
+      ]
     }
   ],
   "optionalDependencies": []

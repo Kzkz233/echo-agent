@@ -14,6 +14,8 @@ import {
 } from '../../packages/contracts/parsing.ts';
 import type { PluginContext } from '../../packages/kernel/registry.ts';
 import type { Files, FileRecord } from './index.ts';
+import { mediaReference, mediaProcessor, mediaPlan } from '../../packages/contracts/ingestion.ts';
+import { contentPart } from '../../packages/contracts/inference.ts';
 
 export const textExtensions = [
   '.md',
@@ -36,6 +38,26 @@ export class Parsers {
     this.scope = ctx.capabilities;
     ctx.dispose(() => {
       this.scope = undefined;
+    });
+    ctx.capabilities.define({ id: 'files.media-inspect@1', description: 'Inspect a scoped archived media object without inference',
+      input: z.object({ vaultId: z.string(), sourceHash: z.string().regex(/^[a-f0-9]{64}$/) }),
+      output: z.object({ duration: z.number().positive().max(86400), hasAudio: z.boolean().optional() }).nullable(),
+      providePermission: 'knowledge.parse', consumePermission: 'files.read' });
+    ctx.capabilities.define({ id: 'files.media-encode@1', description: 'Prepare one bounded native media fragment for embedding',
+      input: mediaReference, output: contentPart, providePermission: 'knowledge.parse', consumePermission: 'files.read' });
+    ctx.capabilities.define({ id: 'files.media-processors@1', description: 'Registered native media processors', input: z.object({}), output: mediaProcessor, providePermission: 'knowledge.parse', consumePermission: 'files.read' });
+    ctx.capabilities.define({ id: 'files.prepare-media@1', description: 'Freeze processor-owned runtime options', input: z.object({}), output: z.record(z.string(), z.unknown()), providePermission: 'knowledge.parse', consumePermission: 'files.read' });
+    ctx.capabilities.provide('files.media-processors@1', 'files.image', '图片', () => ({ id: 'files.image', label: '图片', version: '1', modalities: ['image'] }));
+    ctx.capabilities.provide('files.prepare-media@1', 'files.image', '图片', () => ({}));
+    ctx.capabilities.provide('files.media-encode@1', 'files.image', '图片', async (v, signal) => {
+      invariant(v.modality === 'image', 'media_unsupported', '此提供方仅处理图片');
+      const object = await this.files.mediaObject(v.vaultId, v.sourceHash);
+      invariant(object.mediaType.startsWith('image/'), 'media_unsupported', '原件不是图片');
+      const sharp = (await import('sharp')).default;
+      const data = await sharp(object.path, { limitInputPixels: 64000000 }).resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: true }).png().toBuffer();
+      signal.throwIfAborted();
+      invariant(data.length <= 12000000, 'media_size', '图片编码超过模型输入上限');
+      return { type: 'image' as const, mimeType: 'image/png', data: data.toString('base64') };
     });
     ctx.capabilities.define({
       id: 'files.parsers@1',
@@ -70,6 +92,13 @@ export class Parsers {
       maxBytes: 16000000,
     };
     ctx.capabilities.provide('files.parsers@1', 'files.text', descriptor.label, () => descriptor);
+    const image: ParserDescriptor = { id: 'files.image', label: '原生图片', version: '1', contract: 'files.extract@3', extensions: ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'], maxBytes: 16000000 };
+    ctx.capabilities.provide('files.parsers@1', image.id, image.label, () => image);
+    ctx.capabilities.provide('files.extract@3', image.id, image.label, async v => {
+      const source = await this.files.original(v.vaultId, v.fileId, v.sourceHash);
+      invariant(parserAccepts(image, v.name, source.bytes), 'parser_unsupported', '图片格式或大小不受支持');
+      return { text: '# ' + source.name + '\n\n![' + source.name.replace(/[\[\]]/g, '') + '](echo-asset:' + source.hash + ')' };
+    });
     ctx.capabilities.provide(
       'files.extract@3',
       'files.text',
@@ -84,6 +113,32 @@ export class Parsers {
         return { text: (await this.read(source, signal)).toString('utf8') };
       },
     );
+  }
+  async inspectMedia(vaultId: string, sourceHash: string, signal: AbortSignal, selected = '') {
+    const providers = this.scope?.list('files.media-inspect@1').filter(p => p.state === 'active' && (!selected || p.id === selected)) ?? [];
+    invariant(providers.length <= 1, 'media_provider_missing', '请在入库流程中选择可用的媒体处理提供方');
+    const provider = providers[0];
+    if (!provider) return null;
+    return this.scope!.invoke('files.media-inspect@1', provider.id, { vaultId, sourceHash }, signal) as Promise<{ duration: number; hasAudio?: boolean } | null>;
+  }
+  async mediaProcessors() {
+    const scope = this.scope; if (!scope) return [];
+    return Promise.all(scope.list('files.media-processors@1').filter(p => p.state === 'active').map(async p => {
+      const value = mediaProcessor.parse(await scope.invoke(p.point, p.id, {}));
+      invariant(value.id === p.id, 'media_identity', '媒体处理声明与提供方不一致'); return value;
+    }));
+  }
+  async freezeMedia(modality: 'image' | 'audio' | 'video', selected = '') {
+    const compatible = (await this.mediaProcessors()).filter(p => p.modalities.includes(modality));
+    const processor = selected ? compatible.find(p => p.id === selected) : compatible.length === 1 ? compatible[0] : undefined;
+    invariant(processor, 'media_provider_missing', '请在入库流程中选择可用的媒体处理提供方');
+    return mediaPlan.parse({ processor, options: await this.scope!.invoke('files.prepare-media@1', processor.id, {}) });
+  }
+  async encodeMedia(input: Omit<z.infer<typeof mediaReference>, 'options'>, signal: AbortSignal, frozen?: z.infer<typeof mediaPlan>) {
+    const plan = frozen ?? await this.freezeMedia(input.modality);
+    const processor = (await this.mediaProcessors()).find(p => p.id === plan.processor.id);
+    invariant(processor?.version === plan.processor.version && processor.modalities.includes(input.modality), 'media_provider_changed', '媒体处理插件已变更，请重新预览迁移');
+    return contentPart.parse(await this.scope!.invoke('files.media-encode@1', processor.id, { ...input, options: plan.options }, signal));
   }
   async list(signal?: AbortSignal) {
     const scope = this.scope;

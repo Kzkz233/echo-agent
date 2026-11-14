@@ -1,4 +1,5 @@
 import type { Deliveries } from '../../packages/kernel/delivery.ts';
+import { contributeJobs } from '../../packages/kernel/jobs.ts';
 import { outputTargets, type DeliveryPlan } from '../../packages/contracts/delivery.ts';
 import {
   draftSchema,
@@ -1470,6 +1471,8 @@ export class Reviews {
       },
       character: characterFeature(this.store, 'review', z.object({}), [], ['review.policies']),
       activate: (ctx) => {
+        contributeJobs(ctx, 'review.runs', '记忆整理', () => (this.store.db.prepare("SELECT id,json_extract(data,'$.state') state,json_extract(data,'$.personaId') personaId,json_extract(data,'$.key') requestId,json_extract(data,'$.policy.id') taskId,json_extract(data,'$.error') error FROM documents WHERE namespace='review-jobs'").all() as any[])
+          .map(j => ({ id: j.id, state: j.state, personaId: j.personaId, requestId: j.requestId, ...(j.taskId ? { taskId: j.taskId } : {}), taskType: 'review.policies', ...(j.error ? { error: j.error } : {}), controls: [] })));
         contributeSignal(ctx, 'review.completed', '记忆整理报告', 'either');
         contributeSignal(ctx, 'review.failed', '记忆整理中断', 'either');
         contributeSignal(ctx, 'review.due', '记忆整理条件满足', 'task');

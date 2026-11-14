@@ -29,7 +29,7 @@ type Release = {
   notes: string;
   publishedAt: string;
 };
-type Prepared = { id: string; manifest: UpdateManifest; rollback: boolean };
+type Prepared = { id: string; manifest: UpdateManifest; rollback: boolean; origin?: 'local' | 'github' | 'rollback' };
 export type UpdateHost = {
   installRoot: string;
   executable: string;
@@ -134,7 +134,7 @@ export class Updates {
       progress: this.progress,
       issue: this.issue,
       prepared: pending
-        ? { id: pending.id, build: pending.manifest.build, rollback: pending.rollback }
+        ? { id: pending.id, build: pending.manifest.build, rollback: pending.rollback, origin: pending.origin ?? (pending.rollback ? 'rollback' : 'local') }
         : undefined,
       rollback: rollback?.build,
       journal: parent ? await jsonFile<UpdateJournal>(join(parent, 'journal.json')) : undefined,
@@ -244,6 +244,7 @@ export class Updates {
           id,
           manifest,
           rollback: false,
+          origin: path ? 'local' : 'github',
         } satisfies Prepared);
         if (previous && /^[a-f\d-]{36}$/.test(previous.id))
           await rm(join(parent, previous.id), { recursive: true, force: true }).catch(() => {});
@@ -294,6 +295,7 @@ export class Updates {
         id,
         manifest,
         rollback: true,
+        origin: 'rollback',
       } satisfies Prepared);
       return this.status();
     });
@@ -391,7 +393,7 @@ export class Updates {
     });
     return { accepted: true };
   }
-  register(registry: Registry, quiesce: () => void, resume: () => void) {
+  register(registry: Registry, quiesce: () => void, resume: () => void, confirmed?: () => void) {
     const operation = (name: string, input: z.ZodType, run: (input: any) => unknown) =>
       registry.register({
         name,
@@ -403,7 +405,7 @@ export class Updates {
         permission: 'system.write',
         run: (value, caller) => {
           invariant(
-            ['ui', 'internal'].includes(caller.kind),
+            ['ui', 'internal'].includes(caller.kind) || caller.kind === 'cli' && ['updates.status', 'updates.check', 'updates.stage', 'updates.rollback'].includes(name),
             'permission_denied',
             '此操作仅供应用设置使用。',
           );
@@ -424,9 +426,9 @@ export class Updates {
         throw error;
       }
     });
-    operation('updates.confirm', z.object({ desktop: buildSchema }), (value) =>
-      this.confirm(value.desktop),
-    );
+    operation('updates.confirm', z.object({ desktop: buildSchema }), async (value) => {
+      const result = await this.confirm(value.desktop); confirmed?.(); return result;
+    });
   }
 }
 export async function extractArchive(archive: string, destination: string, script: string) {

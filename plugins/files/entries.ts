@@ -173,7 +173,7 @@ export class Entries {
       kind?: LibraryEntry['kind'];
       metadata?: Record<string, unknown>;
       revision?: number;
-      parsed?: { jobId: string; plan: ParsePlan; segments?: ParsedContent['segments'] };
+      parsed?: { jobId: string; plan: ParsePlan; segments?: ParsedContent['segments']; blocks?: ParsedContent['blocks']; assessment?: ParsedContent['assessment'] };
       restoreRevision?: number;
     } = {},
     writer?: string,
@@ -197,9 +197,18 @@ export class Entries {
           ...(old ? JSON.parse(old.metadata) : {}),
           ...options.metadata,
           ...(writer ? { producer: writer } : {}),
-        },
-        version = createHash('sha256')
-          .update(JSON.stringify([title, text, metadata]))
+        };
+      const previousParse = database.db.prepare(`SELECT g.plan,g.segments,
+        (SELECT blocks FROM parse_blocks b WHERE b.entry_id=g.entry_id AND b.revision=g.revision) AS blocks,
+        (SELECT assessment FROM parse_assessments a WHERE a.entry_id=g.entry_id AND a.revision=g.revision) AS assessment
+        FROM parse_generations g JOIN entry_revision_parsing p ON p.entry_id=g.entry_id AND p.parse_revision=g.revision
+        WHERE p.entry_id=? AND p.revision=?`).get(documentId, options.restoreRevision ?? old?.revision ?? 0) as any;
+      const extraction = options.parsed ? {
+        plan: { format: options.parsed.plan.format, parser: options.parsed.plan.parser, provenance: options.parsed.plan.provenance },
+        segments: options.parsed.segments ?? [], blocks: options.parsed.blocks ?? [], assessment: options.parsed.assessment ?? null,
+      } : previousParse ? { plan: JSON.parse(previousParse.plan), segments: JSON.parse(previousParse.segments), blocks: JSON.parse(previousParse.blocks ?? '[]'), assessment: JSON.parse(previousParse.assessment ?? 'null') } : undefined;
+      const version = createHash('sha256')
+          .update(JSON.stringify(extraction ? [title, text, metadata, extraction] : [title, text, metadata]))
           .digest('hex');
       const row = {
         id: documentId,
@@ -293,6 +302,8 @@ export class Entries {
             JSON.stringify(segments ?? []),
             row.updated_at,
           );
+        if (options.parsed.blocks) database.db.prepare('INSERT INTO parse_blocks VALUES(?,?,?)').run(documentId, row.revision, JSON.stringify(options.parsed.blocks));
+        if (options.parsed.assessment) database.db.prepare('INSERT INTO parse_assessments VALUES(?,?,?)').run(documentId, row.revision, JSON.stringify(options.parsed.assessment));
       }
       const priorParsing = database.db
         .prepare(
@@ -350,7 +361,9 @@ export class Entries {
       ...(generation
         ? {
             parsing: { revision: generation.revision, ...JSON.parse(generation.plan) },
+            assessment: JSON.parse((database.db.prepare('SELECT assessment FROM parse_assessments WHERE entry_id=? AND revision=?').get(documentId, generation.revision) as any)?.assessment ?? 'null'),
             segments: JSON.parse(generation.segments),
+            blocks: JSON.parse((database.db.prepare('SELECT blocks FROM parse_blocks WHERE entry_id=? AND revision=?').get(documentId, generation.revision) as any)?.blocks ?? '[]'),
           }
         : {}),
     };

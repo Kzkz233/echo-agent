@@ -46,6 +46,7 @@ try {
             id: row.node_id,
             modality: row.modality,
             ...(row.parent_id ? { parentId: row.parent_id } : {}),
+            ...(() => { const m = JSON.parse(row.metadata); return Object.fromEntries(Object.entries({ start: m.start, end: m.end, page: m.page, sourceHash: m.sourceHash, parent: m.parent, graphPolicy: m.graphPolicy }).filter(([, value]) => value !== undefined)); })(),
           },
         });
     }

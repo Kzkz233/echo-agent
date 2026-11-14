@@ -11,7 +11,8 @@
     "notifications.channel",
     "agenda.delivery",
     "review.contribute",
-    "outputs.provide"
+    "outputs.provide",
+    "ui.contribute"
   ],
   "settings": [],
   "views": [

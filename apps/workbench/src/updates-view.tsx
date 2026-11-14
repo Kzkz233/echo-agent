@@ -30,17 +30,20 @@ function BuildCard({ label, value }: { label: string; value?: BuildInfo }) {
 }
 export function UpdatesView() {
   const [status, setStatus] = useState<any>(),
-    [desktop, setDesktop] = useState<BuildInfo>();
+    [desktop, setDesktop] = useState<BuildInfo>(), [lifecycle, setLifecycle] = useState<any>();
   const [path, setPath] = useState(''),
     [busy, setBusy] = useState(false),
     [issue, setIssue] = useState('');
   const confirm = useConfirm();
-  const refresh = async () => setStatus(await rpc('updates.status'));
+  const refresh = async () => {
+    const [s, l] = await Promise.all([rpc('updates.status'), rpc('system.lifecycle.status')]);
+    setStatus(s); setLifecycle(l);
+  };
   useEffect(() => {
     let alive = true;
-    void rpc('updates.status')
-      .then((value) => {
-        if (alive) setStatus(value);
+    void Promise.all([rpc('updates.status'), rpc('system.lifecycle.status')])
+      .then(([value, lifecycle]) => {
+        if (alive) { setStatus(value); setLifecycle(lifecycle); }
       })
       .catch((error) => {
         if (alive) setIssue(error.message);
@@ -57,12 +60,12 @@ export function UpdatesView() {
     };
   }, []);
   useEffect(() => {
-    if (!busy) return;
+    if (!busy && lifecycle?.state !== 'waiting') return;
     const timer = setInterval(() => {
       void refresh().catch(() => {});
     }, 1000);
     return () => clearInterval(timer);
-  }, [busy]);
+  }, [busy, lifecycle?.state]);
   const act = async (work: () => Promise<unknown>) => {
     setBusy(true);
     setIssue('');
@@ -133,8 +136,8 @@ export function UpdatesView() {
                 {status.checkedAt && (
                   <span className="muted">
                     {status.release
-                      ? t('发现新版本') + ' ' + status.release.version
-                      : t('当前已是最新版本')}
+                      ? t('GitHub 新版本') + ' ' + status.release.version
+                      : t('GitHub 暂无较新版本')}
                   </span>
                 )}
               </div>
@@ -185,11 +188,11 @@ export function UpdatesView() {
               <div className="update-ready">
                 <div>
                   <strong>
-                    {t('已准备就绪')} · {status.prepared.build.version}
+                    {t(status.prepared.origin === 'github' ? 'GitHub 更新已暂存' : status.prepared.origin === 'rollback' ? '回滚已准备就绪' : '本地更新已暂存')} · {status.prepared.build.version}
                   </strong>
                   <code>{status.prepared.build.buildId.slice(0, 8)}</code>
                 </div>
-                <Button disabled={busy || !native || mismatch} onClick={() => void install()}>
+                <Button disabled={busy || !native || mismatch || ['waiting', 'ready', 'handed-off'].includes(lifecycle?.state)} onClick={() => void install()}>
                   {status.prepared.rollback ? t('重启并回滚') : t('重启并更新')}
                 </Button>
               </div>
@@ -197,6 +200,13 @@ export function UpdatesView() {
           </>
         )}
       </section>
+      {lifecycle?.state === 'waiting' && <section className="card update-actions" role="status">
+        <h2>{t('正在准备安全重启')}</h2>
+        <p>{t('新任务已暂停准入，等待正在执行的工作结束。')}</p>
+        {lifecycle.blockers.map((b: string) => <p key={b} className="muted">{t(b)}</p>)}
+        <Button secondary onClick={() => void act(() => rpc('system.lifecycle.cancel'))}>{t('取消重启')}</Button>
+      </section>}
+      {lifecycle?.state === 'failed' && <p className="warning" role="alert">{lifecycle.error}</p>}
       <section className="card update-actions">
         <h2>{t('回滚与恢复')}</h2>
         {status?.rollback ? (

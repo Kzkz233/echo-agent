@@ -13,7 +13,9 @@
     "knowledge.enhance",
     "memory.enhance",
     "inference.contribute",
-    "character.contribute"
+    "character.contribute",
+    "automation.contribute",
+    "ui.contribute"
   ],
   "settings": [
     {
@@ -46,5 +48,23 @@
   "apiVersion": 1,
   "package": "@echo/semantic",
   "category": "Files and knowledge",
-  "optionalDependencies": []
+  "optionalDependencies": [],
+  "storagePaths": [
+    {
+      "table": "documents",
+      "collection": "knowledge-migration-plans",
+      "pointers": [
+        "/mediaPlans/audio/options/ffmpeg",
+        "/mediaPlans/video/options/ffmpeg"
+      ]
+    },
+    {
+      "table": "documents",
+      "collection": "knowledge-migrations",
+      "pointers": [
+        "/mediaPlans/audio/options/ffmpeg",
+        "/mediaPlans/video/options/ffmpeg"
+      ]
+    }
+  ]
 }

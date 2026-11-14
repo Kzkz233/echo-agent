@@ -35,7 +35,7 @@ async function run() {
       database.exec('PRAGMA foreign_keys=ON;BEGIN IMMEDIATE');
       // A derived full-text index may retain deleted terms. Rebuild on import.
       database.exec(
-        'DROP TRIGGER IF EXISTS knowledge_fts_insert;DROP TRIGGER IF EXISTS knowledge_fts_delete;DROP TRIGGER IF EXISTS knowledge_fts_update;DROP TABLE IF EXISTS knowledge_fts;',
+        'DROP TRIGGER IF EXISTS knowledge_fts_insert;DROP TRIGGER IF EXISTS knowledge_fts_delete;DROP TRIGGER IF EXISTS knowledge_fts_update;DROP TABLE IF EXISTS knowledge_fts;DROP TABLE IF EXISTS content_graphs;',
       );
       database
         .prepare('DELETE FROM entries WHERE kind NOT IN (' + kinds.map(() => '?').join(',') + ')')

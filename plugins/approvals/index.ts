@@ -159,6 +159,8 @@ export class Approvals {
       manifest: defineManifest(manifest),
       activate: (ctx) => {
         this.ctx = ctx;
+        ctx.capabilities.provide('core.ui.badges@1', 'approvals.badges', '待处理审批', () =>
+          this.store.documents<Approval>('approvals').filter(n => n.state === 'pending' && n.expiresAt > new Date().toISOString()).map(n => ({ id: 'approvals.' + n.id, page: 'approvals', at: n.createdAt, pending: true })));
         ctx.dispose(() => {
           this.ctx = undefined;
         });

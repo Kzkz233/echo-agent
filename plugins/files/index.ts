@@ -310,7 +310,7 @@ export class Files {
     );
     return this.mediaObject(grant.vaultId, grant.hash);
   }
-  private async mediaObject(vaultId: string, hash: string) {
+  async mediaObject(vaultId: string, hash: string) {
     const db = await this.database(vaultId),
       object = db.db.prepare('SELECT * FROM objects WHERE hash=?').get(hash) as any;
     invariant(

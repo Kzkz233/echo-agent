@@ -187,7 +187,7 @@ export class Registry {
     caller: Caller,
     signal: AbortSignal = new AbortController().signal,
   ): Promise<any> {
-    invariant(!this.maintenance || ['system.shutdown', 'system.status', 'updates.status', 'updates.confirm'].includes(name),
+    invariant(!this.maintenance || ['system.shutdown', 'system.status', 'system.lifecycle.status', 'system.lifecycle.fail', 'system.lifecycle.host', 'updates.abortTrial', 'updates.status', 'updates.confirm'].includes(name),
       'updating', 'Echo 正在重启更新，请稍后操作。');
     const op = this.entries.get(name);
     invariant(op, 'not_found', '未找到操作：' + name);

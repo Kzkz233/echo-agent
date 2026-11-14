@@ -22,10 +22,23 @@ const fixture = process.env.ECHO_UPDATE_TEST_REUSE
 assert(fixture.startsWith(resolve(base) + sep) && fixture.includes('updates-desktop-'));
 if (process.env.ECHO_UPDATE_TEST_REUSE) {
   const db = new DatabaseSync(join(fixture, 'data/echo.sqlite'), { readOnly: true });
-  try { assert.deepEqual(JSON.parse((db.prepare('SELECT value FROM kv WHERE key=?').get('update.fixture') as any).value), { retained: true }); }
-  finally { db.close(); }
-  const journal = await jsonFile<UpdateJournal>(join(updateRoot(join(fixture, 'App')), 'journal.json'));
-  assert(!journal || ['complete', 'rolled-back', 'failed'].includes(journal.phase), 'An active update fixture cannot be reused');
+  try {
+    assert.deepEqual(
+      JSON.parse(
+        (db.prepare('SELECT value FROM kv WHERE key=?').get('update.fixture') as any).value,
+      ),
+      { retained: true },
+    );
+  } finally {
+    db.close();
+  }
+  const journal = await jsonFile<UpdateJournal>(
+    join(updateRoot(join(fixture, 'App')), 'journal.json'),
+  );
+  assert(
+    !journal || ['complete', 'rolled-back', 'failed'].includes(journal.phase),
+    'An active update fixture cannot be reused',
+  );
 }
 const appRoot = join(fixture, 'App'),
   data = join(fixture, 'data'),
@@ -72,7 +85,7 @@ async function stopFixture() {
 let browser: Browser | undefined,
   success = false;
 try {
-  if (process.env.ECHO_UPDATE_TEST_REUSE && await connection()) await stopFixture();
+  if (process.env.ECHO_UPDATE_TEST_REUSE && (await connection())) await stopFixture();
   await mkdir(appRoot, { recursive: true });
   await cp(
     join(project, 'apps/desktop/target/release/echo-desktop.exe'),
@@ -133,7 +146,14 @@ try {
   await page.evaluate(() =>
     (window as any).__TAURI_INTERNALS__.invoke('open_settings', { page: 'updates' }),
   );
-  await wait(async () => browser!.contexts()[0].pages().some(page => page.url().includes('window=settings')), 'Settings window unavailable');
+  await wait(
+    async () =>
+      browser!
+        .contexts()[0]
+        .pages()
+        .some((page) => page.url().includes('window=settings')),
+    'Settings window unavailable',
+  );
   const settings = browser
     .contexts()[0]
     .pages()
@@ -145,6 +165,18 @@ try {
   ]);
   await settings.screenshot({ path: join(project, 'test-results/updates-desktop.png') });
   console.log('Packaged desktop reports matching desktop and backend builds.');
+  await rpc('system.lifecycle.dirty', { window: 'synthetic-editor', dirty: true });
+  await rpc('system.lifecycle.request', { action: 'restart' });
+  await wait(
+    async () => (await rpc('system.lifecycle.status')).blockers.includes('有尚未保存的编辑'),
+    'Unsaved editor did not block restart',
+  );
+  assert.equal((await rpc('system.lifecycle.status')).state, 'waiting');
+  await rpc('system.lifecycle.cancel');
+  await rpc('system.lifecycle.dirty', { window: 'synthetic-editor', dirty: false });
+  console.log(
+    'Native lifecycle waits for unsaved edits and cancellation restores the current app.',
+  );
   const runHelper = async (broken: boolean) => {
     const id = randomUUID(),
       transaction = join(parent, id),
@@ -249,6 +281,27 @@ try {
   await runHelper(false);
   await browser.close().catch(() => {});
   browser = undefined;
+  const beforeRestart = (await connection())!;
+  const cli = spawnSync(
+    join(appRoot, 'runtime/node.exe'),
+    [join(appRoot, 'runtime/dist/cli.mjs'), '--data-dir', data, '--json', 'app', 'restart'],
+    { windowsHide: true, encoding: 'utf8' },
+  );
+  assert.equal(cli.status, 0, cli.stderr);
+  assert.equal(JSON.parse(cli.stdout).state, 'waiting');
+  await wait(
+    async () => {
+      const next = await connection();
+      return !!next && next.pid !== beforeRestart.pid;
+    },
+    'CLI restart did not launch a new backend',
+    90000,
+  );
+  await wait(
+    async () => (await rpc('updates.status')).consistent === true,
+    'Restarted desktop/backend mismatch',
+  );
+  console.log('Packaged CLI safely restarts the real desktop and retains the shared data.');
   await stopFixture();
   await runHelper(true);
   await stopFixture();

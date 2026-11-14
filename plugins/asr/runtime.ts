@@ -36,7 +36,7 @@ async function checksum(path: string, signal?: AbortSignal) {
     await file.close();
   }
   const hash = createHash('sha256');
-  for await (const block of createReadStream(path, { signal })) hash.update(block);
+  for await (const block of createReadStream(path, { signal, highWaterMark: 8 * 1024 * 1024 })) hash.update(block);
   const value = hash.digest('hex');
   cache.set(path, { stamp, hash: value });
   return value;

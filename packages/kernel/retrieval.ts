@@ -46,7 +46,7 @@ export type SearchHit = {
   score: number;
   method: string;
   text?: string;
-  node?: { id: string; modality: string; parentId?: string };
+  node?: { id: string; modality: string; parentId?: string; start?: number; end?: number; page?: number; sourceHash?: string; parent?: unknown; graphPolicy?: string };
 };
 export type SearchStrategy = 'keyword' | 'semantic' | 'hybrid';
 export type SearchQuery = { text: string; weight: number };
@@ -130,7 +130,7 @@ export class Retrieval {
             method: z.string(),
             text: z.string().optional(),
             node: z
-              .object({ id: z.string(), modality: z.string(), parentId: z.string().optional() })
+              .object({ id: z.string(), modality: z.string(), parentId: z.string().optional(), start: z.number().optional(), end: z.number().optional(), page: z.number().optional(), sourceHash: z.string().optional(), parent: z.unknown().optional(), graphPolicy: z.string().optional() })
               .optional(),
           }),
         )

@@ -10438,5 +10438,229 @@
   [
     "此接入器尚未提供连接检查",
     "This adapter does not provide connection checks"
+  ],
+  [
+    "有未读内容",
+    "Unread activity"
+  ],
+  [
+    "在这里管理解析连接。文件类型路由与已有内容迁移统一在入库流程中配置。",
+    "Manage parser connections here. Configure file routing and existing-content migration in the ingestion pipeline."
+  ],
+  [
+    "入库流程",
+    "Ingestion pipeline"
+  ],
+  [
+    "所有知识库沿用此默认流程。保存配置不会重跑已有解析或切换现有索引。",
+    "All libraries inherit this default pipeline. Saving does not reparse existing content or switch active indexes."
+  ],
+  [
+    "音视频转录",
+    "Audio and video transcription"
+  ],
+  [
+    "图片处理",
+    "Image processing"
+  ],
+  [
+    "按支持格式自动选择",
+    "Select automatically by supported format"
+  ],
+  [
+    "沿用共享语义模型",
+    "Use the shared embedding model"
+  ],
+  [
+    "原生图片索引处理",
+    "Native image preparation"
+  ],
+  [
+    "原生音视频索引处理",
+    "Native audio and video preparation"
+  ],
+  [
+    "新导入内容自动建立索引",
+    "Automatically index new imports"
+  ],
+  [
+    "切块与媒体",
+    "Chunking and media"
+  ],
+  [
+    "文本片段长度",
+    "Text chunk length"
+  ],
+  [
+    "文本重叠长度",
+    "Text overlap"
+  ],
+  [
+    "媒体片段秒数",
+    "Media segment duration (seconds)"
+  ],
+  [
+    "索引内容",
+    "Indexed content"
+  ],
+  [
+    "图片",
+    "Images"
+  ],
+  [
+    "入库流程已保存",
+    "Ingestion pipeline saved"
+  ],
+  [
+    "保存默认流程",
+    "Save default pipeline"
+  ],
+  [
+    "更新已有内容",
+    "Update existing content"
+  ],
+  [
+    "默认复用正文、转录与附件，仅生成内容结构和目标索引。旧索引在迁移完成前继续生效。",
+    "Reuse existing text, transcripts and attachments by default. Build content structure and the target index while the previous index remains active."
+  ],
+  [
+    "同时应用解析配置变更（仅更新受影响的原件）",
+    "Apply parser configuration changes to affected originals only"
+  ],
+  [
+    "预览迁移",
+    "Preview migration"
+  ],
+  [
+    "复用解析",
+    "Reused parsing"
+  ],
+  [
+    "需要处理",
+    "Needs attention"
+  ],
+  [
+    "所选模型不支持的模态不会建立向量",
+    "Unsupported modalities will not be embedded by this model"
+  ],
+  [
+    "查看条目明细",
+    "View affected entries"
+  ],
+  [
+    "迁移已启动",
+    "Migration started"
+  ],
+  [
+    "开始迁移",
+    "Start migration"
+  ],
+  [
+    "向量",
+    "vectors"
+  ],
+  [
+    "恢复上一版索引",
+    "Restore previous index"
+  ],
+  [
+    "命中证据与上级内容",
+    "Matching evidence and parent context"
+  ],
+  [
+    "页码",
+    "Page"
+  ],
+  [
+    "默认解析与索引流程在知识系统设置中统一配置。",
+    "Configure default parsing and indexing in Knowledge System settings."
+  ],
+  [
+    "GitHub 新版本",
+    "New GitHub release"
+  ],
+  [
+    "GitHub 暂无较新版本",
+    "No newer GitHub release"
+  ],
+  [
+    "GitHub 更新已暂存",
+    "GitHub update staged"
+  ],
+  [
+    "回滚已准备就绪",
+    "Rollback ready"
+  ],
+  [
+    "本地更新已暂存",
+    "Local update staged"
+  ],
+  [
+    "复用已保存的正文、附件和转录",
+    "Reuse saved text, attachments and transcripts"
+  ],
+  [
+    "原件由所属插件维护，请通过来源插件重新解析",
+    "The owning plugin manages this original; reparse through that plugin."
+  ],
+  [
+    "目标解析器不可用",
+    "The target parser is unavailable."
+  ],
+  [
+    "正文含人工修改，请先在条目中确认重解析",
+    "The content has manual edits. Confirm reparsing on the entry first."
+  ],
+  [
+    "旧解析来源未记录，复用现有正文；可在条目中明确重解析",
+    "Historical parser provenance is unknown. Reuse the saved content; explicit reparsing is available on the entry."
+  ],
+  [
+    "解析配置已改变，仅更新受影响的原件",
+    "Parser settings changed; update only affected originals."
+  ],
+  [
+    "解析配置未改变，复用现有正文和转录",
+    "Parser settings are unchanged; reuse saved text and transcripts."
+  ],
+  [
+    "正在准备安全重启",
+    "Preparing a safe restart"
+  ],
+  [
+    "新任务已暂停准入，等待正在执行的工作结束。",
+    "New work is paused while active work reaches a safe stopping point."
+  ],
+  [
+    "取消重启",
+    "Cancel restart"
+  ],
+  [
+    "有尚未保存的编辑",
+    "There are unsaved changes"
+  ],
+  [
+    "后台执行尚未到达安全点",
+    "Background work has not reached a safe stopping point"
+  ],
+  [
+    "消息仍在投递",
+    "Messages are still being delivered"
+  ],
+  [
+    "原件没有音轨",
+    "The original has no audio track"
+  ],
+  [
+    "未检测到可转录语音",
+    "No transcribable speech detected"
+  ],
+  [
+    "原件仍可播放和检索",
+    "The original remains playable and searchable"
+  ],
+  [
+    "部分转录待核对，可疑文字未纳入检索",
+    "Some transcription needs review; uncertain text is excluded from search"
   ]
 ]

@@ -35,6 +35,8 @@ export class LibraryDatabase {
    CREATE TABLE IF NOT EXISTS entry_revision_sources(entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,revision INTEGER NOT NULL,source_file_id TEXT,source_hash TEXT REFERENCES objects(hash),source_uri TEXT,PRIMARY KEY(entry_id,revision));
    CREATE TABLE IF NOT EXISTS entry_revision_attachments(entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,revision INTEGER NOT NULL,id TEXT NOT NULL,name TEXT NOT NULL,object_hash TEXT NOT NULL REFERENCES objects(hash),role TEXT NOT NULL,PRIMARY KEY(entry_id,revision,id));
    CREATE TABLE IF NOT EXISTS parse_generations(entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,revision INTEGER NOT NULL,job_id TEXT NOT NULL UNIQUE,plan TEXT NOT NULL,segments TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(entry_id,revision));
+   CREATE TABLE IF NOT EXISTS parse_blocks(entry_id TEXT NOT NULL,revision INTEGER NOT NULL,blocks TEXT NOT NULL,PRIMARY KEY(entry_id,revision),FOREIGN KEY(entry_id,revision) REFERENCES parse_generations(entry_id,revision) ON DELETE CASCADE);
+   CREATE TABLE IF NOT EXISTS parse_assessments(entry_id TEXT NOT NULL,revision INTEGER NOT NULL,assessment TEXT NOT NULL,PRIMARY KEY(entry_id,revision),FOREIGN KEY(entry_id,revision) REFERENCES parse_generations(entry_id,revision) ON DELETE CASCADE);
    CREATE TABLE IF NOT EXISTS entry_revision_parsing(entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,revision INTEGER NOT NULL,parse_revision INTEGER,PRIMARY KEY(entry_id,revision));
    INSERT OR IGNORE INTO file_versions SELECT id,object_hash FROM files WHERE kind='source';
    INSERT OR IGNORE INTO entry_revision_sources SELECT id,revision,source_file_id,source_hash,source_uri FROM entries;

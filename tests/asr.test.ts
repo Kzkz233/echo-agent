@@ -9,11 +9,15 @@ import { parseAsrOutput } from '../plugins/asr/runtime.ts';
 import { adapterSchema, modelProfileSchema } from '../packages/contracts/inference.ts';
 import { defineManifest } from '../packages/kernel/registry.ts';
 import { connectionForPurpose } from '../packages/contracts/model-services.ts';
+import { pcm16, wave } from '../plugins/asr/audio.ts';
+import { assessTranscription } from '../plugins/asr/quality.ts';
+import { speechRanges } from '../plugins/asr/speech-detection.ts';
 const ui = { kind: 'ui' as const, permissions: new Set(['*']) };
 
 async function fixture(
   t: Parameters<typeof setup>[0],
   respond: (value: any, signal: AbortSignal) => Promise<any>,
+  detect?: (duration: number) => any,
 ) {
   const app = await setup(t),
     root = await temporary(t);
@@ -32,8 +36,13 @@ async function fixture(
           args[args.indexOf('-o') + 1],
           JSON.stringify({ format: { duration: '65' }, streams: [{ codec_type: 'audio' }] }),
         );
-      else await writeFile(args.at(-1)!, Buffer.from('RIFF synthetic normalized audio'));
+      else await writeFile(args.at(-1)!, wave(Buffer.alloc(Math.round(Number(args[args.indexOf('-t') + 1]) * 32000))));
     },
+    undefined,
+    { loaded: false, async release() {}, async close() {}, async detect(_id, value) {
+      const duration = pcm16(Buffer.from(value.audio, 'base64')).length / 32000;
+      return detect?.(duration) ?? { duration, speechSeconds: duration, maxProbability: 1, meanProbability: 1, ranges: [{ start: 0, end: duration }] };
+    } },
   );
   app.plugins.plugins.set('asr', speech.plugin());
   app.plugins.add({
@@ -277,4 +286,64 @@ test('plugin forms show effective ASR defaults without migrating or overwriting 
   assert.equal(bootstrap.pluginSettings.asr.chunkSeconds,30);
   assert.equal(bootstrap.pluginSettings.asr.ffmpeg,'synthetic-ffmpeg');
   assert.deepEqual(app.store.get('asr.config',{}),before);
+});
+
+test('no-speech completes normally without decoding words and keeps the original', async t => {
+  let calls = 0;
+  const { app, root, speech } = await fixture(t, async () => { calls++; return { text: 'Must not be generated' }; }, duration => ({ duration, speechSeconds: 0, maxProbability: 0.02, meanProbability: 0.001, ranges: [] }));
+  const source = join(root, 'Music.mp4'); await writeFile(source, 'synthetic music original');
+  const job = await app.knowledge.queueImport('local', source, 'music-only');
+  await until(() => app.store.document<any>('knowledge-jobs', job.id)?.state === 'completed');
+  const doc = await app.knowledge.read(job.documentId, 0, 12000, 'local');
+  assert.equal(calls, 0); assert.equal(doc.content, ''); assert.equal(doc.assessment.state, 'empty');
+  assert.equal(doc.assessment.reason, 'no_speech'); assert(doc.segments.every((s: any) => s.text === ''));
+  assert.equal(doc.original?.hash, job.original.hash); assert.equal(speech.detector.loaded, false);
+  const graph = await app.knowledge.pipeline.graph('local', doc.id);
+  assert(!graph.nodes.some((n: any) => n.kind === 'text'));
+});
+
+test('suspect transcripts stay in the job receipt, not in published text, parents or search', async t => {
+  const candidate = 'Unreliable secret phrase';
+  const { app, root } = await fixture(t, async () => ({ text: candidate, language: 'None' }));
+  const source = join(root, 'Uncertain.mp4'); await writeFile(source, 'synthetic uncertain original');
+  const job = await app.knowledge.queueImport('local', source, 'uncertain-asr');
+  await until(() => app.store.document<any>('knowledge-jobs', job.id)?.state === 'completed');
+  const doc = await app.knowledge.read(job.documentId, 0, 12000, 'local');
+  assert.equal(doc.assessment.state, 'needs_review'); assert.equal(doc.content, '');
+  assert(!JSON.stringify(doc.segments).includes(candidate));
+  assert(app.store.document<any>('asr-jobs', job.id).segments.every((s: any) => s.candidateText === candidate));
+  assert.equal((await app.knowledge.search(candidate, new AbortController().signal, 10, { vaultId: 'local' })).length, 0);
+  const graph = await app.knowledge.pipeline.graph('local', doc.id);
+  assert(!JSON.stringify(graph.nodes).includes(candidate));
+});
+
+test('speech intervals preserve original timestamps and do not index silent gaps', async t => {
+  const { app, root } = await fixture(t, async () => ({ text: 'Confirmed speech', language: 'English' }), duration => ({ duration, speechSeconds: 1, maxProbability: 0.99, meanProbability: 0.4, ranges: [{ start: 2, end: 3 }] }));
+  const source = join(root, 'Sparse.mp4'); await writeFile(source, 'synthetic speech');
+  const job = await app.knowledge.queueImport('local', source, 'sparse-speech');
+  await until(() => app.store.document<any>('knowledge-jobs', job.id)?.state === 'completed');
+  const doc = await app.knowledge.read(job.documentId, 0, 12000, 'local');
+  assert.deepEqual(doc.segments.map((s: any) => [s.start,s.end]), [[2,3],[32,33],[62,63]]);
+  assert.equal(doc.assessment.state, 'accepted');
+});
+
+test('speech detection uses hysteresis and padding without treating energy or language as proof', () => {
+  assert.deepEqual(speechRanges(Array(100).fill(0.02), 3.2).ranges, []);
+  const found = speechRanges([...Array(10).fill(0), ...Array(30).fill(0.95), ...Array(40).fill(0)], 2.56);
+  assert.equal(found.ranges.length, 1); assert(found.ranges[0].start < 0.32); assert(found.ranges[0].end < 2.56);
+  assert.equal(assessTranscription({ text: 'Valid Spanish speech.', language: 'Spanish' }, 3).state, 'accepted');
+  assert.equal(assessTranscription({ text: 'abc'.repeat(40) }, 10).state, 'needs_review');
+  assert.equal(assessTranscription({ text: '' }, 3).state, 'needs_review');
+});
+
+test('failed speech detection cannot silently bypass filtering or replace an existing entry', async t => {
+  let calls = 0;
+  const { app, root } = await fixture(t, async () => { calls++; return { text: 'Unexpected transcription' }; }, () => { throw Error('Synthetic detector unavailable'); });
+  const source = join(root, 'Existing.mp4'); await writeFile(source, 'synthetic original');
+  const original = await app.files.import('local', source);
+  const before = await app.knowledge.save('local', 'Existing', 'Previously trusted text', { sourceFileId: original.id, sourceHash: original.hash });
+  const job = await app.knowledge.reparse({ vaultId: 'local', id: before.id, revision: before.revision, requestId: 'detector-failure' });
+  await until(() => app.store.document<any>('knowledge-jobs', job.id)?.state === 'failed');
+  const after = await app.knowledge.read(before.id, 0, 12000, 'local');
+  assert.equal(after.content, 'Previously trusted text'); assert.equal(after.version, before.version); assert.equal(calls, 0);
 });
