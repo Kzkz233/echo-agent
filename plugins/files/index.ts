@@ -8,6 +8,7 @@ import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { resolve, relative, isAbsolute, join, extname, dirname } from 'node:path';
 import { Entries } from './entries.ts';
+import { Parsers } from './parsers.ts';
 import { LibraryDatabase } from './database.ts';
 import { createHash, randomUUID, randomBytes } from 'node:crypto';
 import { z } from 'zod';
@@ -44,6 +45,7 @@ export type FileRecord = {
 /** Explicitly registered roots; shared storage mechanics, no knowledge/media semantics. */
 export class Files {
   readonly entries = new Entries(this);
+  readonly parsers = new Parsers(this);
   private databases = new Map<string, LibraryDatabase>();
   private active = false;
   private generation = 0;
@@ -208,6 +210,16 @@ export class Files {
     );
     return matches[0];
   }
+  /** Resolve a captured original version, even after its external path or current head changes. */
+  async original(vaultId: string, fileId: string, hash: string): Promise<FileRecord> {
+    const db=await this.database(vaultId);
+    const row=db.db.prepare(`SELECT f.*,o.path,o.bytes,o.media_type FROM files f JOIN objects o ON o.hash=?
+      WHERE f.id=? AND f.kind='source' AND (f.object_hash=o.hash OR EXISTS(SELECT 1 FROM file_versions v WHERE v.file_id=f.id AND v.object_hash=o.hash)
+      OR EXISTS(SELECT 1 FROM entries e WHERE e.source_file_id=f.id AND e.source_hash=o.hash))`).get(hash,fileId) as any;
+    invariant(row,'source_missing','已归档的原件版本不存在');
+    return {id:fileId,vaultId,kind:'source',name:row.name,hash,bytes:row.bytes,mediaType:row.media_type,relativePath:row.path,
+      source:row.source_uri??undefined,revision:row.revision,updatedAt:row.updated_at};
+  }
   async page(
     v: {
       vaultId?: string;
@@ -363,7 +375,11 @@ export class Files {
     };
     check();
     const prepared = typeof bytes === 'object' && !Buffer.isBuffer(bytes) ? bytes : undefined;
-    const data = Buffer.isBuffer(bytes) ? bytes : typeof bytes === 'string' ? Buffer.from(bytes) : undefined;
+    const data = Buffer.isBuffer(bytes)
+      ? bytes
+      : typeof bytes === 'string'
+        ? Buffer.from(bytes)
+        : undefined;
     const hash = prepared?.hash ?? createHash('sha256').update(data!).digest('hex');
     const size = prepared?.size ?? data!.length;
     const objectPath = `objects/${hash.slice(0, 2)}/${hash}`;
@@ -390,6 +406,16 @@ export class Files {
           '.webm': 'video/webm',
           '.mp3': 'audio/mpeg',
           '.wav': 'audio/wav',
+          '.m4a': 'audio/mp4',
+          '.aac': 'audio/aac',
+          '.flac': 'audio/flac',
+          '.ogg': 'audio/ogg',
+          '.opus': 'audio/ogg',
+          '.wma': 'audio/x-ms-wma',
+          '.mkv': 'video/x-matroska',
+          '.mov': 'video/quicktime',
+          '.m4v': 'video/mp4',
+          '.avi': 'video/x-msvideo',
           '.pdf': 'application/pdf',
           '.md': 'text/markdown',
           '.txt': 'text/plain',
@@ -419,33 +445,49 @@ export class Files {
           'INSERT INTO files VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,kind=excluded.kind,object_hash=excluded.object_hash,source_uri=excluded.source_uri,updated_at=excluded.updated_at,revision=excluded.revision',
         )
         .run(row.id, row.name, row.kind, hash, row.source ?? null, row.updatedAt, row.revision);
+      if(row.kind==='source')database.db.prepare('INSERT OR IGNORE INTO file_versions VALUES(?,?)').run(row.id,hash);
     });
     this.events?.emit('files.updated', { vaultId });
     return row;
   }
   async captureVerified(
-    vaultId: string, source: string, expectedHash: string, limit: number, signal: AbortSignal,
+    vaultId: string,
+    source: string,
+    expectedHash: string,
+    limit: number,
+    signal: AbortSignal,
   ) {
     const physical = await realpath(source);
-    const existing = (await this.records(vaultId)).find((file) =>
-      file.kind === 'source' && file.source === physical);
+    const existing = (await this.records(vaultId)).find(
+      (file) => file.kind === 'source' && file.source === physical,
+    );
     const temporaryPath = await this.path(vaultId, 'objects/' + randomUUID() + '.incoming');
     await mkdir(dirname(temporaryPath), { recursive: true });
     const digest = createHash('sha256');
     let size = 0;
     try {
-      await pipeline(createReadStream(physical), new Transform({
-        transform(chunk, _encoding, done) {
-          size += chunk.length;
-          if (size > limit) return done(new Error('附件超过处理大小上限。'));
-          digest.update(chunk);
-          done(null, chunk);
-        },
-      }), createWriteStream(temporaryPath, { flags: 'wx' }), { signal });
+      await pipeline(
+        createReadStream(physical),
+        new Transform({
+          transform(chunk, _encoding, done) {
+            size += chunk.length;
+            if (size > limit) return done(new Error('附件超过处理大小上限。'));
+            digest.update(chunk);
+            done(null, chunk);
+          },
+        }),
+        createWriteStream(temporaryPath, { flags: 'wx' }),
+        { signal },
+      );
       const hash = digest.digest('hex');
       invariant(hash === expectedHash, 'source_changed', '附件在读取期间已变化，请重新同步。');
-      return await this.write(vaultId, physical, { temporaryPath, hash, size },
-        { id: existing?.id, source: physical, kind: 'source' }, signal);
+      return await this.write(
+        vaultId,
+        physical,
+        { temporaryPath, hash, size },
+        { id: existing?.id, source: physical, kind: 'source' },
+        signal,
+      );
     } finally {
       await unlink(temporaryPath).catch(() => {});
     }
@@ -464,11 +506,47 @@ export class Files {
     const physical = await realpath(source),
       info = await stat(physical);
     check();
-    invariant(info.isFile() && info.size <= 128000000, 'file_size', '文件需不超过128 MB');
+    invariant(info.isFile() && info.size <= 8 * 1024 ** 3, 'file_size', '文件需不超过8 GB');
     const old = (await this.records(vaultId)).find(
       (f) => f.kind === 'source' && f.vaultId === vaultId && f.source === physical,
     );
     const id = old?.id ?? randomUUID();
+    if (!captured && info.size > 16000000) {
+      const temporaryPath = await this.path(vaultId, 'objects/' + randomUUID() + '.incoming');
+      await mkdir(dirname(temporaryPath), { recursive: true });
+      const hash = createHash('sha256');
+      let size = 0;
+      try {
+        await pipeline(
+          createReadStream(physical),
+          new Transform({
+            transform(chunk, _encoding, done) {
+              try {
+                check();
+                size += chunk.length;
+                invariant(size <= 8 * 1024 ** 3, 'file_size', '文件需不超过8 GB');
+                hash.update(chunk);
+                done(null, chunk);
+              } catch (error) {
+                done(error as Error);
+              }
+            },
+          }),
+          createWriteStream(temporaryPath, { flags: 'wx' }),
+          { signal },
+        );
+        check();
+        return await this.write(
+          vaultId,
+          old?.relativePath ?? `Files/${id}${extname(physical).toLowerCase()}`,
+          { temporaryPath, hash: hash.digest('hex'), size },
+          { id, source: physical, name: physical.split(/[\\/]/).at(-1)!, kind: 'source' },
+          signal,
+        );
+      } finally {
+        await unlink(temporaryPath).catch(() => {});
+      }
+    }
     const bytes = captured ?? (await readFile(physical, { signal }));
     check();
     return this.write(
@@ -483,6 +561,7 @@ export class Files {
     return {
       manifest: defineManifest(packageManifest),
       activate: async (ctx) => {
+        this.parsers.activate(ctx);
         ctx.capabilities.define({
           id: 'files.extract@1',
           description: '显式导入文档时的可选解析器',
@@ -498,6 +577,37 @@ export class Files {
           cardinality: 'one',
         });
         this.active = true;
+        ctx.capabilities.define({
+          id: 'files.extraction-progress@1',
+          description: 'Optional progress for a durable extraction request',
+          input: z.object({ requestId: id }),
+          output: z
+            .object({
+              completed: z.number().nonnegative(),
+              total: z.number().nonnegative(),
+              unit: z.string(),
+            })
+            .nullable(),
+          providePermission: 'knowledge.parse',
+          consumePermission: 'files.read',
+          cardinality: 'many',
+        });
+        ctx.capabilities.define({
+          id: 'files.extract@2',
+          description:
+            'Parse an archived original by scoped file identity without large Base64 payloads',
+          input: z.object({
+            vaultId: id,
+            fileId: id,
+            sourceHash: z.string().regex(/^[a-f0-9]{64}$/),
+            name: z.string(),
+            requestId: id,
+          }),
+          output: parsedDocument.nullable(),
+          providePermission: 'knowledge.parse',
+          consumePermission: 'files.read',
+          cardinality: 'one',
+        });
         this.generation++;
         this.mediaLife = new AbortController();
         ctx.capabilities.provide(
@@ -569,6 +679,12 @@ export class Files {
           false,
         );
         op('roots', '授权目录', z.object({}), 'files.read', () => this.roots());
+        op('source-object','为解析扩展解析已归档原件版本',z.object({vaultId:id,fileId:id,sourceHash:z.string().regex(/^[a-f0-9]{64}$/)}),
+          'files.read',async(v,_signal,caller)=>{
+            invariant(['extension','ui','internal'].includes(caller.kind),'resource_scope','此接口仅供应用和已授权解析扩展使用');
+            const file=await this.original(v.vaultId,v.fileId,v.sourceHash);
+            return {hash:file.hash,bytes:file.bytes,name:file.name,mediaType:file.mediaType,path:await this.path(file.vaultId,file.relativePath)};
+          },false);
         op(
           'register',
           '注册文件目录',

@@ -1864,10 +1864,10 @@ function Plugins() {
               ))}
             {plugin.enabled && (
               <Suspense fallback={<p>{t('正在打开…')}</p>}>
-                {data.inference.adapters.some((adapter: any) => adapter.owner === selected) && (
+                {data.inference.adapters.some((adapter: any) => adapter.owner === selected && adapter.workerOnly) && (
                   <BackendsView key={selected} data={data} act={act} owner={selected} embedded />
                 )}
-                {['embeddings', 'semantic'].includes(selected) && (
+                {data.inference.tasks.some((task:any)=>task.owner===selected&&task.scope==='shared') && (
                   <p className="muted">{t('模型在「模型服务」中统一登记，再在下方选择用途。')}</p>
                 )}
                 {selected === 'storage' && <StorageSettings act={act} />}

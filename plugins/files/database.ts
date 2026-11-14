@@ -31,6 +31,15 @@ export class LibraryDatabase {
    CREATE INDEX IF NOT EXISTS entries_kind ON entries(kind,updated_at);
    CREATE TABLE IF NOT EXISTS entry_attachments(entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,id TEXT NOT NULL,name TEXT NOT NULL,object_hash TEXT NOT NULL REFERENCES objects(hash),role TEXT NOT NULL,PRIMARY KEY(entry_id,id));
    CREATE TABLE IF NOT EXISTS entry_revisions(entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,revision INTEGER NOT NULL,title TEXT NOT NULL,body TEXT NOT NULL,metadata TEXT NOT NULL,version TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(entry_id,revision));
+   CREATE TABLE IF NOT EXISTS file_versions(file_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,object_hash TEXT NOT NULL REFERENCES objects(hash),PRIMARY KEY(file_id,object_hash));
+   CREATE TABLE IF NOT EXISTS entry_revision_sources(entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,revision INTEGER NOT NULL,source_file_id TEXT,source_hash TEXT REFERENCES objects(hash),source_uri TEXT,PRIMARY KEY(entry_id,revision));
+   CREATE TABLE IF NOT EXISTS entry_revision_attachments(entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,revision INTEGER NOT NULL,id TEXT NOT NULL,name TEXT NOT NULL,object_hash TEXT NOT NULL REFERENCES objects(hash),role TEXT NOT NULL,PRIMARY KEY(entry_id,revision,id));
+   CREATE TABLE IF NOT EXISTS parse_generations(entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,revision INTEGER NOT NULL,job_id TEXT NOT NULL UNIQUE,plan TEXT NOT NULL,segments TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(entry_id,revision));
+   CREATE TABLE IF NOT EXISTS entry_revision_parsing(entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,revision INTEGER NOT NULL,parse_revision INTEGER,PRIMARY KEY(entry_id,revision));
+   INSERT OR IGNORE INTO file_versions SELECT id,object_hash FROM files WHERE kind='source';
+   INSERT OR IGNORE INTO entry_revision_sources SELECT id,revision,source_file_id,source_hash,source_uri FROM entries;
+   INSERT OR IGNORE INTO entry_revision_parsing SELECT id,revision,NULL FROM entries;
+   INSERT OR IGNORE INTO entry_revision_attachments SELECT a.entry_id,e.revision,a.id,a.name,a.object_hash,a.role FROM entry_attachments a JOIN entries e ON e.id=a.entry_id;
   `);
     this.db.prepare("INSERT OR IGNORE INTO library_meta VALUES('format','echo-library-v1')").run();
     this.db.prepare("INSERT OR IGNORE INTO library_meta VALUES('id',?)").run(randomUUID());

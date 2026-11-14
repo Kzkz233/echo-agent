@@ -26,6 +26,9 @@ export const modelProfileSchema = z
     reranking: z
       .object({ enabled: z.boolean(), inputs: z.array(modality).min(1).default(['text']) })
       .optional(),
+    transcription: z
+      .object({ enabled: z.boolean(), inputs: z.array(modality).min(1).default(['audio']) })
+      .optional(),
     reasoning: reasoning.default('inherit'),
     reasoningStyle: reasoningStyle.default('auto'),
     reasoningLevels: z.array(reasoningLevel).min(1).max(7).optional(),
@@ -41,9 +44,9 @@ export const connectionSchema = z
     name: z.string().min(1).max(100),
     adapterId: id,
     purposes: z
-      .array(z.enum(['generation', 'embedding', 'reranking']))
+      .array(z.enum(['generation', 'embedding', 'reranking', 'transcription']))
       .min(1)
-      .max(3)
+      .max(4)
       .optional(),
     deployment: z.enum(['cloud', 'local', 'remote', 'harness']).default('cloud'),
     config: z.record(z.string(), z.unknown()).default({}),
@@ -73,6 +76,8 @@ export const adapterSchema = z.object({
   embeddingProvider: id.optional(),
   reranking: z.array(modality).optional(),
   rerankingProvider: id.optional(),
+  transcription: z.array(modality).optional(),
+  transcriptionProvider: id.optional(),
   generationProvider: id.optional(),
   prepareModelProvider: id.optional(),
   modelCatalogProvider: id.optional(),
@@ -95,7 +100,7 @@ export const taskSchema = z.object({
   id,
   owner: id.optional(),
   label: z.string(),
-  operation: z.enum(['generate', 'embed', 'rerank']),
+  operation: z.enum(['generate', 'embed', 'rerank', 'transcribe']),
   scope: z.enum(['character', 'shared']),
   inputs: z.array(modality).min(1),
   description: z.string().default(''),
@@ -109,7 +114,7 @@ export const generationInput = z.object({
       text: z.string(),
       context: z.enum(['turn', 'event']).optional(),
       reply: replySubmission.optional(),
-        native: transcriptMessage.optional(),
+      native: transcriptMessage.optional(),
       images: z.array(z.object({ mimeType: z.string(), data: z.string() })).optional(),
     }),
   ),
@@ -173,8 +178,8 @@ export const inferenceTasks = {
 export const modelKindSchema = z.object({
   id,
   label: z.string(),
-  operation: z.enum(['generate', 'embed', 'rerank']),
-  capability: z.enum(['generation', 'embedding', 'reranking']),
+  operation: z.enum(['generate', 'embed', 'rerank', 'transcribe']),
+  capability: z.enum(['generation', 'embedding', 'reranking', 'transcription']),
   order: z.number().default(0),
 });
 export const rerankInput = z.object({

@@ -9,7 +9,8 @@
   "permissions": [
     "knowledge.parse",
     "documents.read",
-    "character.contribute"
+    "character.contribute",
+    "files.read"
   ],
   "settings": [],
   "views": [],
@@ -28,6 +29,14 @@
       "pointers": [
         "/command",
         "/args/*"
+      ]
+    },
+    {
+      "table": "documents",
+      "collection": "knowledge-jobs",
+      "pointers": [
+        "/plan/options/config/command",
+        "/plan/options/config/args/*"
       ]
     }
   ],

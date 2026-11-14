@@ -1,0 +1,66 @@
+{
+  "apiVersion": 1,
+  "id": "asr",
+  "package": "@echo/asr",
+  "name": "Audio Transcription",
+  "description": "按需在本机转录知识库音视频，支持分段进度与继续处理，完成后释放模型。",
+  "version": "0.1.0",
+  "category": "Files and knowledge",
+  "dependencies": [
+    "files"
+  ],
+  "optionalDependencies": [],
+  "permissions": [
+    "files.read",
+    "knowledge.parse",
+    "inference.contribute",
+    "inference.read",
+    "asr.read",
+    "asr.write"
+  ],
+  "settings": [
+    {
+      "key": "ffmpeg",
+      "label": "FFmpeg 可执行文件",
+      "type": "path",
+      "pathMode": "file"
+    },
+    {
+      "key": "language",
+      "label": "识别语言（留空自动识别）",
+      "type": "text"
+    },
+    {
+      "key": "context",
+      "label": "专业词汇与背景",
+      "type": "textarea"
+    },
+    {
+      "key": "chunkSeconds",
+      "label": "音频分段秒数",
+      "type": "number",
+      "min": 10,
+      "max": 60
+    }
+  ],
+  "views": [],
+  "storagePaths": [
+    {
+      "table": "kv",
+      "collection": "asr.config",
+      "pointers": [
+        "/ffmpeg"
+      ]
+    },
+    {
+      "table": "documents",
+      "collection": "knowledge-jobs",
+      "pointers": [
+        "/plan/options/profile/model",
+        "/plan/options/profile/command",
+        "/plan/options/profile/modelOptions/projector",
+        "/plan/options/config/ffmpeg"
+      ]
+    }
+  ]
+}

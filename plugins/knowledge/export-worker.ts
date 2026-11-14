@@ -1,10 +1,11 @@
 import { workerData, parentPort } from 'node:worker_threads';
 import { DatabaseSync, backup } from 'node:sqlite';
-import { mkdir, mkdtemp, open, realpath, rm, link, unlink } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, link, unlink } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { join, dirname, resolve, relative, isAbsolute, basename, sep } from 'node:path';
 import { createHash } from 'node:crypto';
-import { Zip, ZipPassThrough, strToU8 } from 'fflate';
+import { strToU8 } from 'fflate';
+import { ZipWriter } from '../../packages/kernel/zip-writer.ts';
 async function run() {
   const { directory, destination, mode, kinds, sourceLocations } = workerData,
     root = await realpath(directory),
@@ -39,14 +40,19 @@ async function run() {
       database
         .prepare('DELETE FROM entries WHERE kind NOT IN (' + kinds.map(() => '?').join(',') + ')')
         .run(...kinds);
-      database.exec(
-        'DELETE FROM files WHERE id NOT IN (SELECT source_file_id FROM entries WHERE source_file_id IS NOT NULL);DELETE FROM objects WHERE hash NOT IN (SELECT object_hash FROM files UNION SELECT source_hash FROM entries WHERE source_hash IS NOT NULL UNION SELECT object_hash FROM entry_attachments);',
-      );
-      database.exec(
-        'DELETE FROM entry_revisions WHERE revision != (SELECT revision FROM entries WHERE entries.id=entry_revisions.entry_id)',
-      );
+      database.exec(`DELETE FROM entry_revisions WHERE revision != (SELECT revision FROM entries WHERE entries.id=entry_revisions.entry_id);
+        DELETE FROM entry_revision_sources WHERE revision != (SELECT revision FROM entries WHERE entries.id=entry_revision_sources.entry_id);
+        DELETE FROM entry_revision_attachments WHERE revision != (SELECT revision FROM entries WHERE entries.id=entry_revision_attachments.entry_id);
+        DELETE FROM entry_revision_parsing WHERE revision != (SELECT revision FROM entries WHERE entries.id=entry_revision_parsing.entry_id);
+        DELETE FROM parse_generations WHERE NOT EXISTS(SELECT 1 FROM entry_revision_parsing p WHERE p.entry_id=parse_generations.entry_id AND p.parse_revision=parse_generations.revision);
+        DELETE FROM files WHERE id NOT IN (SELECT source_file_id FROM entries WHERE source_file_id IS NOT NULL);
+        DELETE FROM file_versions;
+        DELETE FROM objects WHERE hash NOT IN (SELECT object_hash FROM files UNION SELECT source_hash FROM entries WHERE source_hash IS NOT NULL UNION SELECT object_hash FROM entry_attachments UNION SELECT source_hash FROM entry_revision_sources WHERE source_hash IS NOT NULL UNION SELECT object_hash FROM entry_revision_attachments);
+      `);
       if (!sourceLocations) {
-        database.exec('UPDATE entries SET source_uri=NULL;UPDATE files SET source_uri=NULL;');
+        database.exec(
+          'UPDATE entries SET source_uri=NULL;UPDATE files SET source_uri=NULL;UPDATE entry_revision_sources SET source_uri=NULL;',
+        );
       }
       database.exec('COMMIT;PRAGMA journal_mode=DELETE;VACUUM;');
       objects = database.prepare('SELECT * FROM objects').all();
@@ -62,6 +68,14 @@ async function run() {
       'image/webp': '.webp',
       'audio/wav': '.wav',
       'audio/mpeg': '.mp3',
+      'audio/mp4': '.m4a',
+      'audio/aac': '.aac',
+      'audio/flac': '.flac',
+      'audio/ogg': '.ogg',
+      'audio/x-ms-wma': '.wma',
+      'video/x-matroska': '.mkv',
+      'video/quicktime': '.mov',
+      'video/x-msvideo': '.avi',
       'video/mp4': '.mp4',
       'video/webm': '.webm',
       'application/pdf': '.pdf',
@@ -70,50 +84,20 @@ async function run() {
     };
     const attachmentName = (hash: string) =>
       hash + (extensions[objects.find((o) => o.hash === hash)?.media_type] ?? '.bin');
-    const out = await open(output, 'wx'),
+    const zip = await ZipWriter.create(output),
       manifest: any[] = [];
-    let writes = Promise.resolve(),
-      failure: unknown,
-      finished = false;
-    const zip = new Zip((error, data, final) => {
-      if (error) {
-        failure = error;
-        return;
-      }
-      writes = writes.then(async () => {
-        let offset = 0;
-        while (offset < data.length) {
-          const r = await out.write(data, offset, data.length - offset);
-          if (!r.bytesWritten) throw Error('Export write stalled');
-          offset += r.bytesWritten;
-        }
-      });
-      if (final) finished = true;
-    });
-    const flush = async () => {
-      await writes;
-      if (failure) throw failure;
-    };
     const add = async (name: string, bytes: Uint8Array | AsyncIterable<Uint8Array>) => {
-      const file = new ZipPassThrough(name),
-        hash = createHash('sha256');
+      const hash = createHash('sha256');
       let size = 0;
-      zip.add(file);
-      if (bytes instanceof Uint8Array) {
-        hash.update(bytes);
-        size = bytes.length;
-        file.push(bytes, true);
-        await flush();
-      } else {
-        for await (const chunk of bytes) {
+      async function* measured() {
+        const chunks = bytes instanceof Uint8Array ? [bytes] : bytes;
+        for await (const chunk of chunks) {
           hash.update(chunk);
           size += chunk.length;
-          file.push(chunk, false);
-          await flush();
+          yield chunk;
         }
-        file.push(new Uint8Array(), true);
-        await flush();
       }
+      await zip.add(name, measured());
       manifest.push({ path: name, hash: hash.digest('hex'), bytes: size });
     };
     try {
@@ -183,15 +167,10 @@ async function run() {
         sourceLocations,
         files: manifest,
       };
-      const file = new ZipPassThrough('manifest.json');
-      zip.add(file);
-      file.push(strToU8(JSON.stringify(description, null, 2)), true);
-      zip.end();
-      await flush();
-      if (!finished) throw Error('Incomplete export');
-      await out.sync();
+      await zip.add('manifest.json', strToU8(JSON.stringify(description, null, 2)));
+      await zip.finish();
     } finally {
-      await out.close();
+      await zip.close();
     }
     // Same-volume hard-link publishes only if no other file already occupies the destination.
     await link(output, target);

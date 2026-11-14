@@ -60,6 +60,7 @@ import { Assets } from '../../plugins/assets/index.ts';
 import { Care } from '../../plugins/care/index.ts';
 import { Reflections } from '../../plugins/reflections/index.ts';
 import { Documents } from '../../plugins/documents/index.ts';
+import { SpeechRecognition } from '../../plugins/asr/index.ts';
 import { Mailbox } from '../../plugins/mail/index.ts';
 import { Backups } from '../../plugins/backup/index.ts';
 import { Notifications } from '../../plugins/notifications/index.ts';
@@ -84,6 +85,7 @@ import {
 } from '../../packages/contracts/inference.ts';
 import { installCoreInference } from '../../packages/backends/catalog.ts';
 import { Embeddings } from '../../plugins/embeddings/index.ts';
+import { LocalModelPool } from '../../packages/kernel/local-model-pool.ts';
 import { LocalModels, localRuntimeConfig } from '../../plugins/local-models/index.ts';
 import { effectiveReasoning } from '../../packages/backends/model-metadata.ts';
 import { reasoningStyle } from '../../packages/contracts/reasoning.ts';
@@ -114,6 +116,7 @@ export class Application {
   readonly semantic: SemanticSearch;
   readonly embeddings: Embeddings;
   readonly localModels: LocalModels;
+  readonly localResources: LocalModelPool;
   readonly files: Files;
   readonly agenda: Agenda;
   readonly scheduler: Scheduler;
@@ -235,7 +238,8 @@ export class Application {
     });
     installCoreInference(this.router.inference, this.router.backends, this.api);
     this.embeddings = new Embeddings(this.router);
-    this.localModels = new LocalModels(this.store, project, this.events);
+    this.localResources = new LocalModelPool(()=>localRuntimeConfig.parse(this.store.get('models.config',this.store.get('local-models.config',{}))));
+    this.localModels = new LocalModels(this.store, project, this.events,this.localResources);
     const core = this.capabilities.forOwner(
       { id: 'core', permissions: new Set(['*']), signal: new AbortController().signal },
       () => {},
@@ -329,6 +333,7 @@ export class Application {
       this.agenda.plugin(),
       this.memories.plugin(),
       this.semantic.plugin(),
+      new SpeechRecognition(project, this.store, this.files, this.router.inference, this.events,undefined,this.localResources).plugin(),
       this.observations.plugin(),
       this.reviews.plugin(),
     ])
@@ -336,7 +341,7 @@ export class Application {
     for (const module of [
       { ...this.files.plugin(), component: 'knowledge', internalComponent: true },
       {
-        ...new Documents(project, this.store, this.secrets).plugin(),
+        ...new Documents(project, this.store, this.secrets,this.files).plugin(),
         component: 'knowledge',
         internalComponent: true,
       },
@@ -731,13 +736,13 @@ export class Application {
         pluginSettings: Object.fromEntries(
           this.plugins
             .list()
-            .map((p) => [
-              p.id,
-              this.store.get(
-                p.id + '.config',
-                this.plugins.plugins.get(p.id)?.config?.schema.parse({}) ?? {},
-              ),
-            ]),
+            .map((p) => {
+              const saved=this.store.get<Record<string,unknown>>(p.id+'.config',{});
+              const schema=this.plugins.plugins.get(p.id)?.config?.schema;
+              const effective=schema?.safeParse(saved),defaults=schema?.safeParse({});
+              // Project effective defaults without rewriting persisted settings.
+              return [p.id,effective?.success?effective.data:{...(defaults?.success?defaults.data as object:{}),...saved}];
+            }),
         ),
         personas: this.store.documents('personas'),
         characters: this.store.documents('characters'),
@@ -896,6 +901,8 @@ export class Application {
         }
       },
     );
+    op('models.resources', '读取本地模型资源状态',z.object({}),'system.read',()=>this.localResources.status());
+    op('models.release', '释放空闲本地模型',z.object({}),'local-models.write',()=>this.localResources.releaseIdle());
     op('connections.test', '测试连接是否可用', z.object({ id, generation: z.boolean().default(false) }), 'system.read', async (v, _caller, signal) => {
       const connection = this.router.inference.connections().find((item) => item.id === v.id);
       invariant(connection, 'missing_connection', '连接不存在。');
@@ -920,7 +927,9 @@ export class Application {
         return { ...(await this.api.checkGeneration(profile, signal)), model: profile.model };
       }
       if (backend?.checkConnection) return backend.checkConnection(profile);
-      return { ok: true, kind: adapter.family, transport: adapter.engine, verified: 'local' };
+      if(this.capabilities.list('core.inference.check-connection@1').some(p=>p.id===adapter.id&&p.state==='active'))
+        return this.capabilities.invoke(this.router.inference.owner,'core.inference.check-connection@1',adapter.id,{connection},signal);
+      return { ok:false,kind:adapter.family,transport:adapter.engine,verified:'unverified',detail:'此接入器尚未提供连接检查' };
     });
     op('inference.options', '读取可用模型和执行器选项', z.object({}), 'system.read', async () => {
       await this.router.inference.refresh();

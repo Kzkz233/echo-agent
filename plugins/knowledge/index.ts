@@ -5,7 +5,10 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import { extname, basename } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { collectionRequest, collectionResult } from '../../packages/contracts/knowledge-collections.ts';
+import {
+  collectionRequest,
+  collectionResult,
+} from '../../packages/contracts/knowledge-collections.ts';
 import { id, invariant } from '../../packages/contracts/index.ts';
 import { Store } from '../../packages/kernel/store.ts';
 import type { Plugin, Caller } from '../../packages/kernel/registry.ts';
@@ -21,6 +24,9 @@ import { workerTask } from '../../packages/kernel/worker-task.ts';
 import { keywordCandidates, prepareKeywordIndex } from '../files/keyword-index.ts';
 import { type ParsedDocument } from '../../packages/contracts/documents.ts';
 import { documentTitle } from './title.ts';
+import { mediaExtensions } from '../../packages/contracts/speech.ts';
+import { parserAccepts } from '../../packages/contracts/parsing.ts';
+import { hashOriginal, maxOriginalBytes } from '../files/hash.ts';
 import { registerRetrievalOptions } from './retrieval-options.ts';
 import {
   entryPersona,
@@ -33,12 +39,15 @@ const configuration = z.object({
   strategy: z.enum(['keyword', 'semantic', 'hybrid']).default('keyword'),
   retrievalProvider: z.string().default(''),
   parserProvider: z.string().default('documents.local'),
+  mediaParserProvider: z.string().default(''),
 });
 const searchHitId = /^(\w[\w.-]{0,159}):(\w[\w.-]{0,159})\.c\.(\d{1,8})$/;
 export class Knowledge {
   private tasks = new Map<string, Promise<void>>();
+  private importControllers = new Map<string, AbortController>();
   private life?: AbortSignal;
   private tail: Promise<void> = Promise.resolve();
+  private enqueueTail: Promise<unknown> = Promise.resolve();
   private scope?: import('../../packages/kernel/registry.ts').PluginContext['capabilities'];
   constructor(
     readonly store: Store,
@@ -59,25 +68,37 @@ export class Knowledge {
   async collections(vaultId: string, collectionId?: string, signal?: AbortSignal) {
     const point = 'knowledge.collections@1';
     const providers = this.scope?.list(point).filter((p) => p.state === 'active') ?? [];
-    const responses = (await Promise.all(providers.map(async (provider) =>
-      collectionResult.nullable().parse(await this.scope!.invoke(
-        point, provider.id, { vaultId, collectionId }, signal,
-      )),
-    ))).filter((result) => result !== null);
+    const responses = (
+      await Promise.all(
+        providers.map(async (provider) =>
+          collectionResult
+            .nullable()
+            .parse(await this.scope!.invoke(point, provider.id, { vaultId, collectionId }, signal)),
+        ),
+      )
+    ).filter((result) => result !== null);
     const matching = responses.filter((result) => result.documentIds !== undefined);
-    invariant(!collectionId || matching.length === 1, 'knowledge_collection_missing', '当前分组不可用，请刷新后重新选择。');
+    invariant(
+      !collectionId || matching.length === 1,
+      'knowledge_collection_missing',
+      '当前分组不可用，请刷新后重新选择。',
+    );
     return {
       nodes: responses.flatMap((result) => result.nodes),
       documentIds: collectionId ? matching[0].documentIds : undefined,
     };
   }
-  private async collectionScope<T extends KnowledgeScope>(filter: T, signal?: AbortSignal): Promise<T> {
+  private async collectionScope<T extends KnowledgeScope>(
+    filter: T,
+    signal?: AbortSignal,
+  ): Promise<T> {
     if (!filter.collectionId) return filter;
     invariant(filter.vaultId, 'knowledge_collection_scope', '按组检索时请选择知识库。');
     const { documentIds } = await this.collections(filter.vaultId, filter.collectionId, signal);
     const allowed = new Set(filter.documentIds);
     return {
-      ...filter, collectionId: undefined,
+      ...filter,
+      collectionId: undefined,
       documentIds: filter.documentIds ? documentIds!.filter((id) => allowed.has(id)) : documentIds,
     };
   }
@@ -165,13 +186,23 @@ export class Knowledge {
       ranked.sort((a, b) => (priority.get(a.id) ?? 1000) - (priority.get(b.id) ?? 1000));
     }
     // A source refresh can finish while this search awaits embeddings or a reranker.
-    const current = await Promise.all(ranked.map(async (hit) => {
-      if (!hit.vaultId || !hit.documentId) return true;
-      const db = await this.files.database(hit.vaultId);
-      return Boolean(db.db.prepare(
-        "SELECT 1 FROM entries WHERE id=? AND json_extract(metadata,'$.sourceUnavailable') IS NULL",
-      ).get(hit.documentId));
-    }));
+    const current = await Promise.all(
+      ranked.map(async (hit) => {
+        if (!hit.vaultId || !hit.documentId) return true;
+        const db = await this.files.database(hit.vaultId);
+        const head = db.db
+          .prepare(
+            "SELECT title,body FROM entries WHERE id=? AND json_extract(metadata,'$.sourceUnavailable') IS NULL",
+          )
+          .get(hit.documentId) as any;
+        return (
+          !!head &&
+          createHash('sha256')
+            .update(head.title + '\n' + head.body.slice(hit.offset, hit.offset + 1200))
+            .digest('hex') === hit.version
+        );
+      }),
+    );
     return ranked.filter((_, i) => current[i]).slice(0, limit);
   }
   async maintain(v: {
@@ -222,6 +253,19 @@ export class Knowledge {
         database.db
           .prepare('INSERT INTO entry_revisions VALUES(?,?,?,?,?,?,?)')
           .run(item.id, revision, row.title, row.body, JSON.stringify(meta), version, at);
+        database.db
+          .prepare('INSERT INTO entry_revision_sources VALUES(?,?,?,?,?)')
+          .run(item.id, revision, row.source_file_id, row.source_hash, row.source_uri);
+        database.db
+          .prepare(
+            'INSERT INTO entry_revision_attachments SELECT entry_id,?,id,name,object_hash,role FROM entry_attachments WHERE entry_id=?',
+          )
+          .run(revision, item.id);
+        database.db
+          .prepare(
+            'INSERT INTO entry_revision_parsing SELECT entry_id,?,parse_revision FROM entry_revision_parsing WHERE entry_id=? AND revision=?',
+          )
+          .run(revision, item.id, row.revision);
         return { id: item.id, revision };
       }),
     );
@@ -242,10 +286,8 @@ export class Knowledge {
       const path = await realpath(doc.source),
         info = await stat(path);
       if (!info.isFile()) return { state: 'missing' };
-      if (info.size > 128000000) return { state: 'oversize' };
-      const hash = createHash('sha256')
-        .update(await readFile(path))
-        .digest('hex');
+      if (info.size > maxOriginalBytes) return { state: 'oversize' };
+      const { hash } = await hashOriginal(path);
       return {
         state: hash === doc.sourceHash ? 'current' : 'changed',
         source: path,
@@ -262,9 +304,8 @@ export class Knowledge {
     invariant(doc.revision === v.revision, 'revision_conflict', '条目已变化');
     const physical = await realpath(v.source),
       info = await stat(physical);
-    invariant(info.isFile() && info.size <= 128000000, 'source_size', '源文件需不超过128 MB');
-    const bytes = await readFile(physical),
-      hash = createHash('sha256').update(bytes).digest('hex');
+    invariant(info.isFile() && info.size <= maxOriginalBytes, 'source_size', '原件需不超过8 GiB');
+    const { hash } = await hashOriginal(physical);
     invariant(
       hash === doc.sourceHash,
       'source_mismatch',
@@ -281,49 +322,163 @@ export class Knowledge {
       db.db
         .prepare('UPDATE entries SET source_uri=?,revision=revision+1 WHERE id=?')
         .run(physical, doc.id);
+      db.db
+        .prepare(
+          'INSERT INTO entry_revisions SELECT id,revision,title,body,metadata,version,updated_at FROM entries WHERE id=?',
+        )
+        .run(doc.id);
+      db.db
+        .prepare(
+          'INSERT INTO entry_revision_sources SELECT id,revision,source_file_id,source_hash,source_uri FROM entries WHERE id=?',
+        )
+        .run(doc.id);
+      db.db
+        .prepare(
+          'INSERT INTO entry_revision_attachments SELECT entry_id,?,id,name,object_hash,role FROM entry_attachments WHERE entry_id=?',
+        )
+        .run(doc.revision + 1, doc.id);
+      db.db
+        .prepare(
+          'INSERT INTO entry_revision_parsing SELECT entry_id,?,parse_revision FROM entry_revision_parsing WHERE entry_id=? AND revision=?',
+        )
+        .run(doc.revision + 1, doc.id, doc.revision);
       return { ...doc, source: physical, revision: doc.revision + 1 };
     });
   }
-  async queueImport(vaultId: string, source: string, requestId: string, parserProvider?: string, targetFolder?: string) {
-    this.files.assertWrite(vaultId);
-    const folder = targetFolder === undefined ? undefined : logicalEntryPath(targetFolder);
-    const findPrior = () => {
-      const prior = this.store.document<any>('knowledge-jobs', requestId);
-      if (!prior) return;
-      invariant(
-        prior.vaultId === vaultId &&
-          prior.requestedSource === source &&
-          prior.folder === folder &&
-          (!parserProvider || prior.parserProvider === parserProvider),
-        'idempotency_conflict',
-        '导入编号对应其他文件或解析器',
+  private enqueue<T>(work: () => Promise<T>): Promise<T> {
+    const task = this.enqueueTail.then(work, work);
+    this.enqueueTail = task.catch(() => {});
+    return task;
+  }
+  private priorRequest(
+    requestId: string,
+    vaultId: string,
+    source: string,
+    folder?: string,
+    parser?: string,
+  ) {
+    const alias = this.store.document<any>('knowledge-import-requests', requestId);
+    const prior = this.store.document<any>('knowledge-jobs', alias?.jobId ?? requestId);
+    if (!prior) return;
+    invariant(
+      prior.vaultId === vaultId &&
+        (alias?.source ?? prior.requestedSource) === source &&
+        prior.folder === folder &&
+        (!parser || prior.parserProvider === parser),
+      'idempotency_conflict',
+      '导入编号对应其他文件或解析器',
+    );
+    return prior;
+  }
+  queueImport(
+    vaultId: string,
+    source: string,
+    requestId: string,
+    parserProvider?: string,
+    targetFolder?: string,
+  ) {
+    return this.enqueue(async () => {
+      this.files.assertWrite(vaultId);
+      const folder = targetFolder === undefined ? undefined : logicalEntryPath(targetFolder);
+      const prior = this.priorRequest(requestId, vaultId, source, folder, parserProvider);
+      if (prior) return prior;
+      const original = await this.files.import(vaultId, source);
+      return this.createImport(original, requestId, parserProvider, folder, source);
+    });
+  }
+  reparse(v: {
+    vaultId: string;
+    id: string;
+    revision: number;
+    requestId: string;
+    parserProvider?: string;
+  }) {
+    return this.enqueue(async () => {
+      this.files.assertWrite(v.vaultId);
+      const doc = await this.find(v.id, v.vaultId);
+      invariant(!doc.metadata.producer, 'knowledge_owner', '此条目由所属插件维护');
+      const requestedSource = 'entry:' + v.id;
+      const prior = this.priorRequest(
+        v.requestId,
+        v.vaultId,
+        requestedSource,
+        undefined,
+        v.parserProvider,
       );
-      return prior;
-    };
-    const prior = findPrior();
-    if (prior) return prior;
-    const selected = parserProvider ?? this.config().parserProvider;
-    if (parserProvider)
-      invariant(
-        this.scope
-          ?.list('files.extract@1')
-          .some((p) => p.id === parserProvider && p.state === 'active'),
-        'parser_missing',
-        '当前解析器不可用',
+      if (prior) return prior;
+      invariant(doc.revision === v.revision, 'revision_conflict', '知识包已变化，请重新读取');
+      invariant(doc.sourceFileId && doc.sourceHash, 'source_missing', '此条目没有已归档原件');
+      const original = await this.files.original(v.vaultId, doc.sourceFileId, doc.sourceHash);
+      return this.createImport(
+        { ...original, source: doc.source },
+        v.requestId,
+        v.parserProvider,
+        undefined,
+        requestedSource,
+        doc,
       );
-    const original = await this.files.import(vaultId, source),
-      existing = (await this.list(vaultId)).find((d) => d.sourceFileId === original.id);
-    const current = findPrior();
-    if (current) return current;
+    });
+  }
+  private async createImport(
+    original: import('../files/index.ts').FileRecord,
+    requestId: string,
+    parserProvider: string | undefined,
+    folder: string | undefined,
+    requestedSource: string,
+    document?: any,
+  ) {
+    const catalog = await this.files.parsers.list();
+    const media = mediaExtensions.includes(extname(original.name).toLowerCase());
+    const configured = media ? this.config().mediaParserProvider : this.config().parserProvider;
+    const compatible = catalog.filter((p) => parserAccepts(p, original.name, original.bytes));
+    const parser = parserProvider
+      ? catalog.find((p) => p.id === parserProvider)
+      : (compatible.find((p) => p.id === configured) ??
+        compatible.find((p) => p.id === 'files.text') ??
+        (compatible.length === 1 ? compatible[0] : undefined));
+    invariant(parser, 'parser_missing', '没有匹配此格式和大小的解析器，请选择或启用解析器');
+    invariant(
+      parserAccepts(parser, original.name, original.bytes) ||
+        (parserProvider && parser.version === 'legacy' && original.bytes <= parser.maxBytes),
+      'parser_unsupported',
+      '当前解析器不支持此文件格式或大小',
+    );
+    const plan = await this.files.parsers.freeze(parser, original, requestId);
+    const active = this.store
+      .documents<any>('knowledge-jobs')
+      .find(
+        (j) =>
+          j.vaultId === original.vaultId &&
+          j.original?.id === original.id &&
+          ['queued', 'running', 'pausing'].includes(j.state),
+      );
+    if (active) {
+      invariant(
+        active.original.hash === original.hash &&
+          active.parserProvider === parser.id &&
+          (!active.plan || JSON.stringify(active.plan) === JSON.stringify(plan)) &&
+          active.folder === folder,
+        'parser_busy',
+        '此原件已有不同的解析任务，请先完成或暂停',
+      );
+      this.store.put('knowledge-import-requests', requestId, {
+        jobId: active.id,
+        source: requestedSource,
+      });
+      return active;
+    }
+    const existing =
+      document ?? (await this.list(original.vaultId)).find((d) => d.sourceFileId === original.id);
     const job = {
       id: requestId,
-      vaultId,
-      requestedSource: source,
+      vaultId: original.vaultId,
+      requestedSource,
       original,
       documentId: existing?.id ?? randomUUID(),
       revision: existing?.revision ?? 0,
       state: 'queued',
-      parserProvider: selected,
+      parserProvider: parser.id,
+      plan,
       folder,
       createdAt: new Date().toISOString(),
     };
@@ -333,26 +488,59 @@ export class Knowledge {
   }
   private executeImport(id: string) {
     if (this.tasks.has(id)) return this.tasks.get(id);
-    const task = this.tail.then(() => this.runImport(id)).finally(() => this.tasks.delete(id));
+    const job = this.store.document<any>('knowledge-jobs', id);
+    if (job) this.store.put('knowledge-jobs', id, { ...job, state: 'queued', error: undefined });
+    const controller = new AbortController();
+    this.importControllers.set(id, controller);
+    const task = this.tail
+      .then(() => this.runImport(id, controller.signal))
+      .finally(() => {
+        this.tasks.delete(id);
+        this.importControllers.delete(id);
+      });
     this.tail = task.catch(() => {});
     this.tasks.set(id, task);
     return task;
   }
-  private async runImport(id: string) {
+  private async runImport(id: string, localSignal: AbortSignal) {
     let job = this.store.document<any>('knowledge-jobs', id);
     if (!job || !this.life || this.life.aborted) return;
-    const signal = this.life;
+    const signal = AbortSignal.any([this.life, localSignal]);
     try {
+      signal.throwIfAborted();
       job = { ...job, state: 'running', error: undefined };
       this.store.put('knowledge-jobs', id, job);
-      const path = await this.files.path(job.vaultId, job.original.relativePath),
-        bytes = await readFile(path);
+      const db = await this.files.database(job.vaultId);
+      // A committed generation is the authority if the process stopped between
+      // publishing the library transaction and writing the operational receipt.
+      const committed = db.db
+        .prepare('SELECT entry_id FROM parse_generations WHERE job_id=?')
+        .get(id) as any;
+      if (committed) {
+        job = { ...job, state: 'completed', documentId: committed.entry_id };
+        return;
+      }
+      const head = db.db
+        .prepare('SELECT revision FROM entries WHERE id=?')
+        .get(job.documentId) as any;
       invariant(
-        createHash('sha256').update(bytes).digest('hex') === job.original.hash,
-        'file_changed',
-        '保存的原件已变化',
+        (head?.revision ?? 0) === job.revision,
+        'revision_conflict',
+        '知识包已编辑，请新建重解析任务；现有正文保持不变',
       );
-      const parsed = await this.parse(bytes, job.original.name, signal, job.id, job.parserProvider);
+      const original = await this.files.original(job.vaultId, job.original.id, job.original.hash);
+      // Old jobs acquire a plan once, before any further parser work. Providers
+      // may recover an existing checkpoint configuration in their preparation hook.
+      if (!job.plan) {
+        const parser = (await this.files.parsers.list(signal)).find(
+          (p) => p.id === job.parserProvider,
+        );
+        invariant(parser, 'parser_missing', '解析器不可用，请启用后继续');
+        job = { ...job, plan: await this.files.parsers.freeze(parser, original, id, signal) };
+        this.store.put('knowledge-jobs', id, job);
+      }
+      const parsed = await this.files.parsers.execute(job.plan, original, id, signal);
+      invariant(parsed, 'parser_unsupported', '当前解析器不支持此类型');
       const text = await this.materializeParsed(job.vaultId, parsed, signal);
       signal.throwIfAborted();
       const doc = await this.save(
@@ -365,7 +553,11 @@ export class Knowledge {
           sourceHash: job.original.hash,
           sourceFileId: job.original.id,
           revision: job.revision,
-          path: job.folder === undefined ? undefined : [job.folder, job.documentId + '.md'].filter(Boolean).join('/'),
+          parsed: { jobId: job.id, plan: job.plan, segments: parsed.segments },
+          path:
+            job.folder === undefined
+              ? undefined
+              : [job.folder, job.documentId + '.md'].filter(Boolean).join('/'),
         },
       );
       job = {
@@ -375,7 +567,11 @@ export class Knowledge {
         completedAt: new Date().toISOString(),
       };
     } catch (e: any) {
-      job = { ...job, state: signal.aborted ? 'paused' : 'failed', error: e.message };
+      job = {
+        ...job,
+        state: signal.aborted ? 'paused' : 'failed',
+        error: signal.aborted ? undefined : e.message,
+      };
     } finally {
       this.store.put('knowledge-jobs', id, job);
       this.events?.emit('knowledge.updated', { vaultId: job.vaultId });
@@ -414,6 +610,9 @@ export class Knowledge {
     database.db
       .prepare('INSERT INTO entry_attachments VALUES(?,?,?,?,?)')
       .run(record.id, attachmentId, file.name, file.hash, role);
+    database.db
+      .prepare('INSERT OR REPLACE INTO entry_revision_attachments VALUES(?,?,?,?,?,?)')
+      .run(record.id, record.revision, attachmentId, file.name, file.hash, role);
     return { id: attachmentId, name: file.name, hash: file.hash, uri: 'echo-asset:' + file.hash };
   }
   async import(
@@ -461,7 +660,20 @@ export class Knowledge {
         hash = createHash('sha256').update(data).digest('hex');
       total += data.length;
       invariant(total <= 48000000, 'asset_size', '解析附件超过大小上限');
-      await this.files.write(vaultId, `Parsed/${hash}${extname(name)}`, data, { name }, signal);
+      const id =
+        'parsed-' +
+        createHash('sha256')
+          .update(vaultId + ':' + hash)
+          .digest('hex');
+      const db = await this.files.database(vaultId);
+      if (!db.db.prepare('SELECT 1 FROM files WHERE id=?').get(id))
+        await this.files.write(
+          vaultId,
+          `Parsed/${hash}${extname(name)}`,
+          data,
+          { id, name },
+          signal,
+        );
       text = text
         .split('](' + name + ')')
         .join('](echo-asset:' + hash + ')')
@@ -521,7 +733,7 @@ export class Knowledge {
         this.life = signal;
         for (const j of this.store
           .documents<any>('knowledge-jobs')
-          .filter((j) => ['running', 'queued'].includes(j.state)))
+          .filter((j) => ['running', 'queued', 'pausing'].includes(j.state)))
           this.store.put('knowledge-jobs', j.id, { ...j, state: 'paused' });
         dispose(async () => {
           await Promise.allSettled(this.tasks.values());
@@ -563,7 +775,8 @@ export class Knowledge {
         });
         registry.register({
           name: 'knowledge.search',
-          description: '搜索资料。将结果的 id 传给 knowledge_read 可从命中位置阅读，也可传 documentId 和 vaultId 读取原文。',
+          description:
+            '搜索资料。将结果的 id 传给 knowledge_read 可从命中位置阅读，也可传 documentId 和 vaultId 读取原文。',
           owner: 'knowledge',
           permission: 'knowledge.read',
           mcp: true,
@@ -701,8 +914,44 @@ export class Knowledge {
                 .prepare('SELECT * FROM entry_revisions WHERE entry_id=? AND revision=?')
                 .get(v.id, v.targetRevision) as any;
             invariant(old, 'revision_missing', '历史版本不存在');
-            return this.save(v.vaultId, old.title, old.body, { id: v.id, revision: v.revision });
+            const snapshot = db.db
+              .prepare('SELECT * FROM entry_revision_sources WHERE entry_id=? AND revision=?')
+              .get(v.id, v.targetRevision) as any;
+            return this.save(v.vaultId, old.title, old.body, {
+              id: v.id,
+              revision: v.revision,
+              restoreRevision: v.targetRevision,
+              ...(snapshot
+                ? {
+                    sourceFileId: snapshot.source_file_id ?? undefined,
+                    sourceHash: snapshot.source_hash ?? undefined,
+                    source: snapshot.source_uri ?? undefined,
+                  }
+                : {}),
+            });
           },
+          false,
+        );
+        op(
+          'knowledge.parsers',
+          '读取解析器支持格式与限制',
+          z.object({}),
+          'knowledge.read',
+          (_v, s) => this.files.parsers.list(s),
+          false,
+        );
+        op(
+          'knowledge.reparse',
+          '从已归档原件重新解析，不依赖外部路径',
+          z.object({
+            vaultId: id,
+            id,
+            revision: z.number().int().nonnegative(),
+            requestId: id,
+            parserProvider: id.optional(),
+          }),
+          'knowledge.write',
+          (v) => this.reparse(v),
           false,
         );
         op(
@@ -724,7 +973,28 @@ export class Knowledge {
           '查看文档解析任务',
           z.object({}),
           'knowledge.read',
-          () => this.store.documents('knowledge-jobs'),
+          async (_v, signal) => {
+            const providers = capabilities
+              .list('files.extraction-progress@1')
+              .filter((p) => p.state === 'active');
+            return Promise.all(
+              this.store.documents<any>('knowledge-jobs').map(async (job) => {
+                const progress = await Promise.all(
+                  providers.map((provider) =>
+                    capabilities
+                      .invoke(
+                        'files.extraction-progress@1',
+                        provider.id,
+                        { requestId: job.id },
+                        AbortSignal.any([signal, AbortSignal.timeout(3000)]),
+                      )
+                      .catch(() => null),
+                  ),
+                );
+                return { ...job, progress: progress.find(Boolean) ?? undefined };
+              }),
+            );
+          },
           false,
         );
         op(
@@ -740,12 +1010,32 @@ export class Knowledge {
           },
           false,
         );
+        op(
+          'knowledge.pause',
+          '暂停原件解析并保存已完成分段',
+          z.object({ id }),
+          'knowledge.write',
+          (v) => {
+            const job = this.store.document<any>('knowledge-jobs', v.id);
+            invariant(
+              job && ['running', 'queued'].includes(job.state),
+              'job_state',
+              '任务当前没有运行',
+            );
+            this.store.put('knowledge-jobs', v.id, { ...job, state: 'pausing' });
+            this.importControllers.get(v.id)?.abort();
+            return { accepted: true };
+          },
+          false,
+        );
         op('knowledge.vaults', '列出已授权的知识库目录', z.object({}), 'knowledge.read', () =>
           this.vaults(),
         );
         op(
-          'knowledge.collections', '列出知识库分组；检索时可传入对应的 collectionId',
-          collectionRequest, 'knowledge.read',
+          'knowledge.collections',
+          '列出知识库分组；检索时可传入对应的 collectionId',
+          collectionRequest,
+          'knowledge.read',
           async (v, signal, caller) => {
             const result = await this.collections(v.vaultId, v.collectionId, signal);
             if (!result.documentIds || caller.kind !== 'mcp') return result;
@@ -774,8 +1064,18 @@ export class Knowledge {
             const hit = searchHitId.exec(v.id);
             if (!hit) return this.files.entries.read(v.id, v.offset, v.limit, v.vaultId, caller);
             const [, vaultId, documentId, offset] = hit;
-            invariant(!v.vaultId || v.vaultId === vaultId, 'vault_mismatch', '命中片段属于另一个知识库。');
-            return this.files.entries.read(documentId, v.offset ?? Number(offset), v.limit, vaultId, caller);
+            invariant(
+              !v.vaultId || v.vaultId === vaultId,
+              'vault_mismatch',
+              '命中片段属于另一个知识库。',
+            );
+            return this.files.entries.read(
+              documentId,
+              v.offset ?? Number(offset),
+              v.limit,
+              vaultId,
+              caller,
+            );
           },
         );
         op(

@@ -1,3 +1,5 @@
+import { mediaExtensions } from '../../../packages/contracts/speech.ts';
+import type { ParserDescriptor } from '../../../packages/contracts/parsing.ts';
 import { libraryLabel } from './library-label.ts';
 import { locale } from './i18n.ts';
 import { t } from './i18n.ts';
@@ -46,6 +48,8 @@ export function KnowledgeView({
     [source, setSource] = useState(''),
     [importMode, setImportMode] = useState('parse'),
     [importParser, setImportParser] = useState(''),
+    [parserCatalog,setParserCatalog] = useState<ParserDescriptor[]>([]),
+    [reparseParser,setReparseParser] = useState(''),
     [importFolder, setImportFolder] = useState(''),
     [path, setPath] = useState(''),
     [query, setQuery] = useState(''),
@@ -159,9 +163,11 @@ export function KnowledgeView({
     window.addEventListener('echo-event', update);
     return () => window.removeEventListener('echo-event', update);
   }, [vault]);
-  const parsers = data.providers.filter(
-    (p: any) => p.point === 'files.extract@1' && p.state === 'active',
-  );
+  const extension=/\.[^.\\/]+$/.exec(source)?.[0].toLowerCase();
+  const parsers=parserCatalog.filter(p=>!extension||p.version==='legacy'||p.extensions.includes(extension));
+  const providerShape=JSON.stringify(data.providers);
+  useEffect(()=>{let active=true;void rpc('knowledge.parsers',{}).then(value=>{if(active)setParserCatalog(value);}).catch(e=>setIssue(e.message));return()=>{active=false;};},[providerShape]);
+  useEffect(()=>{if(importParser&&!parsers.some(p=>p.id===importParser))setImportParser('');},[source,parserCatalog]);
   const scope = {
     vaultId: vault,
     kind: kind || 'all',
@@ -211,7 +217,7 @@ export function KnowledgeView({
       '',
     );
     if (version === readVersion.current) {
-      if (result) setSelected(result);
+      if (result) setSelected({...result,timeRange:item.timeRange});
       setReading(false);
     }
   };
@@ -528,9 +534,13 @@ export function KnowledgeView({
                   placeholder={t('根目录')}
                 />
                 <datalist id="knowledge-import-folders">
-                  {folders.map((path) => <option key={path} value={path} />)}
+                  {folders.map((path) => (
+                    <option key={path} value={path} />
+                  ))}
                 </datalist>
-                <small>{libraryLabel(activeVault, data.plugins)} / {importFolder || t('根目录')}</small>
+                <small>
+                  {libraryLabel(activeVault, data.plugins)} / {importFolder || t('根目录')}
+                </small>
               </label>
             )}
             <label className="field">
@@ -640,37 +650,40 @@ export function KnowledgeView({
           <details className="library-advanced">
             <summary>{t('解析与检索提供方')}</summary>
             <div className="form-grid">
-              {(['retrievalProvider', 'parserProvider'] as const).map((key) => (
-                <label className="field" key={key}>
-                  <span>{key === 'retrievalProvider' ? t('检索提供方') : t('文档解析器')}</span>
-                  <select
-                    value={data.pluginSettings.knowledge?.[key] ?? ''}
-                    onChange={(e) =>
-                      act(() =>
-                        rpc('settings.save', {
-                          pluginId: 'knowledge',
-                          value: { ...data.pluginSettings.knowledge, [key]: e.target.value },
-                        }),
-                      )
-                    }
-                  >
-                    <option value="">{t('自动选择可用提供方')}</option>
-                    {data.providers
-                      .filter(
-                        (p: any) =>
-                          p.point ===
-                            (key === 'retrievalProvider'
-                              ? 'core.retrieval@1'
-                              : 'files.extract@1') && p.state === 'active',
-                      )
-                      .map((p: any) => (
-                        <option key={p.id} value={p.id}>
-                          {t(p.label)}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-              ))}
+              {(['retrievalProvider', 'parserProvider', 'mediaParserProvider'] as const).map(
+                (key) => (
+                  <label className="field" key={key}>
+                    <span>
+                      {key === 'retrievalProvider'
+                        ? t('检索提供方')
+                        : key === 'mediaParserProvider'
+                          ? t('音视频解析器')
+                          : t('文档解析器')}
+                    </span>
+                    <select
+                      value={data.pluginSettings.knowledge?.[key] ?? ''}
+                      onChange={(e) =>
+                        act(() =>
+                          rpc('settings.save', {
+                            pluginId: 'knowledge',
+                            value: { ...data.pluginSettings.knowledge, [key]: e.target.value },
+                          }),
+                        )
+                      }
+                    >
+                      <option value="">{t('自动选择可用提供方')}</option>
+                      {(key==='retrievalProvider'?data.providers.filter((p:any)=>p.point==='core.retrieval@1'&&p.state==='active'):
+                        parserCatalog.filter(p=>p.version!=='legacy'&&(key==='mediaParserProvider'?
+                          p.extensions.some(e=>mediaExtensions.includes(e)):!p.extensions.some(e=>mediaExtensions.includes(e)))))
+                        .map((p: any) => (
+                          <option key={p.id} value={p.id}>
+                            {t(p.label)}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                ),
+              )}
             </div>
           </details>
         </div>
@@ -792,6 +805,7 @@ export function KnowledgeView({
                       {
                         queued: '排队中',
                         running: '解析中',
+                        pausing: '正在暂停',
                         completed: '已完成',
                         paused: '已暂停',
                         failed: '失败',
@@ -799,20 +813,52 @@ export function KnowledgeView({
                     )[j.state],
                   )}
                   {j.error && <small className="warning">{j.error}</small>}
-                  {j.state === 'completed' && <small>
-                    {t('导入位置')} · {items.find((item) => item.id === j.documentId && item.vaultId === j.vaultId)?.logicalPath?.split('/').slice(0, -1).join(' / ') || t('根目录')}
-                  </small>}
+                  {j.progress?.total > 0 && (
+                    <small>
+                      {t('解析进度')} · {j.progress.completed} / {j.progress.total}
+                    </small>
+                  )}
+                  {j.state === 'completed' && (
+                    <small>
+                      {t('导入位置')} ·{' '}
+                      {items
+                        .find((item) => item.id === j.documentId && item.vaultId === j.vaultId)
+                        ?.logicalPath?.split('/')
+                        .slice(0, -1)
+                        .join(' / ') || t('根目录')}
+                    </small>
+                  )}
                 </span>
                 {j.state === 'completed' && (
-                  <Button secondary onClick={() => {
-                    const item = items.find((item) => item.id === j.documentId && item.vaultId === j.vaultId);
-                    if (item) {
-                      setFolder(item.logicalPath?.split('/').slice(0, -1).join('/') || '');
-                      setHits(undefined);
-                      setArchive(false);
+                  <Button
+                    secondary
+                    onClick={() => {
+                      const item = items.find(
+                        (item) => item.id === j.documentId && item.vaultId === j.vaultId,
+                      );
+                      if (item) {
+                        setFolder(item.logicalPath?.split('/').slice(0, -1).join('/') || '');
+                        setHits(undefined);
+                        setArchive(false);
+                      }
+                      void read({ id: j.documentId, vaultId: j.vaultId });
+                    }}
+                  >
+                    {t('查看条目')}
+                  </Button>
+                )}
+                {['queued', 'running'].includes(j.state) && (
+                  <Button
+                    secondary
+                    onClick={() =>
+                      act(async () => {
+                        await rpc('knowledge.pause', { id: j.id });
+                        await load();
+                      })
                     }
-                    void read({ id: j.documentId, vaultId: j.vaultId });
-                  }}>{t('查看条目')}</Button>
+                  >
+                    {t('暂停')}
+                  </Button>
                 )}
                 {['paused', 'failed'].includes(j.state) && (
                   <Button
@@ -920,9 +966,23 @@ export function KnowledgeView({
                 }, t('解析任务已创建'))
               }
             >
-              {t('重新解析原件')}
+              {t('从来源更新')}
             </Button>
           )}
+          {selected.sourceFileId&&!selected.metadata?.producer&&editable&&(
+            <div className="inline-form">
+              <label className="field"><span>{t('重新解析归档原件')}</span>
+                <select value={reparseParser} onChange={e=>setReparseParser(e.target.value)}>
+                  <option value="">{t('使用默认解析器')}</option>
+                  {parserCatalog.filter(p=>p.version==='legacy'||p.extensions.includes(/\.[^.]+$/.exec(selected.original?.name??selected.source??'')?.[0].toLowerCase()??'')).map(p=><option key={p.id} value={p.id}>{t(p.label)}</option>)}
+                </select>
+              </label>
+              <Button onClick={()=>act(async()=>{
+                await rpc('knowledge.reparse',{vaultId:selected.vaultId,id:selected.id,revision:selected.revision,requestId:crypto.randomUUID(),parserProvider:reparseParser||undefined});await load();
+              },t('解析任务已创建'))}>{t('重新解析')}</Button>
+            </div>
+          )}
+          {selected.parsing&&<p className="muted">{t('解析器')} · {t(selected.parsing.parser.label)} · v{selected.parsing.parser.version}</p>}
           <div className="revision-list">
             {revisions.map((r) => (
               <div className="row between" key={r.revision}>

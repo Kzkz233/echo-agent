@@ -1,5 +1,5 @@
 import type { AdapterDescriptor, Connection, ModelProfile } from './inference.ts';
-export type ModelPurpose = 'generation' | 'embedding' | 'reranking';
+export type ModelPurpose = 'generation' | 'embedding' | 'reranking' | 'transcription';
 export function modelDisplayName(model: { name?: string; model?: string }) {
   if (model.name && !['New model', '新的模型'].includes(model.name)) return model.name;
   return model.model?.replaceAll('\\', '/').split('/').filter(Boolean).at(-1) || model.name || '';
@@ -20,6 +20,8 @@ export function connectionForPurpose(
     ? 'generation'
     : adapter.embedding.length
       ? 'embedding'
-      : 'reranking';
+      : adapter.transcription?.length
+        ? 'transcription'
+        : 'reranking';
   return purpose === legacyDefault;
 }

@@ -12,7 +12,7 @@ import { availableSpace } from '../packages/kernel/update-transaction.ts';
 
 const root = resolve(import.meta.dirname, '..');
 const publicPlugins = new Set([
-  'agenda', 'approvals', 'assets', 'avatar', 'backup', 'care', 'channels', 'chatstick', 'delegation',
+  'agenda', 'approvals', 'assets', 'asr', 'avatar', 'backup', 'care', 'channels', 'chatstick', 'delegation',
   'documents', 'embeddings', 'files', 'groups', 'knowledge', 'local-models', 'mail', 'mail-actions',
   'mail-triggers', 'memory', 'notifications', 'observation', 'persona', 'qq', 'reflections',
   'review', 'scheduler', 'semantic', 'worker-codex', 'worker-dsh',

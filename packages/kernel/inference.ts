@@ -18,6 +18,7 @@ import { Store } from './store.ts';
 import type { PluginContext } from './registry.ts';
 import { modelListingSchema, type ModelListing } from '../contracts/reasoning.ts';
 import { effectiveReasoning } from '../backends/model-metadata.ts';
+import { transcriptionInput, transcriptionOutput } from '../contracts/speech.ts';
 export function contributeInferenceTask(
   ctx: Pick<PluginContext, 'capabilities'>,
   task: z.input<typeof taskSchema>,
@@ -44,6 +45,20 @@ export class InferenceCatalog {
     readonly capabilities: Capabilities,
     readonly changed: () => void = () => {},
   ) {
+    capabilities.define(this.owner, {
+      id:'core.inference.check-connection@1',description:'Adapter-owned connection validation without inference',
+      input:z.object({connection:connectionSchema}),output:z.object({ok:z.boolean(),verified:z.string(),detail:z.string().optional()}),
+      providePermission:'inference.contribute',consumePermission:'inference.read',cardinality:'one',
+    });
+    capabilities.define(this.owner, {
+      id: 'core.inference.transcribe@1',
+      description: 'Transcribe a normalized audio segment',
+      input: transcriptionInput,
+      output: transcriptionOutput,
+      providePermission: 'inference.contribute',
+      consumePermission: 'inference.read',
+      cardinality: 'one',
+    });
     capabilities.define(this.owner, {
       id: 'core.inference.models@1',
       description: 'Read model and reasoning metadata without running inference',
@@ -151,6 +166,7 @@ export class InferenceCatalog {
                 d.generationProvider,
                 d.embeddingProvider,
                 d.rerankingProvider,
+                d.transcriptionProvider,
                 d.prepareModelProvider,
                 d.modelCatalogProvider,
               ]
@@ -439,13 +455,17 @@ export class InferenceCatalog {
           ? model.generation
           : task.operation === 'embed'
             ? model.embedding
-            : model.reranking,
+            : task.operation === 'transcribe'
+              ? model.transcription
+              : model.reranking,
       supported =
         task.operation === 'generate'
           ? adapter.generation
           : task.operation === 'embed'
             ? adapter.embedding
-            : (adapter.reranking ?? []);
+            : task.operation === 'transcribe'
+              ? (adapter.transcription ?? [])
+              : (adapter.reranking ?? []);
     return (
       (!adapter.workerOnly || allowWorker) &&
       !!declared?.enabled &&
@@ -507,9 +527,12 @@ export class InferenceCatalog {
     }
     const old = this.store.document<Connection>('connections', value.id);
     const bound = this.models().filter((p) => p.connectionId === value.id);
-    invariant(value.config.protocol !== 'anthropic-messages' ||
-      !bound.some((model) => model.embedding.enabled || model.reranking?.enabled),
-      'protocol_capability', 'Anthropic Messages 连接只支持生成。请将向量或重排模型放在单独的连接。');
+    invariant(
+      value.config.protocol !== 'anthropic-messages' ||
+        !bound.some((model) => model.embedding.enabled || model.reranking?.enabled),
+      'protocol_capability',
+      'Anthropic Messages 连接只支持生成。请将向量或重排模型放在单独的连接。',
+    );
     invariant(
       !old || old.adapterId === value.adapterId || !bound.length,
       'connection_in_use',
@@ -530,9 +553,12 @@ export class InferenceCatalog {
     invariant(connection, 'missing_connection', '请先选择连接');
     const adapter = this.adapter(connection.adapterId),
       tasks = await this.tasks();
-    invariant(connection.config.protocol !== 'anthropic-messages' ||
-      (!value.embedding.enabled && !value.reranking?.enabled),
-      'protocol_capability', 'Anthropic Messages 连接只支持生成。请将向量或重排模型放在单独的连接。');
+    invariant(
+      connection.config.protocol !== 'anthropic-messages' ||
+        (!value.embedding.enabled && !value.reranking?.enabled),
+      'protocol_capability',
+      'Anthropic Messages 连接只支持生成。请将向量或重排模型放在单独的连接。',
+    );
     invariant(
       adapter.family === 'harness' || value.model.trim(),
       'missing_model',
@@ -543,6 +569,7 @@ export class InferenceCatalog {
       ['generate', value.generation],
       ['embed', value.embedding],
       ['rerank', value.reranking],
+      ['transcribe', value.transcription],
     ] as const) {
       if (!capability?.enabled) continue;
       invariant(
@@ -556,7 +583,9 @@ export class InferenceCatalog {
           ? adapter.generation
           : operation === 'embed'
             ? adapter.embedding
-            : (adapter.reranking ?? []);
+            : operation === 'transcribe'
+              ? (adapter.transcription ?? [])
+              : (adapter.reranking ?? []);
       invariant(
         capability.inputs.every((m) => supported.includes(m)),
         'modality_unsupported',
@@ -564,7 +593,10 @@ export class InferenceCatalog {
       );
     }
     invariant(
-      value.generation.enabled || value.embedding.enabled || value.reranking?.enabled,
+      value.generation.enabled ||
+        value.embedding.enabled ||
+        value.reranking?.enabled ||
+        value.transcription?.enabled,
       'model_capability',
       '至少启用一种模型能力',
     );

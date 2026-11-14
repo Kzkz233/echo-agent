@@ -100,6 +100,11 @@ test('MinerU resumes the reserved remote task, never leaks its token to signed u
   assert.match(text, /\$x=1\$/);
   await client.parse(input, new AbortController().signal);
   assert.equal(polls, 2, 'completed result is read locally');
+  const {unlink}=await import('node:fs/promises');
+  const receipt=app.store.documents<any>('document-tasks')[0];
+  await unlink(join(app.runtime,'documents',receipt.id,'result.zip'));
+  const recovered=await client.parse(input,new AbortController().signal);
+  assert.equal(recovered.assets!.length,1);assert.equal(submitted,1);assert.equal(uploaded,1);assert.equal(polls,3);
 });
 test('an uncertain remote submission is never automatically submitted again', async (t) => {
   const app = await setup(t);

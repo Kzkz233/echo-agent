@@ -27,7 +27,7 @@ Use `conversations.setReference` with `conversation.reference` for persisted lin
 
 Inference adapters and task choices use `core.inference.adapters@1` and `core.inference.tasks@1`. Embeddings owns `embeddings.encode@1`; Semantic Search consumes it and Local Model Runtime optionally provides GGUF/ONNX encoders. These use the same scoped registry as other contributions. See [Inference](INFERENCE.md).
 
-Files is an optional application-wide foundation: registered library roots, SQLite text/metadata containers, immutable binary objects and media access. Knowledge adds logical packages, Markdown, source bindings and keyword search; it is a shared application capability, not a per-character retrieval configuration. Documents and Semantic Search are independent enhancements. Persona/Memory/Review use the same storage and retrieval contracts.
+Files and Documents are internal parts of the built-in Knowledge System: registered library roots, SQLite text/metadata containers, immutable binary objects, media access, document parsing and keyword search. Third-party parsers, Audio Transcription and Semantic Search contribute optional capabilities; knowledge and memory do not require these optional providers. Knowledge is a shared application capability, not a per-character retrieval configuration. Persona/Memory/Review use the same storage and retrieval contracts. See [Knowledge parsing](knowledge-parsing.md).
 
 Avatar provides ordinary frame animation and all bubble/input behavior. Agenda provides the calendar and reminders. Mail provides reading/drafts; Mail Actions contributes frozen actions to the independent Approvals center.
 
@@ -57,6 +57,10 @@ Typed domain contracts sit on this generic mechanism:
 | `review.material-streams@1`           | Optional role-owned selections within a material provider                  |
 | `review.archives@1`                   | Deterministic raw archive work                                             |
 | `files.extract@1`                     | Extracted document text or unsupported                                     |
+| `files.parsers@1`                     | Parser versions, supported formats and input limits shared with the UI     |
+| `files.prepare-parse@1`               | Frozen per-job parser options and safe portable provenance                 |
+| `files.extract@3`                     | Archived source reference, frozen plan and optional media segments         |
+| `core.inference.check-connection@1`   | Adapter-owned prerequisite check, separate from a real inference test      |
 | `core.retrieval@1`                    | Candidate IDs/versions/scores; no records outside supplied scope           |
 | `scheduler.handlers@1`                | Durable scheduled business action                                          |
 | `care.blockers@1`                     | Optional current-activity gate                                             |

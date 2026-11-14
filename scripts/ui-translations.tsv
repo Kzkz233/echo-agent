@@ -895,7 +895,7 @@ IMAP 与 SMTP 认证通过	IMAP and SMTP authentication succeeded
 授权码或应用密码	Authorization code or app password
 未选择	Not selected
 目标暂不可用	Target unavailable
-增强：	Enhances: 
+增强：	Enhances:
 增强以下功能	Enhances these features
 想法已保存	Reflection saved
 角色主观想法	Persona reflections
@@ -2509,3 +2509,121 @@ Echo 将退出并保存上一版程序。启动验收失败时自动恢复，已
 已自动回滚	Rolled back automatically
 回滚恢复程序版本。角色、会话和资料保留当前数据，更新前数据库快照单独保存。	Rollback restores the application version. Characters, conversations and documents keep their current data. A separate database snapshot is saved before updating.
 无法打开设置窗口：{reason}	Unable to open Settings: {reason}
+
+查看条目	View entry
+导入位置	Import location
+根目录	Root folder
+模型输出	Model output
+还没有整理记录。请在角色的自动化任务中配置并运行记忆整理。	No reviews yet. Configure and run a memory review in the character’s automation tasks.
+忽略的叠加窗口	Excluded overlay windows
+在此日期新增	Add entry on
+删除会话	Delete conversation
+· 暂停：请先核对未知执行	· blocked: reconcile unknown execution
+· v	· v
+· 已缓存正文	· Body cached
+个附件	attachments
+服务器	Server
+MB	MB
+编辑关注	Edit concern
+正在读取素材	Loading material
+卸载此扩展？	Uninstall this extension?
+扩展接口和页面将移除，配置与数据保留。	Extension tools and pages will be removed. Settings and data will be retained.
+卸载扩展	Uninstall extension
+扩展已卸载，数据已保留	Extension uninstalled. Data retained.
+请粘贴本地文件路径。	Paste the local file path.
+温柔而有主见，把难题理清，也把小事放在心上。	Warm and thoughtful, with a mind of her own and an eye for the little things.
+好奇又有行动力，陪你把灵感变成值得期待的小作品。	Curious and hands-on, turning sparks of inspiration into something worth making.
+更新示例文案	Update example writing
+等待浏览器登录	Waiting for browser sign-in
+更新未改动的示例人设和提示词。保留你编辑过的内容，以及模型、权限、任务和已有记录。	Update unchanged example personas and prompts. Keep your edits, models, permissions, tasks and existing records.
+执行器	Executor
+子任务执行方式	Subtask execution
+主会话按任务选择	Let the main agent choose per task
+使用指定执行器	Use a fixed executor
+指定执行器	Fixed executor
+可用执行器	Available executors
+主会话配置	Main conversation configuration
+子任务默认思考强度	Default subtask reasoning
+每次委派可单独选择思考强度；受理前会检查所选执行器是否支持。	Reasoning can be selected per task. Compatibility is checked before admission.
+子任务执行器	Subtask executors
+从 GitHub Releases 获取更新，或导入本地更新包。已有数据、插件和外部 MCP 配置会保留。	Get updates from GitHub Releases or import a local package. Your data, plugins and external MCP configuration are retained.
+来源自动化任务	Source automation
+执行设置由来源任务管理。	Execution settings are managed by the source task.
+停止本次执行	Stop this run
+上下文设置	Context settings
+此执行器使用宿主的上下文压缩设置。	This executor uses its host’s context compaction settings.
+上下文配置	Context configuration
+沿用角色配置	Use role settings
+单次模型输出上限（tokens）	Output limit per model call (tokens)
+沿用模型配置	Use model settings
+上下文注入	Context injection
+恢复默认	Reset to default
+执行设置	Execution settings
+允许修改文件	Allow file changes
+应用工具	Application tools
+结果汇报	Report results
+汇报渠道	Report channels
+汇报要求	Reporting instructions
+自定义任务	Custom task
+使用应用时区。	Uses the application time zone.
+委派指引	Delegation instructions
+任务执行上下文	Task execution context
+聊天表情目录	Chat sticker catalog
+高级执行设置	Advanced execution settings
+不使用	Not used
+整理范围	Review scope
+新增材料	New material
+记忆库分批维护	Batched memory maintenance
+每批维护条目数	Entries per maintenance batch
+仅用于记忆库维护；每次运行检查一批，成功后推进位置，多次运行覆盖全库。	For memory maintenance only. Each run checks a batch and advances after success; repeated runs cover the library.
+候选记忆	Memory candidates
+已更新	Updated
+无需修改	No change needed
+查看完整内容	Read full content
+没有候选记忆	No memory candidates
+已处理	Processed
+任务指引	Task instructions
+任务输入	Task input
+本次执行累计用量	Usage across this execution
+输入	Input
+输出	Output
+缓存读取	Cache read
+缓存写入	Cache write
+角色主工作会话	Main work conversation
+阶段汇报间隔（秒）	Report interval (seconds)
+添加补充材料	Include supplementary materials
+等待任务执行	Waiting for task execution
+执行后将显示请求、结果与用量。	Requests, results and usage will appear after execution.
+排除这些窗口的画面，并观察下方获准内容；无法排除时暂停该帧。	Exclude these windows from captured images and observe approved content underneath. Skip the frame if exclusion is unavailable.
+显示采集边框	Show capture border
+默认通过 Windows 授权隐藏边框；系统不允许时，可开启边框继续观察。	Hide the border with Windows authorization by default. If unavailable, enable the border to continue observation.
+无边框采集	Borderless capture
+语音识别模型	Speech recognition models
+音视频解析器	Audio and video parser
+正在暂停	Pausing
+转录进度	Transcription progress
+暂停	Pause
+Audio Transcription	语音转录
+按需在本机转录知识库音视频，支持分段进度与继续处理，完成后释放模型。	Transcribe library audio and video locally on demand, resume completed segments, and release the model when finished.
+FFmpeg 可执行文件	FFmpeg executable
+识别语言（留空自动识别）	Language (leave blank to detect automatically)
+专业词汇与背景	Vocabulary and context
+音频分段秒数	Audio segment length (seconds)
+语音编码器文件	Audio encoder file
+本地音视频转录	Local audio and video transcription
+知识库音视频转录	Library audio and video transcription
+
+目标目录	Destination folder
+工作会话	Work session
+执行时限（分钟）	Execution timeout (minutes)
+
+解析进度	Parsing progress
+
+文本与字幕	Text and subtitles
+重新解析归档原件	Reparse archived original
+从来源更新	Update from source
+播放命中片段	Play matching segment
+运行时文件可访问；尚未加载模型	Runtime file is accessible; model inference has not been tested
+运行时程序不存在或不可访问	Runtime executable is missing or inaccessible
+内置 ONNX 运行时已配置；尚未加载模型	Built-in ONNX runtime is configured; model inference has not been tested
+此接入器尚未提供连接检查	This adapter does not provide connection checks

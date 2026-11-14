@@ -1,0 +1,10 @@
+{
+  "model": "ggml-org/Qwen3-ASR-1.7B-GGUF",
+  "revision": "36a678687ba7d07a74ca70ccb0e36902e005fb80",
+  "license": "Apache-2.0",
+  "runtime": "llama.cpp",
+  "files": [
+    { "path": "Qwen3-ASR-1.7B-Q8_0.gguf", "bytes": 2165034944, "sha256": "58e22d0532d4eacaf034cfac17a6fed159f37c41390c710186783be439d1fc57" },
+    { "path": "mmproj-Qwen3-ASR-1.7B-Q8_0.gguf", "bytes": 355709344, "sha256": "46c1d533af3f354ceb37ce855dbceff7da7fa7cf1e6a523df3b13440bd164c0d" }
+  ]
+}

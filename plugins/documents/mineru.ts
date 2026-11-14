@@ -51,8 +51,8 @@ export class Mineru {
     readonly store: Store,
     readonly secrets: Secrets,
   ) {}
-  async parse(v: any, signal: AbortSignal, local = false) {
-    const cfg = documentConfig.parse(this.store.get('documents.config', {})),
+  async parse(v: any, signal: AbortSignal, local = false, frozen?: unknown) {
+    const cfg = documentConfig.parse(frozen ?? this.store.get('documents.config', {})),
       id = createHash('sha256')
         .update(JSON.stringify([local, v.requestId ?? [v.data, v.name, cfg]]))
         .digest('hex');
@@ -95,14 +95,15 @@ export class Mineru {
       dir = join(dirname(this.store.path), 'documents', id),
       result = join(dir, 'result.zip');
     await mkdir(dir, { recursive: true });
-    if (job.state === 'completed')
-      return workerTask<ParsedDocument>(
-        this.root,
-        'document-result-worker',
-        'plugins/documents/result-worker.ts',
-        { data: (await readFile(result)).toString('base64') },
-        signal,
-      );
+    if (job.state === 'completed') {
+      let cached:Buffer|undefined;
+      try { cached=await readFile(result); } catch(error:any){if(error.code!=='ENOENT')throw error;}
+      if(cached)return workerTask<ParsedDocument>(this.root,'document-result-worker','plugins/documents/result-worker.ts',{data:cached.toString('base64')},signal);
+      // Result caches are disposable. Restore re-fetches the already allocated
+      // remote result; it must never reserve or upload a second paid request.
+      invariant(local||job.batchId,'parser_receipt_missing','解析回执缺少远程任务编号，请先核对服务端状态');
+      job.state=local?'new':'uploaded';this.store.put('document-tasks',id,job);
+    }
     if (local) {
       invariant(cfg.command, 'parser_runtime', '请选择已安装的 mineru-kit 可执行文件');
       const input = join(dir, 'input' + v.extension);

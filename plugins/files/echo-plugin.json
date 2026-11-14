@@ -8,6 +8,7 @@
     "files.declare",
     "files.read",
     "files.write",
+    "knowledge.parse",
     "reply-image.provide"
   ],
   "settings": [],

@@ -4,6 +4,7 @@ import type { SearchRecord, KnowledgeScope } from '../../packages/kernel/retriev
 import type { Files } from './index.ts';
 import { prepareKeywordIndex } from './keyword-index.ts';
 import { canReadEntry, type ResourceReader } from '../../packages/kernel/resource-access.ts';
+import type { ParsePlan, ParsedContent } from '../../packages/contracts/parsing.ts';
 export type LibraryEntry = {
   id: string;
   vaultId: string;
@@ -57,7 +58,9 @@ export class Entries {
               'SELECT id,title,kind,logical_path,source_file_id,source_uri,source_hash,version,revision,updated_at,metadata FROM entries',
             )
             .all() as any[]
-        ).map((r) => this.row(r, vault.id)).filter((entry) => canReadEntry(entry, reader)),
+        )
+          .map((r) => this.row(r, vault.id))
+          .filter((entry) => canReadEntry(entry, reader)),
       );
     }
     return result;
@@ -87,6 +90,7 @@ export class Entries {
       offset: number;
       title: string;
       logicalPath?: string;
+      timeRange?: { start: number; end: number; sourceHash: string };
     })[] = [];
     for (const vault of this.files
       .roots()
@@ -95,13 +99,16 @@ export class Entries {
       if (filter.documentIds && !filter.documentIds.length) continue;
       const docs = db.db
         .prepare(
-          'SELECT id,title,body,kind,logical_path,metadata FROM entries' +
+          'SELECT id,title,body,kind,logical_path,metadata,source_hash,(SELECT segments FROM parse_generations g JOIN entry_revision_parsing p ON p.entry_id=g.entry_id AND p.parse_revision=g.revision WHERE p.entry_id=entries.id AND p.revision=entries.revision) AS segments FROM entries' +
             (filter.documentIds ? ' WHERE id IN (SELECT value FROM json_each(?))' : ''),
         )
         .all(...(filter.documentIds ? [JSON.stringify(filter.documentIds)] : [])) as any[];
       for (const doc of docs) {
         const meta = JSON.parse(doc.metadata);
-        if (!canReadEntry({ kind: doc.kind, logicalPath: doc.logical_path, metadata: meta }, reader)) continue;
+        if (
+          !canReadEntry({ kind: doc.kind, logicalPath: doc.logical_path, metadata: meta }, reader)
+        )
+          continue;
         if (
           meta.sourceUnavailable ||
           Boolean(meta.archived) !== Boolean(filter.archived) ||
@@ -113,8 +120,21 @@ export class Entries {
         )
           continue;
         const bodyHash = createHash('sha256').update(doc.body).digest('hex');
+        let cursor = 0;
+        const segments = (JSON.parse(doc.segments ?? '[]') as any[])
+          .map((segment) => {
+            const at = doc.body.indexOf(segment.text, cursor);
+            if (at < 0) return undefined;
+            cursor = at + segment.text.length;
+            return { ...segment, from: at, to: cursor };
+          })
+          .filter(Boolean);
+        let firstSegment=0;
         for (let offset = 0; offset < Math.max(1, doc.body.length); offset += 1000) {
           const text = doc.title + '\n' + doc.body.slice(offset, offset + 1200);
+          while(firstSegment<segments.length&&segments[firstSegment].to<=offset)firstSegment++;
+          const spans=[];
+          for(let at=firstSegment;at<segments.length&&segments[at].from<offset+1200;at++)spans.push(segments[at]);
           records.push({
             id: vault.id + ':' + doc.id + '.c.' + offset,
             version: createHash('sha256').update(text).digest('hex'),
@@ -125,6 +145,15 @@ export class Entries {
             title: doc.title,
             logicalPath: doc.logical_path,
             bodyHash,
+            ...(spans.length && doc.source_hash
+              ? {
+                  timeRange: {
+                    start: spans[0].start,
+                    end: spans.at(-1).end,
+                    sourceHash: doc.source_hash,
+                  },
+                }
+              : {}),
           });
         }
       }
@@ -144,6 +173,8 @@ export class Entries {
       kind?: LibraryEntry['kind'];
       metadata?: Record<string, unknown>;
       revision?: number;
+      parsed?: { jobId: string; plan: ParsePlan; segments?: ParsedContent['segments'] };
+      restoreRevision?: number;
     } = {},
     writer?: string,
   ) {
@@ -192,9 +223,27 @@ export class Entries {
       database.db
         .prepare('INSERT INTO entry_revisions VALUES(?,?,?,?,?,?,?)')
         .run(documentId, row.revision, title, text, row.metadata, version, row.updated_at);
-      for (const hash of new Set(
+      const inlineHashes = new Set(
         [...text.matchAll(/echo-asset:([a-f0-9]{64})/g)].map((m) => m[1]),
-      )) {
+      );
+      if (options.restoreRevision !== undefined)
+        database.db
+          .prepare(
+            "INSERT OR IGNORE INTO entry_attachments SELECT entry_id,id,name,object_hash,role FROM entry_revision_attachments WHERE entry_id=? AND revision=? AND id NOT LIKE 'inline-%'",
+          )
+          .run(documentId, options.restoreRevision);
+      // Only automatically discovered links are replaced. User attachments retain
+      // their identity and historical references are kept by revision snapshots.
+      for (const attachment of database.db
+        .prepare(
+          "SELECT id,object_hash FROM entry_attachments WHERE entry_id=? AND id LIKE 'inline-%'",
+        )
+        .all(documentId) as any[])
+        if (!inlineHashes.has(attachment.object_hash))
+          database.db
+            .prepare('DELETE FROM entry_attachments WHERE entry_id=? AND id=?')
+            .run(documentId, attachment.id);
+      for (const hash of inlineHashes) {
         const object = database.db
           .prepare('SELECT media_type FROM objects WHERE hash=?')
           .get(hash) as any;
@@ -218,12 +267,57 @@ export class Entries {
             object.media_type.startsWith('image/') ? 'image' : 'attachment',
           );
       }
+      database.db
+        .prepare('INSERT INTO entry_revision_sources VALUES(?,?,?,?,?)')
+        .run(documentId, row.revision, row.source_file_id, row.source_hash, row.source_uri);
+      database.db
+        .prepare(
+          'INSERT INTO entry_revision_attachments SELECT entry_id,?,id,name,object_hash,role FROM entry_attachments WHERE entry_id=?',
+        )
+        .run(row.revision, documentId);
+      if (options.parsed) {
+        const { plan, jobId, segments } = options.parsed;
+        // Machine paths and credential references belong to operational jobs, not
+        // portable knowledge provenance. Providers supply a safe public summary.
+        database.db
+          .prepare('INSERT INTO parse_generations VALUES(?,?,?,?,?,?)')
+          .run(
+            documentId,
+            row.revision,
+            jobId,
+            JSON.stringify({
+              format: plan.format,
+              parser: plan.parser,
+              provenance: plan.provenance,
+            }),
+            JSON.stringify(segments ?? []),
+            row.updated_at,
+          );
+      }
+      const priorParsing = database.db
+        .prepare(
+          'SELECT parse_revision FROM entry_revision_parsing WHERE entry_id=? AND revision=?',
+        )
+        .get(documentId, options.restoreRevision ?? old?.revision ?? 0) as any;
+      database.db
+        .prepare('INSERT INTO entry_revision_parsing VALUES(?,?,?)')
+        .run(
+          documentId,
+          row.revision,
+          options.parsed ? row.revision : (priorParsing?.parse_revision ?? null),
+        );
       return this.row(row, vaultId);
     });
     this.files.events?.emit('knowledge.updated', { vaultId });
     return result;
   }
-  async read(documentId: string, offset = 0, limit = 12000, vaultId?: string, reader?: ResourceReader) {
+  async read(
+    documentId: string,
+    offset = 0,
+    limit = 12000,
+    vaultId?: string,
+    reader?: ResourceReader,
+  ) {
     const record = await this.find(documentId, vaultId, reader),
       database = await this.files.database(record.vaultId);
     const text = (database.db.prepare('SELECT body FROM entries WHERE id=?').get(documentId) as any)
@@ -233,13 +327,32 @@ export class Entries {
         'SELECT entry_attachments.id,name,object_hash AS hash,role,bytes,media_type AS mediaType FROM entry_attachments JOIN objects ON object_hash=hash WHERE entry_id=?',
       )
       .all(documentId);
+    const original = record.sourceFileId
+      ? database.db
+          .prepare(
+            'SELECT files.id,files.name,objects.hash,objects.media_type AS mediaType,objects.bytes FROM files JOIN objects ON objects.hash=COALESCE(?,files.object_hash) WHERE files.id=?',
+          )
+          .get(record.sourceHash ?? null, record.sourceFileId)
+      : undefined;
+    const generation = database.db
+      .prepare(
+        'SELECT g.revision,plan,segments FROM parse_generations g JOIN entry_revision_parsing p ON p.entry_id=g.entry_id AND p.parse_revision=g.revision WHERE p.entry_id=? AND p.revision=?',
+      )
+      .get(documentId, record.revision) as any;
     return {
       ...record,
+      ...(original ? { original } : {}),
       content: text.slice(offset, offset + limit),
       offset,
       totalChars: text.length,
       nextOffset: offset + limit < text.length ? offset + limit : null,
       attachments,
+      ...(generation
+        ? {
+            parsing: { revision: generation.revision, ...JSON.parse(generation.plan) },
+            segments: JSON.parse(generation.segments),
+          }
+        : {}),
     };
   }
 }

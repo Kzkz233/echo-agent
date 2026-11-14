@@ -76,7 +76,19 @@ export async function applyStorageMigration(anchor: string, source: string, reta
     }
     for (const file of files.filter((file) => /\.sqlite$/i.test(file.path))) {
       const db = new DatabaseSync(join(target, file.path));
-      try { invariant((db.prepare('PRAGMA integrity_check').get() as any).integrity_check === 'ok', 'storage_integrity', '数据库校验失败：' + file.path); } finally { db.close(); }
+      try {
+        invariant((db.prepare('PRAGMA integrity_check').get() as any).integrity_check === 'ok', 'storage_integrity', '数据库校验失败：' + file.path);
+        // Only copied libraries are rebased. External libraries and the original
+        // runtime remain untouched. Bodies and arbitrary metadata are never scanned.
+        if(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='library_meta'").get()&&
+          (db.prepare("SELECT value FROM library_meta WHERE key='format'").get() as any)?.value==='echo-library-v1'){
+          for(const table of ['files','entries','entry_revision_sources']){
+            if(!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table))continue;
+            for(const row of db.prepare(`SELECT rowid,source_uri FROM ${table} WHERE source_uri IS NOT NULL`).all() as any[])
+              if(isAbsolute(row.source_uri)&&inside(source,row.source_uri))db.prepare(`UPDATE ${table} SET source_uri=? WHERE rowid=?`).run(join(target,relative(source,row.source_uri)),row.rowid);
+          }
+        }
+      } finally { db.close(); }
     }
     // Only registered path-bearing records are changed; persona and message text is never traversed.
     const db = new DatabaseSync(join(target, 'echo.sqlite'));

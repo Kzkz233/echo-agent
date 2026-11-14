@@ -1,6 +1,9 @@
 import { CredentialInput } from './credential-input.tsx';
 import { openCodexLogin } from './account-login.ts';
-import { connectionForPurpose, modelDisplayName } from '../../../packages/contracts/model-services.ts';
+import {
+  connectionForPurpose,
+  modelDisplayName,
+} from '../../../packages/contracts/model-services.ts';
 import { useEffect } from 'react';
 import { useRef, useState } from 'react';
 import { z } from 'zod';
@@ -90,30 +93,32 @@ function BackendServices({
 }: any) {
   const allAdapters = data.inference.adapters;
   const accepts = (adapter: any) =>
-    purpose === 'embedding'
-      ? adapter.embedding.length > 0
-      : purpose === 'reranking'
-        ? !!adapter.reranking?.length
-        : owner === 'core'
-          ? adapter.owner === 'core' && !adapter.workerOnly
-          : adapter.owner === owner;
+    purpose === 'transcription'
+      ? !!adapter.transcription?.length
+      : purpose === 'embedding'
+        ? adapter.embedding.length > 0
+        : purpose === 'reranking'
+          ? !!adapter.reranking?.length
+          : owner === 'core'
+            ? adapter.owner === 'core' && !adapter.workerOnly
+            : adapter.owner === owner;
   const selectedAdapters = allAdapters.filter(accepts);
-  const visibleConnections = data.connections.filter(
-    (connection: any) => {
-      const adapter = selectedAdapters.find((adapter: any) => adapter.id === connection.adapterId);
-      return adapter && connectionForPurpose(connection, adapter, data.inference.models, purpose);
-    },
-  );
+  const visibleConnections = data.connections.filter((connection: any) => {
+    const adapter = selectedAdapters.find((adapter: any) => adapter.id === connection.adapterId);
+    return adapter && connectionForPurpose(connection, adapter, data.inference.models, purpose);
+  });
   const visibleModels = data.inference.models.filter(
     (model: ModelProfile) =>
       visibleConnections.some((connection: Connection) => connection.id === model.connectionId) &&
       (purpose === 'embedding'
         ? model.embedding.enabled
-        : purpose === 'reranking'
-          ? model.reranking?.enabled
-          : owner === 'core'
-            ? model.generation.enabled
-            : true),
+        : purpose === 'transcription'
+          ? model.transcription?.enabled
+          : purpose === 'reranking'
+            ? model.reranking?.enabled
+            : owner === 'core'
+              ? model.generation.enabled
+              : true),
   );
   const adapters: AdapterDescriptor[] = selectedAdapters,
     models: ModelProfile[] = visibleModels,
@@ -135,7 +140,11 @@ function BackendServices({
       name: t('新的服务'),
       adapterId: a.id,
       purposes: [purpose],
-      deployment: a.workerOnly ? 'harness' : mode === 'local' ? 'local' : 'cloud',
+      deployment: a.workerOnly
+        ? 'harness'
+        : a.family === 'local-runtime' || mode === 'local'
+          ? 'local'
+          : 'cloud',
       config: {
         ...defaults(a.connectionSchema),
         ...(mode === 'local' ? { endpoint: 'http://127.0.0.1:11434/v1' } : {}),
@@ -154,10 +163,13 @@ function BackendServices({
         inputs: ['text'],
       },
       embedding: {
-        enabled: purpose === 'embedding' || (a ? !a.generation.length : false),
+        enabled: purpose === 'embedding',
         inputs: ['text'],
       },
       ...(purpose === 'reranking' ? { reranking: { enabled: true, inputs: ['text'] } } : {}),
+      ...(purpose === 'transcription'
+        ? { transcription: { enabled: true, inputs: ['audio'] } }
+        : {}),
       options: a ? defaults(a.modelSchema) : {},
     });
   };
@@ -186,19 +198,34 @@ function BackendServices({
       }
       if (checking) return;
       checking = true;
-      void rpc('connections.authenticate', { id: connection.id, action: 'status' }).then((status) => {
-        if (alive && status.account) setAuth(status);
-      }).catch(() => {}).finally(() => { checking = false; });
+      void rpc('connections.authenticate', { id: connection.id, action: 'status' })
+        .then((status) => {
+          if (alive && status.account) setAuth(status);
+        })
+        .catch(() => {})
+        .finally(() => {
+          checking = false;
+        });
     }, 2500);
-    return () => { alive = false; clearInterval(timer); };
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
   }, [connection.id, auth?.loginId, Boolean(auth?.account)]);
   const connectionBase = useRef(connection),
     modelBase = useRef(model),
     confirm = useConfirm();
-  const connectionChanged = Boolean(secret) ||
-    !sameData(connection, connections.find((c) => c.id === connection.id) ?? connectionBase.current);
-  const canTestGeneration = purpose === 'generation' &&
-    data.inference.models.some((model: ModelProfile) => model.connectionId === connection.id && model.generation.enabled);
+  const connectionChanged =
+    Boolean(secret) ||
+    !sameData(
+      connection,
+      connections.find((c) => c.id === connection.id) ?? connectionBase.current,
+    );
+  const canTestGeneration =
+    purpose === 'generation' &&
+    data.inference.models.some(
+      (model: ModelProfile) => model.connectionId === connection.id && model.generation.enabled,
+    );
   useUnsavedChanges(
     connectionChanged ||
       !sameData(model, models.find((m) => m.id === model.id) ?? modelBase.current),
@@ -321,11 +348,13 @@ function BackendServices({
                 {t(
                   purpose === 'embedding'
                     ? '语义索引模型'
-                    : purpose === 'reranking'
-                      ? '重排模型'
-                      : owner === 'core'
-                        ? '模型服务'
-                        : '执行配置',
+                    : purpose === 'transcription'
+                      ? '语音识别模型'
+                      : purpose === 'reranking'
+                        ? '重排模型'
+                        : owner === 'core'
+                          ? '模型服务'
+                          : '执行配置',
                 )}
               </h2>
               <Button secondary onClick={() => pickConnection(createConnection())}>
@@ -382,7 +411,7 @@ function BackendServices({
                     onChange={(e) => setConnection({ ...connection, name: e.target.value })}
                   />
                 </label>
-                {!adapter?.workerOnly && (
+                {!adapter?.workerOnly && adapter?.family !== 'local-runtime' && (
                   <label className="field">
                     <span>{t('服务位置')}</span>
                     <select
@@ -536,15 +565,29 @@ function BackendServices({
                         </Button>
                       )}
                       {canTestGeneration && ['api', 'pi'].includes(adapter.engine) && (
-                        <Button secondary disabled={connectionChanged} onClick={() =>
-                          act(async () => setConnectionCheck(await rpc('connections.test', {
-                            id: connection.id, generation: true,
-                          })), t('推理测试完成'))
-                        }>{t('测试推理')}</Button>
+                        <Button
+                          secondary
+                          disabled={connectionChanged}
+                          onClick={() =>
+                            act(
+                              async () =>
+                                setConnectionCheck(
+                                  await rpc('connections.test', {
+                                    id: connection.id,
+                                    generation: true,
+                                  }),
+                                ),
+                              t('推理测试完成'),
+                            )
+                          }
+                        >
+                          {t('测试推理')}
+                        </Button>
                       )}
                       {connectionCheck && !connectionChanged && (
                         <div className="muted">
                           <span>{connectionCheck.ok ? t('连接可用') : t('连接不可用')}</span>
+                          {connectionCheck.detail && <small>{t(connectionCheck.detail)}</small>}
                           {['upstream', 'upstream+runtime'].includes(connectionCheck.verified) && (
                             <small>
                               {t('上游模型目录可访问（{count} 个模型）', {
@@ -556,9 +599,12 @@ function BackendServices({
                             <small>{t('DSH SDK 初始化正常；未发送推理请求。')}</small>
                           )}
                           {connectionCheck.verified === 'generation' && (
-                            <small>{connectionCheck.model} · {connectionCheck.toolCall
-                              ? t('流式回复和工具调用均已验证。')
-                              : t('流式回复已验证，模型未完成测试工具调用。')}</small>
+                            <small>
+                              {connectionCheck.model} ·{' '}
+                              {connectionCheck.toolCall
+                                ? t('流式回复和工具调用均已验证。')
+                                : t('流式回复已验证，模型未完成测试工具调用。')}
+                            </small>
                           )}
                           {connectionCheck.note && <small>{t(connectionCheck.note)}</small>}
                         </div>
@@ -618,16 +664,15 @@ function BackendServices({
                             <Button
                               secondary
                               onClick={() =>
-                                act(
-                                  async () => {
-                                    const login = await rpc('connections.authenticate', {
-                                      id: connection.id, action: 'login',
-                                    });
-                                    setAuth(login);
-                                    if (login.authUrl) await openCodexLogin(login.authUrl).catch(() => {});
-                                  },
-                                  t('登录已启动'),
-                                )
+                                act(async () => {
+                                  const login = await rpc('connections.authenticate', {
+                                    id: connection.id,
+                                    action: 'login',
+                                  });
+                                  setAuth(login);
+                                  if (login.authUrl)
+                                    await openCodexLogin(login.authUrl).catch(() => {});
+                                }, t('登录已启动'))
                               }
                             >
                               {t('使用 ChatGPT 登录')}
@@ -635,15 +680,24 @@ function BackendServices({
                           </div>
                           {auth && (
                             <p>
-                              {auth.account ? t('已登录') : auth.authUrl ? t('等待浏览器登录') : t('尚未登录')}
+                              {auth.account
+                                ? t('已登录')
+                                : auth.authUrl
+                                  ? t('等待浏览器登录')
+                                  : t('尚未登录')}
                               {auth.authUrl && (
                                 <>
                                   {' '}
                                   ·{' '}
-                                  <a href={auth.authUrl} target="_blank" rel="noreferrer" onClick={(event) => {
-                                    event.preventDefault();
-                                    void act(() => openCodexLogin(auth.authUrl));
-                                  }}>
+                                  <a
+                                    href={auth.authUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      void act(() => openCodexLogin(auth.authUrl));
+                                    }}
+                                  >
                                     {t('打开官方登录页')}
                                   </a>
                                 </>
@@ -799,13 +853,13 @@ function BackendServices({
                     ) : (
                       <label className="field">
                         <span>
-                          {modelAdapter?.id === 'local-models.gguf'
+                          {modelAdapter?.id === 'local-models.gguf' || purpose === 'transcription'
                             ? t('GGUF 模型文件')
                             : modelAdapter?.family === 'local-runtime'
                               ? t('本地 ONNX 模型路径或 ID')
                               : t('模型 ID')}
                         </span>
-                        {modelAdapter?.id === 'local-models.gguf' ? (
+                        {modelAdapter?.id === 'local-models.gguf' || purpose === 'transcription' ? (
                           <PathInput
                             label={t('GGUF 模型文件')}
                             value={model.model}
@@ -942,11 +996,15 @@ function BackendServices({
                               {(modelAdapter.family === 'api' || modelAdapter.engine === 'dsh') && (
                                 <label className="field">
                                   <span>{t('模型上下文窗口（tokens，可选）')}</span>
-                                  <input type="number" min={1024} max={2000000}
+                                  <input
+                                    type="number"
+                                    min={1024}
+                                    max={2000000}
                                     value={String(model.options.contextWindowTokens ?? '')}
                                     onChange={(e) => {
                                       const options = { ...model.options };
-                                      if (e.target.value) options.contextWindowTokens = Number(e.target.value);
+                                      if (e.target.value)
+                                        options.contextWindowTokens = Number(e.target.value);
                                       else delete options.contextWindowTokens;
                                       setModel({ ...model, options });
                                     }}
@@ -1110,14 +1168,14 @@ function BackendServices({
           </div>
         </div>
       )}
-      {owner === 'local-models' && (
+      {['core','local-models'].includes(owner) && (
         <details className="card inference-runtime">
           <summary>{t('本地模型运行状态')}</summary>
           <div className="row wrap">
             <Button
               secondary
               onClick={() =>
-                act(async () => setRuntime(await rpc('local-models.status', {})), t('状态已更新'))
+                act(async () => setRuntime(await rpc('models.resources', {})), t('状态已更新'))
               }
             >
               {t('刷新状态')}
@@ -1126,8 +1184,8 @@ function BackendServices({
               secondary
               onClick={() =>
                 act(async () => {
-                  await rpc('local-models.release', {});
-                  setRuntime(await rpc('local-models.status', {}));
+                  await rpc('models.release', {});
+                  setRuntime(await rpc('models.resources', {}));
                 }, t('空闲模型已释放'))
               }
             >

@@ -1,9 +1,9 @@
 import { t } from './i18n.ts';
-import { useEffect, useState } from 'react';
+import { Children, useEffect, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { mediaURL } from './client.ts';
-function ManagedAsset({ vaultId, hash, attachments, alt, autoLoad = true }: any) {
+function ManagedAsset({ vaultId, hash, attachments, alt, autoLoad = true, start }: any) {
   const asset = attachments?.find((a: any) => a.hash === hash),
     [url, setURL] = useState(''),
     [error, setError] = useState('');
@@ -24,9 +24,7 @@ function ManagedAsset({ vaultId, hash, attachments, alt, autoLoad = true }: any)
   if (!url)
     return (
       <span>
-        <button onClick={() => void load()}>
-          {t('Load')} {asset.name}
-        </button>
+        <button onClick={() => void load()}>{alt || `${t('Load')} ${asset.name}`}</button>
         {error && <small>{error}</small>}
       </span>
     );
@@ -42,8 +40,16 @@ function ManagedAsset({ vaultId, hash, attachments, alt, autoLoad = true }: any)
         }}
       />
     );
-  if (asset.mediaType.startsWith('audio/')) return <audio src={url} controls preload="metadata" />;
-  if (asset.mediaType.startsWith('video/')) return <video src={url} controls preload="metadata" />;
+  const seek = (event: any) => {
+    if (start !== undefined) {
+      event.currentTarget.currentTime = start;
+      void event.currentTarget.play().catch(() => {});
+    }
+  };
+  if (asset.mediaType.startsWith('audio/'))
+    return <audio src={url} controls preload="metadata" onLoadedMetadata={seek} />;
+  if (asset.mediaType.startsWith('video/'))
+    return <video src={url} controls preload="metadata" onLoadedMetadata={seek} />;
   return (
     <a href={url} download={asset.name}>
       {alt || asset.name}
@@ -52,14 +58,25 @@ function ManagedAsset({ vaultId, hash, attachments, alt, autoLoad = true }: any)
 }
 export default function KnowledgeBody({ document, onOpenEntry }: any) {
   const [raw, setRaw] = useState(false),
-    asset = (uri: string, alt?: string) => (
-      <ManagedAsset
-        vaultId={document.vaultId}
-        hash={uri.slice('echo-asset:'.length)}
-        attachments={document.attachments}
-        alt={alt}
-      />
-    );
+    asset = (uri: string, alt?: string) => {
+      const [hash, fragment] = uri.slice('echo-asset:'.length).split('#t=');
+      const start =
+        fragment !== undefined && /^\d+(?:\.\d+)?$/.test(fragment) && Number(fragment) <= 86400
+          ? Number(fragment)
+          : undefined;
+      return (
+        <ManagedAsset
+          vaultId={document.vaultId}
+          hash={hash}
+          attachments={[
+            ...(document.attachments ?? []),
+            ...(document.original ? [document.original] : []),
+          ]}
+          alt={alt}
+          start={start}
+        />
+      );
+    };
   const displayed = document.content.replace(
     /^# ([^\r\n]+)\r?\n(?:\r?\n)?/,
     (match: string, title: string) => (title.trim() === document.title.trim() ? '' : match),
@@ -69,6 +86,7 @@ export default function KnowledgeBody({ document, onOpenEntry }: any) {
       <button className="text-button markdown-toggle" onClick={() => setRaw(!raw)}>
         {raw ? t('Markdown preview') : t('Markdown source')}
       </button>
+      {document.timeRange && asset(`echo-asset:${document.timeRange.sourceHash}#t=${document.timeRange.start}`,t('播放命中片段'))}
       {document.attachments?.length > 0 && (
         <details className="knowledge-attachments">
           <summary>
@@ -113,7 +131,12 @@ export default function KnowledgeBody({ document, onOpenEntry }: any) {
                 ),
               a: ({ href, children }) =>
                 href?.startsWith('echo-asset:') ? (
-                  asset(href, typeof children === 'string' ? children : undefined)
+                  asset(
+                    href,
+                    Children.toArray(children)
+                      .filter((child) => typeof child === 'string' || typeof child === 'number')
+                      .join('') || undefined,
+                  )
                 ) : href?.startsWith('echo-entry:') ? (
                   <button
                     className="knowledge-link"

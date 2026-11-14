@@ -35,5 +35,15 @@
   ],
   "apiVersion": 1,
   "package": "@echo/knowledge",
-  "category": "Built-in components"
+  "category": "Built-in components",
+  "storagePaths": [
+    {
+      "table": "documents",
+      "collection": "knowledge-jobs",
+      "pointers": [
+        "/original/source",
+        "/requestedSource"
+      ]
+    }
+  ]
 }

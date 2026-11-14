@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { LocalModelPool } from '../../packages/kernel/local-model-pool.ts';
+import { checkLocalCommand } from '../../packages/kernel/local-command.ts';
 import { Worker } from 'node:worker_threads';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -47,6 +49,9 @@ export class LocalModels {
     readonly store: Store,
     readonly root: string,
     readonly events: Events,
+    readonly resources = new LocalModelPool(() =>
+      localRuntimeConfig.parse(store.get('models.config', store.get('local-models.config', {}))),
+    ),
   ) {}
   status() {
     return {
@@ -60,6 +65,7 @@ export class LocalModels {
   }
   private async release(key: string) {
     const s = this.sessions.get(key);
+    this.resources.forget(key);
     if (!s) return;
     this.sessions.delete(key);
     clearTimeout(s.timer);
@@ -79,7 +85,9 @@ export class LocalModels {
     const work = async () => {
       signal.throwIfAborted();
       const options = localModelOptions.parse(v.profile.modelOptions),
-        cfg = localRuntimeConfig.parse(this.store.get('models.config', this.store.get('local-models.config', {})));
+        cfg = localRuntimeConfig.parse(
+          this.store.get('models.config', this.store.get('local-models.config', {})),
+        );
       invariant(v.profile.model, 'local_model_missing', '请填写本地 ONNX 模型目录或 ID');
       invariant(
         v.inputs.every((i: any) => i.content.every((p: any) => p.type === 'text')),
@@ -106,116 +114,126 @@ export class LocalModels {
       const key = createHash('sha256')
         .update(JSON.stringify([v.profile.model, options]))
         .digest('hex');
-      let session = this.sessions.get(key);
-      if (!session) {
-        while (this.sessions.size >= cfg.maxLoadedModels) {
-          const oldest = [...this.sessions].sort((a, b) => a[1].lastUsed - b[1].lastUsed)[0];
-          await this.release(oldest[0]);
-        }
-        signal.throwIfAborted();
-        const built = join(this.root, 'dist/embedding-worker.mjs'),
-          source = join(this.root, 'plugins/local-models/embedding-worker.ts');
-        const env = Object.fromEntries(
-          Object.entries(process.env).filter(([name]) =>
-            [
-              'PATH',
-              'SYSTEMROOT',
-              'TEMP',
-              'TMP',
-              'HOME',
-              'USERPROFILE',
-              'LOCALAPPDATA',
-              'APPDATA',
-              'NUMBER_OF_PROCESSORS',
-              'PROCESSOR_ARCHITECTURE',
-              'NODE_EXTRA_CA_CERTS',
-              'HTTP_PROXY',
-              'HTTPS_PROXY',
-              'NO_PROXY',
-            ].includes(name.toUpperCase()),
-          ),
-        );
-        const worker = new Worker(pathToFileURL(existsSync(source) ? source : built), {
-          execArgv: existsSync(source) ? ['--import', 'tsx'] : [],
-          env,
-        });
-        session = {
-          worker,
-          busy: false,
-          lastUsed: Date.now(),
-          model: v.profile.model,
-          profiles: new Set(),
-        };
-        this.sessions.set(key, session);
-        const owned = session;
-        const ended = () => {
-          clearTimeout(owned.timer);
-          if (this.sessions.get(key) === owned) this.sessions.delete(key);
-        };
-        worker.on('exit', ended);
-        worker.on('error', ended);
-      }
-      const owned = session;
-      owned.profiles.add(v.profile.id);
-      clearTimeout(owned.timer);
-      owned.busy = true;
-      const requestId = randomUUID();
-      try {
-        return await new Promise((resolve, reject) => {
-          const worker = owned.worker!;
-          const cleanup = () => {
-            worker.off('message', message);
-            worker.off('error', error);
-            worker.off('exit', exit);
-            signal.removeEventListener('abort', abort);
-            clearTimeout(timer);
-          };
-          const message = (m: any) => {
-            if (m.id !== requestId) return;
-            cleanup();
-            m.error ? reject(Error(m.error)) : resolve({ vectors: m.vectors });
-          };
-          const error = (e: Error) => {
-            cleanup();
-            void this.release(key);
-            reject(e);
-          };
-          const exit = () => error(Error('本地向量工作进程已退出；下次请求可重新加载。'));
-          const abort = () => error(Error('本地模型请求已取消。'));
-          const timer = setTimeout(
-            () => error(Error('本地模型请求超时。')),
-            Math.min(v.profile.timeoutMs, 180000),
-          );
-          worker.on('message', message);
-          worker.once('error', error);
-          worker.once('exit', exit);
-          signal.addEventListener('abort', abort, { once: true });
-          if (signal.aborted) {
-            abort();
-            return;
-          }
-          worker.postMessage({
-            id: requestId,
-            texts,
-            config: {
-              ...options,
+      return this.resources.run(
+        key,
+        v.profile.model,
+        () => this.release(key),
+        signal,
+        async () => {
+          let session = this.sessions.get(key);
+          if (!session) {
+            while (this.sessions.size >= cfg.maxLoadedModels) {
+              const oldest = [...this.sessions].sort((a, b) => a[1].lastUsed - b[1].lastUsed)[0];
+              await this.release(oldest[0]);
+            }
+            signal.throwIfAborted();
+            const built = join(this.root, 'dist/embedding-worker.mjs'),
+              source = join(this.root, 'plugins/local-models/embedding-worker.ts');
+            const env = Object.fromEntries(
+              Object.entries(process.env).filter(([name]) =>
+                [
+                  'PATH',
+                  'SYSTEMROOT',
+                  'TEMP',
+                  'TMP',
+                  'HOME',
+                  'USERPROFILE',
+                  'LOCALAPPDATA',
+                  'APPDATA',
+                  'NUMBER_OF_PROCESSORS',
+                  'PROCESSOR_ARCHITECTURE',
+                  'NODE_EXTRA_CA_CERTS',
+                  'HTTP_PROXY',
+                  'HTTPS_PROXY',
+                  'NO_PROXY',
+                ].includes(name.toUpperCase()),
+              ),
+            );
+            const worker = new Worker(pathToFileURL(existsSync(source) ? source : built), {
+              execArgv: existsSync(source) ? ['--import', 'tsx'] : [],
+              env,
+            });
+            session = {
+              worker,
+              busy: false,
+              lastUsed: Date.now(),
               model: v.profile.model,
-              modelPath: v.profile.model === 'Xenova/bge-small-zh-v1.5'
-                ? [join(this.root,'models',v.profile.model),join(this.root,'dist/vendor/models',v.profile.model)]
-                    .find(directory=>existsSync(join(directory,'onnx',options.weightsFile)))
-                : undefined,
-              cacheDir: join(dirname(this.store.path), 'models'),
-            },
-          });
-        });
-      } finally {
-        owned.busy = false;
-        owned.lastUsed = Date.now();
-        if (this.sessions.get(key) === owned && !options.keepLoaded) {
-          owned.timer = setTimeout(() => void this.release(key), cfg.idleSeconds * 1000);
-          owned.timer.unref();
-        }
-      }
+              profiles: new Set(),
+            };
+            this.sessions.set(key, session);
+            const owned = session;
+            const ended = () => {
+              clearTimeout(owned.timer);
+              if (this.sessions.get(key) === owned) this.sessions.delete(key);
+            };
+            worker.on('exit', ended);
+            worker.on('error', ended);
+          }
+          const owned = session;
+          owned.profiles.add(v.profile.id);
+          clearTimeout(owned.timer);
+          owned.busy = true;
+          const requestId = randomUUID();
+          try {
+            return await new Promise((resolve, reject) => {
+              const worker = owned.worker!;
+              const cleanup = () => {
+                worker.off('message', message);
+                worker.off('error', error);
+                worker.off('exit', exit);
+                signal.removeEventListener('abort', abort);
+                clearTimeout(timer);
+              };
+              const message = (m: any) => {
+                if (m.id !== requestId) return;
+                cleanup();
+                m.error ? reject(Error(m.error)) : resolve({ vectors: m.vectors });
+              };
+              const error = (e: Error) => {
+                cleanup();
+                void this.release(key);
+                reject(e);
+              };
+              const exit = () => error(Error('本地向量工作进程已退出；下次请求可重新加载。'));
+              const abort = () => error(Error('本地模型请求已取消。'));
+              const timer = setTimeout(
+                () => error(Error('本地模型请求超时。')),
+                Math.min(v.profile.timeoutMs, 180000),
+              );
+              worker.on('message', message);
+              worker.once('error', error);
+              worker.once('exit', exit);
+              signal.addEventListener('abort', abort, { once: true });
+              if (signal.aborted) {
+                abort();
+                return;
+              }
+              worker.postMessage({
+                id: requestId,
+                texts,
+                config: {
+                  ...options,
+                  model: v.profile.model,
+                  modelPath:
+                    v.profile.model === 'Xenova/bge-small-zh-v1.5'
+                      ? [
+                          join(this.root, 'models', v.profile.model),
+                          join(this.root, 'dist/vendor/models', v.profile.model),
+                        ].find((directory) =>
+                          existsSync(join(directory, 'onnx', options.weightsFile)),
+                        )
+                      : undefined,
+                  cacheDir: join(dirname(this.store.path), 'models'),
+                },
+              });
+            });
+          } finally {
+            owned.busy = false;
+            owned.lastUsed = Date.now();
+          }
+        },
+        options.keepLoaded,
+      );
     };
     const result = this.queue.then(work, work);
     this.queue = result.catch(() => {});
@@ -225,7 +243,9 @@ export class LocalModels {
     const work = async () => {
       signal.throwIfAborted();
       const options = ggufOptions.parse(v.profile.modelOptions),
-        cfg = localRuntimeConfig.parse(this.store.get('models.config', this.store.get('local-models.config', {}))),
+        cfg = localRuntimeConfig.parse(
+          this.store.get('models.config', this.store.get('local-models.config', {})),
+        ),
         images = v.inputs.some((i: any) => i.content.some((p: any) => p.type !== 'text')),
         video = v.inputs.some((i: any) => i.content.some((p: any) => p.type === 'video')),
         key = createHash('sha256')
@@ -233,44 +253,49 @@ export class LocalModels {
             JSON.stringify(['gguf', v.profile.command, v.profile.model, options, images, video]),
           )
           .digest('hex');
-      let owned = this.sessions.get(key);
-      if (!owned) {
-        while (this.sessions.size >= cfg.maxLoadedModels)
-          await this.release(
-            [...this.sessions].sort((a, b) => a[1].lastUsed - b[1].lastUsed)[0][0],
-          );
-        signal.throwIfAborted();
-        const gguf = new GgufSession(this.root);
-        await gguf.start(v.profile, images, signal, video);
-        owned = {
-          gguf,
-          busy: false,
-          lastUsed: Date.now(),
-          model: v.profile.model,
-          profiles: new Set(),
-        };
-        this.sessions.set(key, owned);
-      }
-      const s = owned;
-      s.profiles.add(v.profile.id);
-      s.busy = true;
-      clearTimeout(s.timer);
-      try {
-        return await s.gguf!.encode(
-          v,
-          AbortSignal.any([signal, AbortSignal.timeout(v.profile.timeoutMs)]),
-        );
-      } catch (e) {
-        await this.release(key);
-        throw e;
-      } finally {
-        s.busy = false;
-        s.lastUsed = Date.now();
-        if (this.sessions.get(key) === s && !options.keepLoaded) {
-          s.timer = setTimeout(() => void this.release(key), cfg.idleSeconds * 1000);
-          s.timer.unref();
-        }
-      }
+      return this.resources.run(
+        key,
+        v.profile.model,
+        () => this.release(key),
+        signal,
+        async () => {
+          let owned = this.sessions.get(key);
+          if (!owned) {
+            while (this.sessions.size >= cfg.maxLoadedModels)
+              await this.release(
+                [...this.sessions].sort((a, b) => a[1].lastUsed - b[1].lastUsed)[0][0],
+              );
+            signal.throwIfAborted();
+            const gguf = new GgufSession(this.root);
+            await gguf.start(v.profile, images, signal, video);
+            owned = {
+              gguf,
+              busy: false,
+              lastUsed: Date.now(),
+              model: v.profile.model,
+              profiles: new Set(),
+            };
+            this.sessions.set(key, owned);
+          }
+          const s = owned;
+          s.profiles.add(v.profile.id);
+          s.busy = true;
+          clearTimeout(s.timer);
+          try {
+            return await s.gguf!.encode(
+              v,
+              AbortSignal.any([signal, AbortSignal.timeout(v.profile.timeoutMs)]),
+            );
+          } catch (e) {
+            await this.release(key);
+            throw e;
+          } finally {
+            s.busy = false;
+            s.lastUsed = Date.now();
+          }
+        },
+        options.keepLoaded,
+      );
     };
     const result = this.queue.then(work, work);
     this.queue = result.catch(() => {});
@@ -281,6 +306,22 @@ export class LocalModels {
       manifest: defineManifest(manifest),
       config: { schema: localRuntimeConfig },
       activate: (ctx) => {
+        ctx.capabilities.provide(
+          'core.inference.check-connection@1',
+          'local-models.gguf',
+          '检查本地运行时',
+          ({ connection }) => checkLocalCommand(String(connection.config.command ?? '')),
+        );
+        ctx.capabilities.provide(
+          'core.inference.check-connection@1',
+          'local-models.onnx',
+          '检查本地运行时',
+          () => ({
+            ok: true,
+            verified: 'runtime-file',
+            detail: '内置 ONNX 运行时已配置；尚未加载模型',
+          }),
+        );
         ctx.dispose(
           this.events.subscribe((event) => {
             if (['routes.changed', 'models.changed', 'connections.changed'].includes(event.type))

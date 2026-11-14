@@ -14,7 +14,10 @@ export function PluginInferenceRoutes({ pluginId, data, act }: any) {
         data.pluginSettings.semantic?.rerankMethod !== 'model'),
   );
   const [routes, setRoutes] = useState<Record<string, string>>(data.routes ?? {});
-  useEffect(() => setRoutes(data.routes ?? {}), [data.routes]);
+  const savedRoutes = JSON.stringify(data.routes ?? {});
+  // Bootstrap polling creates fresh objects even when no route has changed.
+  // Do not erase a user's unsaved selection on an unrelated progress update.
+  useEffect(() => setRoutes(JSON.parse(savedRoutes)), [savedRoutes, pluginId]);
   const baseline = Object.fromEntries(
     tasks.map((task: any) => [task.id, data.routes?.[task.id] ?? '']),
   );

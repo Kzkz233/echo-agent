@@ -1,25 +1,5 @@
 [
   [
-    "查看条目",
-    "View entry"
-  ],
-  [
-    "导入位置",
-    "Import location"
-  ],
-  [
-    "根目录",
-    "Root folder"
-  ],
-  [
-    "目标目录",
-    "Destination folder"
-  ],
-  [
-    "模型输出",
-    "Model output"
-  ],
-  [
     "提供方不可用",
     "(provider unavailable)"
   ],
@@ -2100,6 +2080,10 @@
     "System"
   ],
   [
+    "纳入整理",
+    "Include in review"
+  ],
+  [
     "纳入这些非核心记忆",
     "Apply these non-core memories"
   ],
@@ -2304,8 +2288,8 @@
     "No conversations yet. Use + to start."
   ],
   [
-    "还没有整理记录。请在角色的自动化任务中配置并运行记忆整理。",
-    "No reviews yet. Configure and run a memory review in the character’s automation tasks."
+    "还没有整理记录。先在对话里打开「纳入整理」，再选择运行。",
+    "No reviews yet. Include a conversation in review, then start one."
   ],
   [
     "还没有模型运行。",
@@ -3605,7 +3589,7 @@
   ],
   [
     "增强：",
-    "Enhances: "
+    "Enhances:"
   ],
   [
     "增强以下功能",
@@ -5556,8 +5540,8 @@
     "Manage task settings in character configuration"
   ],
   [
-    "忽略的叠加窗口",
-    "Excluded overlay windows"
+    "忽略遮挡的窗口",
+    "Windows ignored as occluders"
   ],
   [
     "这些窗口不会遮断白名单画面。按进程名或完整路径匹配，可选填写标题；新观察任务默认包含桌宠和 NVIDIA Overlay 规则，均可编辑、停用或移除。",
@@ -6126,6 +6110,10 @@
   [
     "会话材料范围",
     "Conversation sources"
+  ],
+  [
+    "使用会话的纳入整理开关",
+    "Use each conversation’s Review setting"
   ],
   [
     "只读取所选会话",
@@ -9948,40 +9936,68 @@
     "Rollback restores the application version. Characters, conversations and documents keep their current data. A separate database snapshot is saved before updating."
   ],
   [
-    "在此日期新增 ",
-    "Add entry on "
+    "无法打开设置窗口：{reason}",
+    "Unable to open Settings: {reason}"
   ],
   [
-    "删除会话 ",
-    "Delete conversation "
+    "查看条目",
+    "View entry"
   ],
   [
-    " · 暂停：请先核对未知执行",
-    " · blocked: reconcile unknown execution"
+    "导入位置",
+    "Import location"
   ],
   [
-    " · v",
-    " · v"
+    "根目录",
+    "Root folder"
   ],
   [
-    " · 已缓存正文",
-    " · Body cached"
+    "模型输出",
+    "Model output"
   ],
   [
-    " 个附件",
-    " attachments"
+    "还没有整理记录。请在角色的自动化任务中配置并运行记忆整理。",
+    "No reviews yet. Configure and run a memory review in the character’s automation tasks."
   ],
   [
-    " 服务器",
-    " Server"
+    "忽略的叠加窗口",
+    "Excluded overlay windows"
   ],
   [
-    " MB",
-    " MB"
+    "在此日期新增",
+    "Add entry on"
   ],
   [
-    "编辑关注 ",
-    "Edit concern "
+    "删除会话",
+    "Delete conversation"
+  ],
+  [
+    "· 暂停：请先核对未知执行",
+    "· blocked: reconcile unknown execution"
+  ],
+  [
+    "· v",
+    "· v"
+  ],
+  [
+    "· 已缓存正文",
+    "· Body cached"
+  ],
+  [
+    "个附件",
+    "attachments"
+  ],
+  [
+    "服务器",
+    "Server"
+  ],
+  [
+    "MB",
+    "MB"
+  ],
+  [
+    "编辑关注",
+    "Edit concern"
   ],
   [
     "正在读取素材",
@@ -10072,10 +10088,6 @@
     "Get updates from GitHub Releases or import a local package. Your data, plugins and external MCP configuration are retained."
   ],
   [
-    "无法打开设置窗口：{reason}",
-    "Unable to open Settings: {reason}"
-  ],
-  [
     "来源自动化任务",
     "Source automation"
   ],
@@ -10140,10 +10152,6 @@
     "Report channels"
   ],
   [
-    "工作会话",
-    "Work session"
-  ],
-  [
     "汇报要求",
     "Reporting instructions"
   ],
@@ -10166,10 +10174,6 @@
   [
     "聊天表情目录",
     "Chat sticker catalog"
-  ],
-  [
-    "执行时限（分钟）",
-    "Execution timeout (minutes)"
   ],
   [
     "高级执行设置",
@@ -10223,18 +10227,54 @@
     "已处理",
     "Processed"
   ],
-  ["任务指引", "Task instructions"],
-  ["任务输入", "Task input"],
-  ["本次执行累计用量", "Usage across this execution"],
-  ["输入", "Input"],
-  ["输出", "Output"],
-  ["缓存读取", "Cache read"],
-  ["缓存写入", "Cache write"],
-  ["角色主工作会话", "Main work conversation"],
-  ["阶段汇报间隔（秒）", "Report interval (seconds)"],
-  ["添加补充材料", "Include supplementary materials"],
-  ["等待任务执行", "Waiting for task execution"],
-  ["执行后将显示请求、结果与用量。", "Requests, results and usage will appear after execution."],
+  [
+    "任务指引",
+    "Task instructions"
+  ],
+  [
+    "任务输入",
+    "Task input"
+  ],
+  [
+    "本次执行累计用量",
+    "Usage across this execution"
+  ],
+  [
+    "输入",
+    "Input"
+  ],
+  [
+    "输出",
+    "Output"
+  ],
+  [
+    "缓存读取",
+    "Cache read"
+  ],
+  [
+    "缓存写入",
+    "Cache write"
+  ],
+  [
+    "角色主工作会话",
+    "Main work conversation"
+  ],
+  [
+    "阶段汇报间隔（秒）",
+    "Report interval (seconds)"
+  ],
+  [
+    "添加补充材料",
+    "Include supplementary materials"
+  ],
+  [
+    "等待任务执行",
+    "Waiting for task execution"
+  ],
+  [
+    "执行后将显示请求、结果与用量。",
+    "Requests, results and usage will appear after execution."
+  ],
   [
     "排除这些窗口的画面，并观察下方获准内容；无法排除时暂停该帧。",
     "Exclude these windows from captured images and observe approved content underneath. Skip the frame if exclusion is unavailable."
@@ -10250,5 +10290,153 @@
   [
     "无边框采集",
     "Borderless capture"
+  ],
+  [
+    "语音识别模型",
+    "Speech recognition models"
+  ],
+  [
+    "音视频解析器",
+    "Audio and video parser"
+  ],
+  [
+    "正在暂停",
+    "Pausing"
+  ],
+  [
+    "转录进度",
+    "Transcription progress"
+  ],
+  [
+    "暂停",
+    "Pause"
+  ],
+  [
+    "语音转录",
+    "Audio Transcription"
+  ],
+  [
+    "按需在本机转录知识库音视频，支持分段进度与继续处理，完成后释放模型。",
+    "Transcribe library audio and video locally on demand, resume completed segments, and release the model when finished."
+  ],
+  [
+    "FFmpeg 可执行文件",
+    "FFmpeg executable"
+  ],
+  [
+    "识别语言（留空自动识别）",
+    "Language (leave blank to detect automatically)"
+  ],
+  [
+    "专业词汇与背景",
+    "Vocabulary and context"
+  ],
+  [
+    "音频分段秒数",
+    "Audio segment length (seconds)"
+  ],
+  [
+    "语音编码器文件",
+    "Audio encoder file"
+  ],
+  [
+    "本地音视频转录",
+    "Local audio and video transcription"
+  ],
+  [
+    "知识库音视频转录",
+    "Library audio and video transcription"
+  ],
+  [
+    "目标目录",
+    "Destination folder"
+  ],
+  [
+    "工作会话",
+    "Work session"
+  ],
+  [
+    "执行时限（分钟）",
+    "Execution timeout (minutes)"
+  ],
+  [
+    "解析进度",
+    "Parsing progress"
+  ],
+  [
+    "在此日期新增 ",
+    "Add entry on "
+  ],
+  [
+    "删除会话 ",
+    "Delete conversation "
+  ],
+  [
+    " · 暂停：请先核对未知执行",
+    " · blocked: reconcile unknown execution"
+  ],
+  [
+    " · v",
+    " · v"
+  ],
+  [
+    " · 已缓存正文",
+    " · Body cached"
+  ],
+  [
+    " 个附件",
+    " attachments"
+  ],
+  [
+    " 服务器",
+    " Server"
+  ],
+  [
+    " MB",
+    " MB"
+  ],
+  [
+    "编辑关注 ",
+    "Edit concern "
+  ],
+  [
+    "文本与字幕",
+    "Text and subtitles"
+  ],
+  [
+    "重新解析归档原件",
+    "Reparse archived original"
+  ],
+  [
+    "重新解析",
+    "Reparse"
+  ],
+  [
+    "从来源更新",
+    "Update from source"
+  ],
+  [
+    "解析器",
+    "Parser"
+  ],
+  [
+    "播放命中片段",
+    "Play matching segment"
+  ],
+  [
+    "运行时文件可访问；尚未加载模型",
+    "Runtime file is accessible; model inference has not been tested"
+  ],
+  [
+    "运行时程序不存在或不可访问",
+    "Runtime executable is missing or inaccessible"
+  ],
+  [
+    "内置 ONNX 运行时已配置；尚未加载模型",
+    "Built-in ONNX runtime is configured; model inference has not been tested"
+  ],
+  [
+    "此接入器尚未提供连接检查",
+    "This adapter does not provide connection checks"
   ]
 ]
