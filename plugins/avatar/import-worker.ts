@@ -178,11 +178,16 @@ async function run() {
       clips[key] = { fps: Math.max(1, Math.min(30, Math.round(clip.fps ?? fps))), frames };
     }
     if (!clips.idle) throw Error('素材包缺少 idle 动画');
+    const groundY = input.groundY;
+    if (groundY !== undefined &&
+        (typeof groundY !== 'number' || !Number.isFinite(groundY) || groundY <= 0 || groundY > clips.idle.frames[0].h))
+      throw Error('脚底锚点 groundY 必须位于 idle 帧高度范围内');
     atlas = await image(files.get('atlas.png')!).png().toBuffer();
     manifest = {
       format: 'frame-atlas-v1',
       image: 'atlas.png',
       clips,
+      ...(groundY !== undefined ? { groundY } : {}),
       author: String(input.author ?? '').slice(0, 200),
       license: String(input.license ?? '').slice(0, 200),
       source: String(input.source ?? '').slice(0, 2000),

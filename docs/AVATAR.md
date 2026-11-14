@@ -36,6 +36,26 @@ Each clip has 1–120 frames and at most 30 FPS. Assign named clips for idle, wo
 
 Both renderers share native window movement. With roaming enabled, an idle character walks along the work area using the `walk` clip when supplied. Generation, a visible bubble and the reply composer interrupt idle roaming. Observation moves the character to the bottom-right and holds it there. Dragging tracks the pointer; an enhanced avatar plays `picked`, `fall`, and `land` when those clips are present. After a drop, a docked avatar returns to its corner.
 
+### Ground alignment
+
+The shared host aligns the resting foot baseline with the primary Windows work-area
+bottom (normally the taskbar's top edge), rather than aligning the transparent canvas.
+Horizontal and top-edge margins remain unchanged; there is no extra vertical gap.
+Dragging and body animations use the same fixed baseline, so an animation does not
+reposition its window on every frame. Work-area changes are checked every three seconds.
+
+A frame-atlas manifest may declare `groundY`: the baseline measured from the top of
+the first idle frame, in unscaled frame pixels (`0 < groundY <= frame height`). Import,
+character packaging and scaling preserve this metadata. Without it, the host uses
+the lowest visible pixel across idle frames; wholly transparent materials fall back
+to the canvas bottom. Calibration occurs only when loading a material.
+
+ABI v1 native renderers may return `groundY` in their `describe` metadata, in **scaled
+canvas pixels**. Existing renderers remain compatible: the host calibrates their
+initial idle frame when the field is absent. Invalid declared anchors reject the new
+material without replacing the running one. `avatar.status` exposes `ground.anchorY`,
+`source`, `screenY` and `floorY` for diagnostics. No capture or inference is used.
+
 ## Native renderer extensions
 
 `avatar.renderers@2` registers a material directory and an absolute native library

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 pub mod avatar_motion;
 pub mod avatar_activity;
+pub mod avatar_geometry;
 #[cfg(windows)]
 pub mod avatar_renderer;
 #[cfg(windows)]

@@ -3,6 +3,7 @@
 mod desktop {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     use echo_native::avatar_motion::{Motion, Phase};
+    use echo_native::avatar_geometry::{GroundAnchor, declared_ground, movement_bounds, resolve_ground, visible_bottom};
     use image::imageops::{FilterType, crop_imm, resize};
     use image::{DynamicImage, ImageDecoder, codecs::png::PngDecoder};
     use serde_json::{Value, json};
@@ -37,6 +38,7 @@ mod desktop {
         bits: *mut c_void,
         w: i32,
         h: i32,
+        ground: GroundAnchor,
         clips: HashMap<String, FrameClip>,
         fps: u64,
         fps_override: Option<u64>,
@@ -119,19 +121,32 @@ mod desktop {
         unsafe {
             let root = std::path::Path::new(directory);
             if renderer != "frames" {
-                let extension = echo_native::avatar_renderer::Renderer::load(
+                let mut extension = echo_native::avatar_renderer::Renderer::load(
                     library.ok_or("renderer library absent")?,
                     directory,
                     scale,
                 )?;
                 let m = &extension.metadata;
+                let (w, h) = (m["width"].as_u64().unwrap() as i32, m["height"].as_u64().unwrap() as i32);
+                let fps = fps_override.unwrap_or(m["fps"].as_u64().unwrap_or(10))
+                    .clamp(1, m["maxFps"].as_u64().unwrap_or(30));
+                let declared = m.get("groundY").map(|v| v.as_f64().ok_or("groundY must be a number")).transpose()?;
+                let declared = declared_ground(declared, h as f64)?;
+                // ABI v1 renderers without groundY remain compatible. The alpha
+                // buffer is sampled once, not rescanned on every animation frame.
+                let visible = if declared.is_none() {
+                    extension.request("render", json!({"seconds":0.,"clip":"idle","elapsed":0.,"facingLeft":false}))?;
+                    let mut pixels = vec![0; w as usize * h as usize * 4];
+                    extension.copy_pixels(pixels.as_mut_ptr())?;
+                    visible_bottom(w, h, &pixels)
+                } else { None };
+                let ground = resolve_ground(declared, visible, h);
                 return create_canvas(
-                    m["width"].as_u64().unwrap() as i32,
-                    m["height"].as_u64().unwrap() as i32,
+                    w,
+                    h,
+                    ground,
                     HashMap::new(),
-                    fps_override
-                        .unwrap_or(m["fps"].as_u64().unwrap_or(10))
-                        .clamp(1, m["maxFps"].as_u64().unwrap_or(30)),
+                    fps,
                     fps_override,
                     Some(extension),
                 );
@@ -151,6 +166,9 @@ mod desktop {
             let first = idle.first().ok_or("idle frames absent")?;
             let w = (first["w"].as_u64().ok_or("width")? as f64 * scale).round() as i32;
             let h = (first["h"].as_u64().ok_or("height")? as f64 * scale).round() as i32;
+            let declared = manifest.get("groundY").map(|v| v.as_f64().ok_or("groundY must be a number")).transpose()?;
+            let declared = declared_ground(declared, first["h"].as_u64().unwrap() as f64)?
+                .map(|y| y * h as f64 / first["h"].as_u64().unwrap() as f64);
             if !(8..=2048).contains(&w) || !(8..=2048).contains(&h) {
                 return Err("frame dimensions invalid".into());
             }
@@ -214,12 +232,15 @@ mod desktop {
                 );
             }
             let fps = clips["idle"].fps;
-            create_canvas(w, h, clips, fps, fps_override, None)
+            let visible = clips["idle"].frames.iter().filter_map(|pixels| visible_bottom(w, h, pixels)).reduce(f64::max);
+            let ground = resolve_ground(declared, visible, h);
+            create_canvas(w, h, ground, clips, fps, fps_override, None)
         }
     }
     unsafe fn create_canvas(
         w: i32,
         h: i32,
+        ground: GroundAnchor,
         clips: HashMap<String, FrameClip>,
         fps: u64,
         fps_override: Option<u64>,
@@ -243,6 +264,7 @@ mod desktop {
                 bits,
                 w,
                 h,
+                ground,
                 clips,
                 fps,
                 fps_override,
@@ -265,11 +287,7 @@ mod desktop {
                 return None;
             }
             let margin = dip(s, 12.);
-            let left = area.left + margin;
-            let top = area.top + margin;
-            let right = (area.right - c.w - margin).max(left);
-            let bottom = (area.bottom - c.h - margin).max(top);
-            Some([left, top, right, bottom].map(f64::from))
+            Some(movement_bounds([area.left, area.top, area.right, area.bottom], c.w, c.ground, margin))
         }
     }
     unsafe fn position(s: &mut State, roam: bool) {
@@ -850,9 +868,14 @@ mod desktop {
                     "avatar.status" => {
                         let mut rect = RECT::default();
                         let _ = GetWindowRect(s.hwnd, &mut rect);
+                        let ground = s.canvas.as_ref().map(|c| json!({
+                            "anchorY":c.ground.y,"source":c.ground.source,
+                            "screenY":rect.top as f64+c.ground.y,
+                            "floorY":s.scene.as_ref().map(|scene|scene.bounds()[3]+c.ground.y)
+                        }));
                         respond(
                             id,
-                            json!({"language":if s.english {"en"} else {"zh-CN"},"renderer":"win32","borderless":GetClassLongPtrW(s.hwnd,GCL_STYLE)&(CS_DROPSHADOW.0 as usize)==0,"animation":s.canvas.as_ref().and_then(|c|c.extension.as_ref()).map_or("frames",|r|r.metadata["kind"].as_str().unwrap_or("extension")),"sharedHost":true,"rendererAbi":s.canvas.as_ref().and_then(|c|c.extension.as_ref()).map(|_|1),"bubbleHeader":false,"composerHeader":false,"docked":s.docked,"motion":s.motion_override.as_ref().and_then(|v|v["phase"].as_str()).or_else(||s.scene.as_ref().map(|scene|scene.phase.name())),"facing":s.scene.as_ref().map(|scene| if scene.facing_left { "left" } else { "right" }),"roam":s.scene.as_ref().is_some_and(|scene| scene.roam),"pid":std::process::id(),"activity":activity(s),"clip":s.playing,"paints":s.paints,"visible":IsWindowVisible(s.hwnd).as_bool(),"bubbleVisible":IsWindowVisible(s.bubble).as_bool(),"composerVisible":IsWindowVisible(s.composer).as_bool(),"draftLength":GetWindowTextLengthW(s.edit),"imeComposing":s.ime_active,"pendingReply":s.pending_reply.is_some(),"conversationId":s.conversation,"text":s.text,"left":rect.left,"top":rect.top,"width":rect.right-rect.left,"height":rect.bottom-rect.top}),
+                            json!({"ground":ground,"language":if s.english {"en"} else {"zh-CN"},"renderer":"win32","borderless":GetClassLongPtrW(s.hwnd,GCL_STYLE)&(CS_DROPSHADOW.0 as usize)==0,"animation":s.canvas.as_ref().and_then(|c|c.extension.as_ref()).map_or("frames",|r|r.metadata["kind"].as_str().unwrap_or("extension")),"sharedHost":true,"rendererAbi":s.canvas.as_ref().and_then(|c|c.extension.as_ref()).map(|_|1),"bubbleHeader":false,"composerHeader":false,"docked":s.docked,"motion":s.motion_override.as_ref().and_then(|v|v["phase"].as_str()).or_else(||s.scene.as_ref().map(|scene|scene.phase.name())),"facing":s.scene.as_ref().map(|scene| if scene.facing_left { "left" } else { "right" }),"roam":s.scene.as_ref().is_some_and(|scene| scene.roam),"pid":std::process::id(),"activity":activity(s),"clip":s.playing,"paints":s.paints,"visible":IsWindowVisible(s.hwnd).as_bool(),"bubbleVisible":IsWindowVisible(s.bubble).as_bool(),"composerVisible":IsWindowVisible(s.composer).as_bool(),"draftLength":GetWindowTextLengthW(s.edit),"imeComposing":s.ime_active,"pendingReply":s.pending_reply.is_some(),"conversationId":s.conversation,"text":s.text,"left":rect.left,"top":rect.top,"width":rect.right-rect.left,"height":rect.bottom-rect.top}),
                         );
                     }
                     "avatar.quit" => {

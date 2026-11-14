@@ -6,6 +6,24 @@ import sharp from 'sharp';
 import { zipSync } from 'fflate';
 import { setup } from './helpers.ts';
 const ui = { kind: 'ui' as const, permissions: new Set(['*']) };
+test('frame material import preserves a declared foot anchor and rejects invalid anchors', async (t) => {
+  const app = await setup(t);
+  await app.plugins.enable('avatar');
+  const dir = join(app.runtime, 'ground-anchor');
+  await mkdir(dir);
+  await writeFile(join(dir, 'atlas.png'), await sharp({
+    create: { width: 32, height: 40, channels: 4, background: '#0000' },
+  }).png().toBuffer());
+  const manifest = { format: 'frame-atlas-v1', groundY: 32,
+    clips: { idle: { fps: 10, frames: [{ x: 0, y: 0, w: 32, h: 40 }] } } };
+  await writeFile(join(dir, 'manifest.json'), JSON.stringify(manifest));
+  const asset = await app.registry.call('avatar.import', { source: dir, requestId: 'valid-ground' }, ui);
+  assert.equal(JSON.parse(await readFile(join(asset.directory, 'manifest.json'), 'utf8')).groundY, 32);
+  for (const [n, value] of [0, 41, '32'].entries()) {
+    await writeFile(join(dir, 'manifest.json'), JSON.stringify({ ...manifest, groundY: value }));
+    await assert.rejects(app.registry.call('avatar.import', { source: dir, requestId: 'bad-ground-' + n }, ui), /脚底锚点/);
+  }
+});
 test('PetDex trims transparent row padding while retaining authored interior gaps', async (t) => {
   const app = await setup(t);
   await app.plugins.enable('avatar');

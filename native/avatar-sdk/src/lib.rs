@@ -37,6 +37,8 @@ pub struct Api {
 }
 pub trait Renderer {
     /// width, height, fps, maxFps, clips, kind, and optional motionHooks/walkSpeed.
+    /// Optional groundY is the resting foot baseline in scaled canvas pixels,
+    /// 0 < groundY <= height. Older renderers use idle-frame alpha calibration.
     fn describe(&self) -> Value;
     /// Premultiplied BGRA, top-down. Facing is applied by the renderer so depth
     /// ordering and other direction-sensitive effects can change correctly.
