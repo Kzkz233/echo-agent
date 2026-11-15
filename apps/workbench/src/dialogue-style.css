@@ -8,7 +8,7 @@
   display: block;
   margin: 20px 0 14px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--font-caption);
   color: var(--muted);
 }
 .dialogue-delivery {
@@ -27,7 +27,7 @@
   border-radius: 18px 18px 18px 7px;
   background: color-mix(in srgb, var(--border) 43%, var(--panel));
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--font-body);
   line-height: 1.6;
   overflow-wrap: anywhere;
 }

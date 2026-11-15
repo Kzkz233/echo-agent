@@ -749,7 +749,7 @@ export class Application {
         frontend: { pages: await this.frontend.pages() },
         extensionPackages: this.extensions.packageStatus(),
         externalMcpServers: this.externalMcp.list(),
-        preferences: this.store.get('preferences', { language: 'zh-CN', accent: '#5969c9' }),
+        preferences: this.store.get('preferences', { language: 'zh-CN', accent: '#1f647a' }),
         profiles: this.router.profiles(),
         connections: this.router.inference.connections(),
         inference: {

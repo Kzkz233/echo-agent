@@ -1,15 +1,17 @@
 import { useSyncExternalStore } from 'react';
 import catalog from './locales.json';
 import type { Preferences } from '../../../packages/contracts/index.ts';
+import { preferencesSchema } from '../../../packages/contracts/index.ts';
+import { appearanceSnapshot, defaultAccent } from '../../../packages/contracts/appearance.ts';
 export type { Preferences };
-export const defaults: Preferences = { language: 'zh-CN', accent: '#5969c9' };
+export const defaults: Preferences = { language: 'zh-CN', accent: defaultAccent };
 let value: Preferences = defaults;
 let unsaved = false;
 const listeners = new Set<() => void>();
 try {
   const saved = JSON.parse(localStorage.getItem('echo.appearance') ?? 'null');
-  if (saved && ['zh-CN', 'en'].includes(saved.language) && /^#[0-9a-f]{6}$/i.test(saved.accent))
-    value = saved;
+  const parsed = preferencesSchema.safeParse(saved);
+  if (parsed.success) value = parsed.data;
 } catch {}
 export const preferences = () => value;
 export function usePreferences() {
@@ -73,39 +75,39 @@ export function statusText(state: string) {
   };
   return t(labels[state] ?? state);
 }
-const mix = (rgb: number[], other: number[], ratio: number) =>
-  rgb.map((v, i) => Math.round(v * (1 - ratio) + other[i] * ratio));
-const hex = (rgb: number[]) => '#' + rgb.map((v) => v.toString(16).padStart(2, '0')).join('');
-function contrast(rgb: number[]) {
-  const c = rgb
-    .map((v) => v / 255)
-    .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
-  return 1.05 / (c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722 + 0.05);
-}
+const systemAppearance = matchMedia('(prefers-color-scheme: dark)');
+export const currentAppearance = () => appearanceSnapshot(value, systemAppearance.matches);
+let appearanceRevision = 0;
 function apply() {
-  const rgb = [1, 3, 5].map((i) => parseInt(value.accent.slice(i, i + 2), 16));
-  let ink = [...rgb];
-  while (contrast(ink) < 4.55) ink = mix(ink, [0, 0, 0], 0.04);
-  const tokens: Record<string, string> = {
-    '--accent': value.accent,
-    '--accent-text': hex(ink),
-    '--accent-on': contrast(rgb) >= 4.5 ? '#ffffff' : '#20283a',
-    '--accent-hover': hex(mix(rgb, [0, 0, 0], 0.12)),
-    '--accent-soft': hex(mix(ink, [255, 255, 255], 0.92)),
-    '--accent-line': hex(mix(ink, [255, 255, 255], 0.73)),
-    '--focus-ring': hex(ink) + '18',
-  };
-  for (const [key, color] of Object.entries(tokens))
+  const revision = ++appearanceRevision;
+  document.documentElement.dataset.echoThemeChanging = 'true';
+  const appearance = currentAppearance();
+  for (const [key, color] of Object.entries(appearance.tokens))
     document.documentElement.style.setProperty(key, color);
+  document.documentElement.style.colorScheme = appearance.mode;
+  document.documentElement.dataset.echoTheme = appearance.mode;
+  document.documentElement.dataset.echoReducedMotion = String(appearance.reducedMotion);
   document.documentElement.lang = value.language;
+  dispatchEvent(new CustomEvent('echo-theme-changed', { detail: appearance }));
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      if (revision === appearanceRevision)
+        delete document.documentElement.dataset.echoThemeChanging;
+    }),
+  );
   if ('__TAURI_INTERNALS__' in window)
     void import('@tauri-apps/api/core')
-      .then(({ invoke }) => invoke('set_language', { language: value.language }))
+      .then(({ invoke }) =>
+        Promise.all([
+          invoke('set_language', { language: value.language }),
+          invoke('set_appearance', { theme: value.theme ?? 'system' }),
+        ]),
+      )
       .catch(() => {});
 }
 export function setPreferences(next: Preferences, local = false) {
   if (local) unsaved = true;
-  if (value.language === next.language && value.accent === next.accent) return;
+  if (JSON.stringify(value) === JSON.stringify(next)) return;
   value = next;
   try {
     localStorage.setItem('echo.appearance', JSON.stringify(next));
@@ -113,6 +115,9 @@ export function setPreferences(next: Preferences, local = false) {
   apply();
   for (const notify of listeners) notify();
 }
+systemAppearance.addEventListener('change', () => {
+  if (!value.theme || value.theme === 'system') apply();
+});
 export function applySavedPreferences(next: Preferences) {
   if (!unsaved) setPreferences(next);
 }

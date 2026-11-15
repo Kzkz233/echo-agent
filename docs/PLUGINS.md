@@ -163,3 +163,8 @@ off. Knowledge search runs when explicitly requested through the workbench or to
 See [Model context](CONTEXT.md) for the first-party order, scenario matrix and native
 harness persistence limits.
 
+
+## Shared appearance
+
+See [Workbench appearance](DESIGN-SYSTEM.md) for semantic tokens, shared controls,
+font scaling, and live theme synchronization for isolated extension pages.

@@ -2627,3 +2627,65 @@ FFmpeg 可执行文件	FFmpeg executable
 运行时程序不存在或不可访问	Runtime executable is missing or inaccessible
 内置 ONNX 运行时已配置；尚未加载模型	Built-in ONNX runtime is configured; model inference has not been tested
 此接入器尚未提供连接检查	This adapter does not provide connection checks
+界面外观	Appearance
+跟随系统	System
+浅色	Light
+深色	Dark
+强调色	Accent color
+湖蓝	Lake blue
+用于链接与交互标记，背景和主操作保持中性。	Used for links and interaction marks. Surfaces and primary actions remain neutral.
+聊天字号	Chat font size
+增强界面对比	Increase interface contrast
+加深分隔线与控件边界。	Strengthen separators and control boundaries.
+减少动态效果	Reduce motion
+减少界面运动，保留必要的状态反馈。	Reduce interface motion while retaining essential status feedback.
+有未读内容	Unread activity
+在这里管理解析连接。文件类型路由与已有内容迁移统一在入库流程中配置。	Manage parser connections here. Configure file routing and existing-content migration in the ingestion pipeline.
+入库流程	Ingestion pipeline
+所有知识库沿用此默认流程。保存配置不会重跑已有解析或切换现有索引。	All libraries inherit this default pipeline. Saving does not reparse existing content or switch active indexes.
+音视频转录	Audio and video transcription
+图片处理	Image processing
+按支持格式自动选择	Select automatically by supported format
+沿用共享语义模型	Use the shared embedding model
+原生图片索引处理	Native image preparation
+原生音视频索引处理	Native audio and video preparation
+新导入内容自动建立索引	Automatically index new imports
+切块与媒体	Chunking and media
+文本片段长度	Text chunk length
+文本重叠长度	Text overlap
+媒体片段秒数	Media segment duration (seconds)
+索引内容	Indexed content
+图片	Images
+入库流程已保存	Ingestion pipeline saved
+保存默认流程	Save default pipeline
+更新已有内容	Update existing content
+默认复用正文、转录与附件，仅生成内容结构和目标索引。旧索引在迁移完成前继续生效。	Reuse existing text, transcripts and attachments by default. Build content structure and the target index while the previous index remains active.
+同时应用解析配置变更（仅更新受影响的原件）	Apply parser configuration changes to affected originals only
+预览迁移	Preview migration
+复用解析	Reused parsing
+重新解析	Reparse
+需要处理	Needs attention
+所选模型不支持的模态不会建立向量	Unsupported modalities will not be embedded by this model
+查看条目明细	View affected entries
+迁移已启动	Migration started
+开始迁移	Start migration
+向量	vectors
+恢复上一版索引	Restore previous index
+原件没有音轨	The original has no audio track
+未检测到可转录语音	No transcribable speech detected
+原件仍可播放和检索	The original remains playable and searchable
+部分转录待核对，可疑文字未纳入检索	Some transcription needs review; uncertain text is excluded from search
+命中证据与上级内容	Matching evidence and parent context
+页码	Page
+默认解析与索引流程在知识系统设置中统一配置。	Configure default parsing and indexing in Knowledge System settings.
+解析器	Parser
+昨天	Yesterday
+GitHub 新版本	New GitHub release
+GitHub 暂无较新版本	No newer GitHub release
+GitHub 更新已暂存	GitHub update staged
+回滚已准备就绪	Rollback ready
+本地更新已暂存	Local update staged
+正在准备安全重启	Preparing a safe restart
+新任务已暂停准入，等待正在执行的工作结束。	New work is paused while active work reaches a safe stopping point.
+取消重启	Cancel restart
+界面字号	Interface font size

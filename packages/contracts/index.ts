@@ -16,7 +16,12 @@ export const preferencesSchema = z.object({
   accent: z
     .string()
     .regex(/^#[0-9a-f]{6}$/i)
-    .default('#5969c9'),
+    .default('#1f647a'),
+  theme: z.enum(['system', 'light', 'dark']).optional(),
+  chatFontSize: z.number().int().min(14).max(18).optional(),
+  uiFontSize: z.number().int().min(14).max(16).optional(),
+  reducedMotion: z.boolean().optional(),
+  highContrast: z.boolean().optional(),
 });
 export type Preferences = z.infer<typeof preferencesSchema>;
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FrontendPageEntry } from '../../../packages/contracts/frontend.ts';
 import { rpc, extensionURL } from './client.ts';
 import { Button, EmptyState, sameData, useUnsavedChanges, requestNavigation } from './ui.tsx';
-import { t } from './i18n.ts';
+import { t, currentAppearance, usePreferences } from './i18n.ts';
 
 export function PluginPage({
   page,
@@ -19,6 +19,15 @@ export function PluginPage({
   popout?: () => void;
   embedded?: boolean;
 }) {
+  const preferences = usePreferences();
+  const activeBridge = useRef('');
+  const sendTheme = () => {
+    if (activeBridge.current)
+      frame.current?.contentWindow?.postMessage(
+        { type: 'echo:theme', bridge: activeBridge.current, appearance: currentAppearance() },
+        '*',
+      );
+  };
   const [content, setContent] = useState<{ page: FrontendPageEntry; html?: string }>();
   const [value, setValue] = useState<Record<string, any>>({});
   const [issue, setIssue] = useState('');
@@ -66,6 +75,7 @@ export function PluginPage({
     let active = true,
       pending = 0;
     const bridge = crypto.randomUUID();
+    activeBridge.current = bridge;
     const view = content.page.view;
     void rpc<{ ticket: string }>('frontend.mount', { id: page.id, bridge, personaId })
       .then(({ ticket }) => {
@@ -76,6 +86,15 @@ export function PluginPage({
       });
     const receive = async (event: MessageEvent) => {
       const data = event.data;
+      if (
+        active &&
+        event.source === frame.current?.contentWindow &&
+        data?.bridge === bridge &&
+        data.type === 'echo:ready'
+      ) {
+        sendTheme();
+        return;
+      }
       if (
         !active ||
         event.source !== frame.current?.contentWindow ||
@@ -168,16 +187,29 @@ export function PluginPage({
     };
     addEventListener('message', receive);
     // Frames receive invalidation signals, never private message/event payloads.
-    const changed = (event: Event) => frame.current?.contentWindow?.postMessage(
-      { type: 'echo:event', bridge, event: { type: (event as CustomEvent).detail?.type, data: {} } }, '*');
+    const changed = (event: Event) =>
+      frame.current?.contentWindow?.postMessage(
+        {
+          type: 'echo:event',
+          bridge,
+          event: { type: (event as CustomEvent).detail?.type, data: {} },
+        },
+        '*',
+      );
     addEventListener('echo-event', changed);
     return () => {
       active = false;
+      activeBridge.current = '';
       setDirty(false);
       removeEventListener('message', receive);
       removeEventListener('echo-event', changed);
     };
   }, [content, contextKey]);
+  useEffect(() => {
+    sendTheme();
+    addEventListener('echo-theme-changed', sendTheme);
+    return () => removeEventListener('echo-theme-changed', sendTheme);
+  }, [preferences, src]);
   const view = content?.page.view;
   const frameless = view?.type === 'webview' && view.frameless;
   useEffect(() => {
@@ -192,7 +224,10 @@ export function PluginPage({
     const observer = new ResizeObserver(fit);
     if (element.parentElement) observer.observe(element.parentElement);
     window.addEventListener('resize', fit);
-    return () => { observer.disconnect(); window.removeEventListener('resize', fit); };
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', fit);
+    };
   }, [frameless, src]);
   return (
     <section
@@ -229,6 +264,7 @@ export function PluginPage({
           sandbox="allow-scripts"
           referrerPolicy="no-referrer"
           src={src || undefined}
+          onLoad={sendTheme}
         />
       ) : (
         <form

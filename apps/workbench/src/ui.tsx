@@ -154,8 +154,8 @@ const paths: Record<string, ReactNode> = {
   settings: (
     <>
       <path d="M4 7h16M4 17h16" />
-      <circle cx="9" cy="7" r="3" fill="white" />
-      <circle cx="15" cy="17" r="3" fill="white" />
+      <circle cx="9" cy="7" r="3" fill="var(--panel)" />
+      <circle cx="15" cy="17" r="3" fill="var(--panel)" />
     </>
   ),
 };

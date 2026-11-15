@@ -11,7 +11,15 @@ import { ChatView } from './chat-view.tsx';
 import { ConversationInteractions, subtaskApprovalLabel } from './host-interactions.tsx';
 const RunTrace = lazy(() => import('./run-trace.tsx'));
 
-export function CharacterHome({ role, data, act, edit, openTask, setPage, backstage = false }: any) {
+export function CharacterHome({
+  role,
+  data,
+  act,
+  edit,
+  openTask,
+  setPage,
+  backstage = false,
+}: any) {
   const confirm = useConfirm();
   const [character, setCharacter] = useState<any>();
   const activity = data.characterActivities?.[role.id] ?? { enabled: true, revision: 0 };
@@ -90,52 +98,58 @@ export function CharacterHome({ role, data, act, edit, openTask, setPage, backst
     }, '');
   return (
     <div className="character-home">
-      <header className={'character-home-heading' + (backstage ? '' : ' character-dialogue-heading')}>
-        <div>
-          <h1>{role.name}</h1>
-          {!activity.enabled && <span className="state-pill">{t('角色已停用')}</span>}
-          <span>{character?.state === 'needs-attention' ? character.issue : ''}</span>
-        </div>
-        <div className="row">
-          {(backstage || !activity.enabled) && <Button
-            secondary
-            onClick={() =>
-              act(() =>
-                rpc('characters.setActive', {
-                  personaId: role.id,
-                  enabled: !activity.enabled,
-                  revision: activity.revision,
-                }),
-              )
-            }
-          >
-            {t(activity.enabled ? '停用角色' : '启用角色')}
-          </Button>}
-          {backstage && character?.features.includes('avatar') &&
-            data.plugins.some((plugin: any) => plugin.id === 'avatar' && plugin.enabled) && (
+      {(backstage || !activity.enabled || character?.state === 'needs-attention') && (
+        <header
+          className={'character-home-heading' + (backstage ? '' : ' character-dialogue-heading')}
+        >
+          <div>
+            <h1>{role.name}</h1>
+            {!activity.enabled && <span className="state-pill">{t('角色已停用')}</span>}
+            <span>{character?.state === 'needs-attention' ? character.issue : ''}</span>
+          </div>
+          <div className="row">
+            {(backstage || !activity.enabled) && (
               <Button
                 secondary
-                disabled={!activity.enabled}
                 onClick={() =>
                   act(() =>
-                    rpc('avatar.configureRole', {
+                    rpc('characters.setActive', {
                       personaId: role.id,
-                      patch: { enabled: !data.avatarProfiles?.[role.id]?.enabled },
+                      enabled: !activity.enabled,
+                      revision: activity.revision,
                     }),
                   )
                 }
               >
-                {t(data.avatarProfiles?.[role.id]?.enabled ? '隐藏桌宠' : '显示桌宠')}
+                {t(activity.enabled ? '停用角色' : '启用角色')}
               </Button>
             )}
-          {backstage && <Button secondary onClick={exportRole}>
-            {t('导出角色包')}
-          </Button>}
-          <Button secondary onClick={() => edit(role)}>
-            {t('配置角色')}
-          </Button>
-        </div>
-      </header>
+            {backstage &&
+              character?.features.includes('avatar') &&
+              data.plugins.some((plugin: any) => plugin.id === 'avatar' && plugin.enabled) && (
+                <Button
+                  secondary
+                  disabled={!activity.enabled}
+                  onClick={() =>
+                    act(() =>
+                      rpc('avatar.configureRole', {
+                        personaId: role.id,
+                        patch: { enabled: !data.avatarProfiles?.[role.id]?.enabled },
+                      }),
+                    )
+                  }
+                >
+                  {t(data.avatarProfiles?.[role.id]?.enabled ? '隐藏桌宠' : '显示桌宠')}
+                </Button>
+              )}
+            {backstage && (
+              <Button secondary onClick={exportRole}>
+                {t('导出角色包')}
+              </Button>
+            )}
+          </div>
+        </header>
+      )}
       {!activity.enabled && (
         <p className="muted">{t('任务、会话和桌宠已暂停，配置与历史保留。')}</p>
       )}
@@ -224,8 +238,13 @@ export function DelegationView({
   const allowedProfiles = data.profiles.filter(
     (p: any) => p.id === mainProfile || configuration?.allowedProfileIds.includes(p.id),
   );
-  const canChooseFull = configuration?.allowFullAccess && configuration.approvals !== 'deny' &&
-    allowedProfiles.some((profile: any) => profile.id === (profileId || mainProfile) && ['api', 'pi'].includes(profile.kind));
+  const canChooseFull =
+    configuration?.allowFullAccess &&
+    configuration.approvals !== 'deny' &&
+    allowedProfiles.some(
+      (profile: any) =>
+        profile.id === (profileId || mainProfile) && ['api', 'pi'].includes(profile.kind),
+    );
   const states: Record<string, string> = {
     queued: '等待执行',
     running: '执行中',
@@ -259,21 +278,21 @@ export function DelegationView({
               />
             </label>
             <PathInput label="工作目录" value={workspace} onChange={setWorkspace} directory />
-              <ModelChoice
-                label="执行器"
-                data={{ ...data, profiles: allowedProfiles }}
-                executor
-                value={profileId}
-                onChange={setProfileId}
-                inheritValue={mainProfile}
-                disabled={configuration?.selectionMode === 'fixed'}
-              />
-              <ReasoningSelect
-                label="思考强度"
-                value={reasoning}
-                onChange={setReasoning}
-                profileId={profileId || mainProfile}
-              />
+            <ModelChoice
+              label="执行器"
+              data={{ ...data, profiles: allowedProfiles }}
+              executor
+              value={profileId}
+              onChange={setProfileId}
+              inheritValue={mainProfile}
+              disabled={configuration?.selectionMode === 'fixed'}
+            />
+            <ReasoningSelect
+              label="思考强度"
+              value={reasoning}
+              onChange={setReasoning}
+              profileId={profileId || mainProfile}
+            />
             <details className="card">
               <summary>{t('本次执行设置')}</summary>
               <label className="field">
@@ -298,10 +317,16 @@ export function DelegationView({
                 />
                 {t('本次允许修改文件')}
               </label>
-              {canChooseFull && <label className="inline-toggle">
-                <input type="checkbox" checked={fullAccess} onChange={(event) => setFullAccess(event.target.checked)} />
-                {t('本任务使用本机完全访问')}
-              </label>}
+              {canChooseFull && (
+                <label className="inline-toggle">
+                  <input
+                    type="checkbox"
+                    checked={fullAccess}
+                    onChange={(event) => setFullAccess(event.target.checked)}
+                  />
+                  {t('本任务使用本机完全访问')}
+                </label>
+              )}
               {configuration?.terminal && (
                 <label className="inline-toggle">
                   <input
@@ -419,7 +444,12 @@ export function DelegationView({
                 </select>
               </label>
             </div>
-            <WorkContextSettings personaId={personaId} profileId={profileId || mainProfile} value={contextOptions} onChange={setContextOptions} />
+            <WorkContextSettings
+              personaId={personaId}
+              profileId={profileId || mainProfile}
+              value={contextOptions}
+              onChange={setContextOptions}
+            />
             <Button
               disabled={
                 data.characterActivities?.[personaId]?.enabled === false ||
@@ -505,12 +535,18 @@ export function DelegationView({
             />
           )}
           <ConversationInteractions id={task.workerConversationId} act={act} />
-          {task.approvalReviews?.length > 0 && <details>
-            <summary>{t('主会话代审记录')}</summary>
-            <ul>{task.approvalReviews.map((review: any, index: number) => <li key={index}>
-              {t(review.decision === 'allow' ? '已批准' : '已拒绝')} · {review.path}
-            </li>)}</ul>
-          </details>}
+          {task.approvalReviews?.length > 0 && (
+            <details>
+              <summary>{t('主会话代审记录')}</summary>
+              <ul>
+                {task.approvalReviews.map((review: any, index: number) => (
+                  <li key={index}>
+                    {t(review.decision === 'allow' ? '已批准' : '已拒绝')} · {review.path}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
           {task.error && <p className="warning">{task.error}</p>}
           {task.checkpoint && (
             <section>
@@ -824,13 +860,12 @@ export function GroupView({ data, act, groupId, onSelect, setPage }: any) {
           <div className="group-messages">
             {state.messages.map((m: any) => (
               <article key={m.id} className={'group-message ' + m.role}>
-                <div className="message-author"><strong>{m.meta.authorName ?? t('你')}</strong>
+                <div className="message-author">
+                  <strong>{m.meta.authorName ?? t('你')}</strong>
                   <MessageTime at={m.createdAt} timezone={data.clock?.timezone} now={now} />
                 </div>
                 <div className="readable-pre">{m.text}</div>
-                {turns.get(m.id)?.state === 'running' && (
-                  <small role="status">{t('执行中')}</small>
-                )}
+                {turns.get(m.id)?.state === 'running' && <small role="status">{t('执行中')}</small>}
                 {turns.get(m.id)?.error && (
                   <p className="warning readable-pre">
                     <strong>{statusText(turns.get(m.id)!.state)}</strong> · {turns.get(m.id)?.error}

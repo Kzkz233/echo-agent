@@ -11,9 +11,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kzkz233/echo-agent/releases/latest"><img alt="最新发布" src="https://img.shields.io/github/v/release/Kzkz233/echo-agent?label=Release&amp;color=5965c5"></a>
-  <a href="https://github.com/Kzkz233/echo-agent/releases/latest"><img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-5965c5"></a>
-  <a href="LICENSE"><img alt="Apache 2.0 许可证" src="https://img.shields.io/badge/License-Apache%202.0-5965c5"></a>
+  <a href="https://github.com/Kzkz233/echo-agent/releases/latest"><img alt="最新发布" src="https://img.shields.io/github/v/release/Kzkz233/echo-agent?label=Release&amp;color=242931"></a>
+  <a href="https://github.com/Kzkz233/echo-agent/releases/latest"><img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-242931"></a>
+  <a href="LICENSE"><img alt="Apache 2.0 许可证" src="https://img.shields.io/badge/License-Apache%202.0-242931"></a>
 </p>
 
 <p align="center">
@@ -60,6 +60,9 @@
 - 工作目录和工具权限按角色授权。核心记忆变更、邮件发送和远端邮件整理需要审批。停用角色会停止其会话、自动化任务、渠道收发和桌宠，配置与历史保留。
 
 ## 项目文档
+
+[界面设计与插件主题接口](docs/DESIGN-SYSTEM.md) · [0.20 验证记录](docs/VERIFICATION-0.20.md)
+
 
 | 主题           | 文档                                                                                                                |
 | -------------- | ------------------------------------------------------------------------------------------------------------------- |

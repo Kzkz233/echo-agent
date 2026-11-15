@@ -24,7 +24,7 @@
 }
 .version-card time,
 .version-card code {
-  font-size: 13px;
+  font-size: var(--font-body);
   color: var(--muted);
 }
 .version-card code {
@@ -63,7 +63,7 @@
   margin: 20px 0;
   padding: 20px;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--radius-panel);
 }
 .update-release details {
   margin: 12px 0 20px;

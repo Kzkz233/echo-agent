@@ -83,6 +83,13 @@ export const sections: Section[] = [
     ],
   },
   {
+    id: 'appearance',
+    text: '外观与语言',
+    icon: 'settings',
+    group: '配置与维护',
+    views: [{ id: 'appearance', text: '外观与语言' }],
+  },
+  {
     id: 'connections',
     text: '模型服务',
     icon: 'backends',
@@ -110,7 +117,7 @@ export const sections: Section[] = [
     ],
   },
 ];
-export const coreViews = new Set(['chat', 'character-session', 'automation', 'backends', 'plugins', 'diagnostics', 'updates']);
+export const coreViews = new Set(['chat', 'character-session', 'automation', 'appearance', 'backends', 'plugins', 'diagnostics', 'updates']);
 export function navigationSections(pages: FrontendPageEntry[] = []): Section[] {
   const result = sections.map((section) => ({ ...section, views: [...section.views] }));
   for (const page of pages) {
@@ -129,7 +136,7 @@ export function navigationSections(pages: FrontendPageEntry[] = []): Section[] {
 export const viewSection = (page: string, pages: FrontendPageEntry[] = []) =>
   navigationSections(pages).find((s) => s.views.some((v) => v.id === page));
 export const workspaceSections = new Set(['automation', 'knowledge', 'agenda', 'mail', 'activity']);
-export const settingsSections = new Set(['connections', 'plugins', 'system']);
+export const settingsSections = new Set(['appearance', 'connections', 'plugins', 'system']);
 export const isSettingsPage = (page: string, pages: FrontendPageEntry[] = []) =>
   (['settings', 'plugin-settings'].includes(pages.find((item) => item.id === page)?.placement ?? '') || settingsSections.has(viewSection(page)?.id ?? '')) && page !== 'channels';
 export const isWorkspacePage = (page: string, pages: FrontendPageEntry[] = []) =>

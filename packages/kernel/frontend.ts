@@ -6,6 +6,7 @@ import type { PluginManager } from './registry.ts';
 import type { Extensions } from './extensions.ts';
 import { randomBytes } from 'node:crypto';
 import { extensionDocument } from './frontend-document.ts';
+import { appearanceSnapshot } from '../contracts/appearance.ts';
 
 /** Page discovery is an optional contribution, never arbitrary code in the
  * trusted workbench. Page actions retain their plugin's authority. */
@@ -69,7 +70,8 @@ export class FrontendCatalog {
     invariant(mount.instance === this.capabilities.instanceKey('core.ui.pages@1', mount.id),
       'page_unavailable', '插件页面当前不可用。');
     const content = await this.content(mount.id);
-    return extensionDocument(content.html!, mount.bridge, { pageId: mount.id, personaId: mount.personaId });
+    return extensionDocument(content.html!, mount.bridge, { pageId: mount.id, personaId: mount.personaId },
+      appearanceSnapshot(this.extensions.store.get('preferences', {})));
   }
   async invoke(id: string, operation: string, input: unknown, personaId?: string, signal?: AbortSignal) {
     const page = await this.page(id), view = page.view;

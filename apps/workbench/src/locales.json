@@ -1,5 +1,4 @@
 [
-  ["昨天", "Yesterday"],
   [
     "提供方不可用",
     "(provider unavailable)"
@@ -10365,42 +10364,6 @@
     "Parsing progress"
   ],
   [
-    "在此日期新增 ",
-    "Add entry on "
-  ],
-  [
-    "删除会话 ",
-    "Delete conversation "
-  ],
-  [
-    " · 暂停：请先核对未知执行",
-    " · blocked: reconcile unknown execution"
-  ],
-  [
-    " · v",
-    " · v"
-  ],
-  [
-    " · 已缓存正文",
-    " · Body cached"
-  ],
-  [
-    " 个附件",
-    " attachments"
-  ],
-  [
-    " 服务器",
-    " Server"
-  ],
-  [
-    " MB",
-    " MB"
-  ],
-  [
-    "编辑关注 ",
-    "Edit concern "
-  ],
-  [
     "文本与字幕",
     "Text and subtitles"
   ],
@@ -10409,16 +10372,8 @@
     "Reparse archived original"
   ],
   [
-    "重新解析",
-    "Reparse"
-  ],
-  [
     "从来源更新",
     "Update from source"
-  ],
-  [
-    "解析器",
-    "Parser"
   ],
   [
     "播放命中片段",
@@ -10439,6 +10394,54 @@
   [
     "此接入器尚未提供连接检查",
     "This adapter does not provide connection checks"
+  ],
+  [
+    "界面外观",
+    "Appearance"
+  ],
+  [
+    "跟随系统",
+    "System"
+  ],
+  [
+    "浅色",
+    "Light"
+  ],
+  [
+    "深色",
+    "Dark"
+  ],
+  [
+    "强调色",
+    "Accent color"
+  ],
+  [
+    "湖蓝",
+    "Lake blue"
+  ],
+  [
+    "用于链接与交互标记，背景和主操作保持中性。",
+    "Used for links and interaction marks. Surfaces and primary actions remain neutral."
+  ],
+  [
+    "聊天字号",
+    "Chat font size"
+  ],
+  [
+    "增强界面对比",
+    "Increase interface contrast"
+  ],
+  [
+    "加深分隔线与控件边界。",
+    "Strengthen separators and control boundaries."
+  ],
+  [
+    "减少动态效果",
+    "Reduce motion"
+  ],
+  [
+    "减少界面运动，保留必要的状态反馈。",
+    "Reduce interface motion while retaining essential status feedback."
   ],
   [
     "有未读内容",
@@ -10537,6 +10540,10 @@
     "Reused parsing"
   ],
   [
+    "重新解析",
+    "Reparse"
+  ],
+  [
     "需要处理",
     "Needs attention"
   ],
@@ -10565,6 +10572,22 @@
     "Restore previous index"
   ],
   [
+    "原件没有音轨",
+    "The original has no audio track"
+  ],
+  [
+    "未检测到可转录语音",
+    "No transcribable speech detected"
+  ],
+  [
+    "原件仍可播放和检索",
+    "The original remains playable and searchable"
+  ],
+  [
+    "部分转录待核对，可疑文字未纳入检索",
+    "Some transcription needs review; uncertain text is excluded from search"
+  ],
+  [
     "命中证据与上级内容",
     "Matching evidence and parent context"
   ],
@@ -10575,6 +10598,14 @@
   [
     "默认解析与索引流程在知识系统设置中统一配置。",
     "Configure default parsing and indexing in Knowledge System settings."
+  ],
+  [
+    "解析器",
+    "Parser"
+  ],
+  [
+    "昨天",
+    "Yesterday"
   ],
   [
     "GitHub 新版本",
@@ -10597,34 +10628,6 @@
     "Local update staged"
   ],
   [
-    "复用已保存的正文、附件和转录",
-    "Reuse saved text, attachments and transcripts"
-  ],
-  [
-    "原件由所属插件维护，请通过来源插件重新解析",
-    "The owning plugin manages this original; reparse through that plugin."
-  ],
-  [
-    "目标解析器不可用",
-    "The target parser is unavailable."
-  ],
-  [
-    "正文含人工修改，请先在条目中确认重解析",
-    "The content has manual edits. Confirm reparsing on the entry first."
-  ],
-  [
-    "旧解析来源未记录，复用现有正文；可在条目中明确重解析",
-    "Historical parser provenance is unknown. Reuse the saved content; explicit reparsing is available on the entry."
-  ],
-  [
-    "解析配置已改变，仅更新受影响的原件",
-    "Parser settings changed; update only affected originals."
-  ],
-  [
-    "解析配置未改变，复用现有正文和转录",
-    "Parser settings are unchanged; reuse saved text and transcripts."
-  ],
-  [
     "正在准备安全重启",
     "Preparing a safe restart"
   ],
@@ -10637,31 +10640,43 @@
     "Cancel restart"
   ],
   [
-    "有尚未保存的编辑",
-    "There are unsaved changes"
+    "界面字号",
+    "Interface font size"
   ],
   [
-    "后台执行尚未到达安全点",
-    "Background work has not reached a safe stopping point"
+    "在此日期新增 ",
+    "Add entry on "
   ],
   [
-    "消息仍在投递",
-    "Messages are still being delivered"
+    "删除会话 ",
+    "Delete conversation "
   ],
   [
-    "原件没有音轨",
-    "The original has no audio track"
+    " · 暂停：请先核对未知执行",
+    " · blocked: reconcile unknown execution"
   ],
   [
-    "未检测到可转录语音",
-    "No transcribable speech detected"
+    " · v",
+    " · v"
   ],
   [
-    "原件仍可播放和检索",
-    "The original remains playable and searchable"
+    " · 已缓存正文",
+    " · Body cached"
   ],
   [
-    "部分转录待核对，可疑文字未纳入检索",
-    "Some transcription needs review; uncertain text is excluded from search"
+    " 个附件",
+    " attachments"
+  ],
+  [
+    " 服务器",
+    " Server"
+  ],
+  [
+    " MB",
+    " MB"
+  ],
+  [
+    "编辑关注 ",
+    "Edit concern "
   ]
 ]

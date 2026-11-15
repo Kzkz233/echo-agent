@@ -46,7 +46,8 @@ import { ModelChoice } from './model-choice.tsx';
 import { PluginInferenceRoutes } from './plugin-inference-routes.tsx';
 import { ExternalMcpView } from './external-mcp-view.tsx';
 import './character-style.css';
-import { Appearance } from './appearance.tsx';
+import './design-system.css';
+import { Appearance, AppearanceSettings } from './appearance.tsx';
 import {
   navigationSections,
   coreViews,
@@ -121,7 +122,7 @@ function FieldInput({
   if (field.type === 'records') {
     const rows = (Array.isArray(value) ? value : []) as Record<string, unknown>[];
     const update = (index: number, next: Record<string, unknown>) =>
-      onChange(rows.map((row, i) => i === index ? next : row));
+      onChange(rows.map((row, i) => (i === index ? next : row)));
     const move = (index: number, offset: number) => {
       const next = [...rows];
       const target = index + offset;
@@ -154,7 +155,11 @@ function FieldInput({
                 <Button secondary disabled={index === 0} onClick={() => move(index, -1)}>
                   {t('上移')}
                 </Button>
-                <Button secondary disabled={index === rows.length - 1} onClick={() => move(index, 1)}>
+                <Button
+                  secondary
+                  disabled={index === rows.length - 1}
+                  onClick={() => move(index, 1)}
+                >
                   {t('下移')}
                 </Button>
                 <Button secondary onClick={() => remove(index)}>
@@ -163,7 +168,12 @@ function FieldInput({
               </div>
             </>
           );
-          if (!field.rowTitleKey) return <div className="card" key={index}>{fields}</div>;
+          if (!field.rowTitleKey)
+            return (
+              <div className="card" key={index}>
+                {fields}
+              </div>
+            );
           const title = String(row[field.rowTitleKey] ?? '').trim();
           return (
             <details className="card record-settings-row" key={index} open={expandedRow === index}>
@@ -250,31 +260,33 @@ function FieldInput({
           {field.options?.map((o) => (
             <option key={o} value={o}>
               {t(
-                (
-                  field.optionLabels?.[o] ?? ({
-                    reasoning: {
-                      inherit: '跟随后端默认',
-                      off: '关闭思考',
-                      minimal: '极低',
-                      low: '低',
-                      medium: '中',
-                      high: '高',
-                      xhigh: '极高',
-                    },
-                    reasoningStyle: { none: '不附加参数' },
-                    kind: { api: '模型 API', pi: '模型 API' },
-                    strategy: { keyword: '关键词', semantic: '语义', hybrid: '混合检索' },
-                    mode: {
-                      local: '本地模型',
-                      api: '在线 / 本机 API',
-                      keyword: '关键词',
-                      daily: '每日',
-                      turns: '按轮数',
-                      both: '两者结合',
-                    },
-                    corner: { left: '左下角', right: '右下角' },
-                  } as any)[field.key]?.[o] ?? o
-                ),
+                field.optionLabels?.[o] ??
+                  (
+                    {
+                      reasoning: {
+                        inherit: '跟随后端默认',
+                        off: '关闭思考',
+                        minimal: '极低',
+                        low: '低',
+                        medium: '中',
+                        high: '高',
+                        xhigh: '极高',
+                      },
+                      reasoningStyle: { none: '不附加参数' },
+                      kind: { api: '模型 API', pi: '模型 API' },
+                      strategy: { keyword: '关键词', semantic: '语义', hybrid: '混合检索' },
+                      mode: {
+                        local: '本地模型',
+                        api: '在线 / 本机 API',
+                        keyword: '关键词',
+                        daily: '每日',
+                        turns: '按轮数',
+                        both: '两者结合',
+                      },
+                      corner: { left: '左下角', right: '右下角' },
+                    } as any
+                  )[field.key]?.[o] ??
+                  o,
               )}
             </option>
           ))}
@@ -333,7 +345,14 @@ function App() {
     if (!data || initialLanding.current) return;
     initialLanding.current = true;
     const params = new URLSearchParams(location.search);
-    if (!settingsWindow && !params.has('page') && !params.has('persona') && !sessionStorage.getItem('echo.role') && !data.characters?.length) setPage('personas');
+    if (
+      !settingsWindow &&
+      !params.has('page') &&
+      !params.has('persona') &&
+      !sessionStorage.getItem('echo.role') &&
+      !data.characters?.length
+    )
+      setPage('personas');
   }, [data]);
   const pages = data?.frontend?.pages ?? [];
   const extensionPage = pages.find((entry: any) => entry.id === page);
@@ -366,7 +385,11 @@ function App() {
   ]);
   const role: Persona | undefined =
     newRole ?? data?.personas.find((p: Persona) => p.id === roleSelection) ?? data?.personas[0];
-  const unread = usePageBadges(connected, page, workspaceScope || settingsWindow ? undefined : role?.id);
+  const unread = usePageBadges(
+    connected,
+    page,
+    workspaceScope || settingsWindow ? undefined : role?.id,
+  );
   const roleSection =
     !settingsWindow &&
     !(extensionPage ? extensionPage.placement !== 'character' : workspaceScope) &&
@@ -750,7 +773,7 @@ function App() {
               <strong>Echo</strong>
               <span className="version">{data.version}</span>
             </div>
-            {settingsWindow && (
+            {
               <div className="nav-search">
                 <Icon name="search" size={16} />
                 <input
@@ -762,7 +785,7 @@ function App() {
                 />
                 <kbd>{t('⌃ K')}</kbd>
               </div>
-            )}
+            }
             {settingsWindow ? (
               <nav aria-label={t('主导航')}>
                 {navigationGroups.map((group) => {
@@ -844,7 +867,9 @@ function App() {
             ) : (
               <nav aria-label={t('角色与群聊')} className="character-navigation">
                 <div className="nav-group-label">
-                  <button className="text-button" onClick={() => goPage('personas')}>{t('角色')}</button>
+                  <button className="text-button" onClick={() => goPage('personas')}>
+                    {t('角色')}
+                  </button>
                   <button
                     className="icon-button"
                     aria-label={t('创建角色')}
@@ -853,23 +878,41 @@ function App() {
                     <Icon name="plus" size={16} />
                   </button>
                 </div>
-                {data.personas.map((persona: Persona) => (
-                  <button
-                    key={persona.id}
-                    className={
-                      'nav-item ' +
-                      (!workspaceScope && role?.id === persona.id && page !== 'groups'
-                        ? 'selected'
-                        : '')
-                    }
-                    onClick={() => openRole(persona)}
-                  >
-                    <CharacterPortrait className="role-initial" persona={persona} />
-                    <span>{persona.name}</span>
-                    <UnreadDot count={unread(['character', 'character-session', 'automation'], persona.id)} />
-                    {data.characterActivities?.[persona.id]?.enabled === false && <small>{t('已停用')}</small>}
-                  </button>
-                ))}
+                {data.personas
+                  .filter(
+                    (persona: Persona) =>
+                      !navSearch ||
+                      persona.name.toLowerCase().includes(navSearch.trim().toLowerCase()),
+                  )
+                  .map((persona: Persona) => (
+                    <button
+                      key={persona.id}
+                      aria-label={persona.name}
+                      title={persona.name}
+                      className={
+                        'nav-item ' +
+                        (!workspaceScope && role?.id === persona.id && page !== 'groups'
+                          ? 'selected'
+                          : '')
+                      }
+                      onClick={() => openRole(persona)}
+                    >
+                      <CharacterPortrait className="role-initial" persona={persona} />
+                      <span className="nav-role-copy">
+                        <strong>{persona.name}</strong>
+                        <small>
+                          {t(
+                            data.characterActivities?.[persona.id]?.enabled === false
+                              ? '已停用'
+                              : '已启用',
+                          )}
+                        </small>
+                      </span>
+                      <UnreadDot
+                        count={unread(['character', 'character-session', 'automation'], persona.id)}
+                      />
+                    </button>
+                  ))}
                 {enabled.has('groups') && (
                   <>
                     <div className="nav-group-label">
@@ -886,30 +929,45 @@ function App() {
                         <Icon name="plus" size={16} />
                       </button>
                     </div>
-                    {(data.groups ?? []).map((group: any) => (
-                      <button
-                        key={group.id}
-                        className={
-                          'nav-item ' +
-                          (page === 'groups' && groupSelection === group.id ? 'selected' : '')
-                        }
-                        onClick={() => {
-                          setWorkspaceScope(false);
-                          setGroupSelection(group.id);
-                          setPage('groups');
-                        }}
-                      >
-                        <Icon name="chat" />
-                        {group.name}
-                      </button>
-                    ))}
+                    {(data.groups ?? [])
+                      .filter(
+                        (group: any) =>
+                          !navSearch ||
+                          group.name.toLowerCase().includes(navSearch.trim().toLowerCase()),
+                      )
+                      .map((group: any) => (
+                        <button
+                          key={group.id}
+                          aria-label={group.name}
+                          title={group.name}
+                          className={
+                            'nav-item ' +
+                            (page === 'groups' && groupSelection === group.id ? 'selected' : '')
+                          }
+                          onClick={() => {
+                            setWorkspaceScope(false);
+                            setGroupSelection(group.id);
+                            setPage('groups');
+                          }}
+                        >
+                          <Icon name="chat" />
+                          {group.name}
+                        </button>
+                      ))}
                   </>
                 )}
                 <div className="nav-group-label">
                   <span>{t('工作台')}</span>
                 </div>
                 {sections
-                  .filter((section) => workspaceSections.has(section.id))
+                  .filter(
+                    (section) =>
+                      workspaceSections.has(section.id) &&
+                      (!navSearch ||
+                        (section.text + ' ' + t(section.text))
+                          .toLowerCase()
+                          .includes(navSearch.trim().toLowerCase())),
+                  )
                   .map((section) => {
                     const views = section.views.filter(
                       (view) => coreViews.has(view.id) || enabled.has(view.id),
@@ -920,6 +978,8 @@ function App() {
                       <button
                         key={section.id}
                         data-section={section.id}
+                        aria-label={t(section.text)}
+                        title={t(section.text)}
                         className={'nav-item ' + (active ? 'selected' : '')}
                         onClick={() =>
                           goPage(views[0].id, undefined, undefined, undefined, { workspace: true })
@@ -927,7 +987,7 @@ function App() {
                       >
                         <Icon name={section.icon} />
                         <span>{t(section.text)}</span>
-                        <UnreadDot count={unread(views.map(view => view.id))} />
+                        <UnreadDot count={unread(views.map((view) => view.id))} />
                       </button>
                     );
                   })}
@@ -949,7 +1009,12 @@ function App() {
             </div>
           </aside>
           <main>
-            <header className="topbar">
+            <header
+              className={
+                'topbar' +
+                (!extensionWindow && !settingsWindow && roleSection && role ? ' role-topbar' : '')
+              }
+            >
               <div>
                 <span className="breadcrumb">{t(viewSection(page)?.group ?? 'Echo')}</span>
                 <Icon name="chevron" size={13} />
@@ -963,7 +1028,67 @@ function App() {
                   )}
                 </strong>
               </div>
+              {!extensionWindow && !settingsWindow && roleSection && role && (
+                <div className="page-sheets" role="tablist" aria-label={t('角色能力')}>
+                  {[
+                    { id: 'character', text: '聊天', owner: 'persona' },
+                    { id: 'character-session', text: '后台工作会话', owner: 'persona' },
+                    { id: 'memory', text: '角色资料', owner: 'persona' },
+                    { id: 'automation', text: '任务', owner: 'persona' },
+                    ...pages
+                      .filter((entry: any) => entry.placement === 'character')
+                      .map((entry: any) => ({
+                        id: entry.id,
+                        text: entry.title,
+                        owner: entry.owner,
+                      })),
+                  ]
+                    .filter(
+                      (view) =>
+                        (view.id !== 'reflections' ||
+                          !data.plugins.some(
+                            (p: any) =>
+                              p.id === 'memory' &&
+                              p.enabled &&
+                              (!data.characters.find((r: any) => r.id === role.id) ||
+                                data.characters
+                                  .find((r: any) => r.id === role.id)
+                                  .features.includes('memory')),
+                          )) &&
+                        (view.owner === 'persona' ||
+                          pages.some((entry: any) => entry.id === view.id) ||
+                          view.id === 'automation' ||
+                          (view.id === 'channels' && enabled.has('channels')) ||
+                          (data.plugins.some((p: any) => p.id === view.owner && p.enabled) &&
+                            (!data.characters.find((r: any) => r.id === role.id) ||
+                              data.characters
+                                .find((r: any) => r.id === role.id)
+                                .features.includes(view.owner)))),
+                    )
+                    .map((view) => (
+                      <button
+                        key={view.id}
+                        role="tab"
+                        aria-selected={page === view.id}
+                        onClick={() => goPage(view.id)}
+                      >
+                        {t(view.text)}
+                        <UnreadDot count={unread([view.id], role.id)} />
+                      </button>
+                    ))}
+                </div>
+              )}
               <div className="topbar-actions">
+                {role && ['character', 'character-session'].includes(page) && (
+                  <button
+                    className="icon-button"
+                    title={t('配置角色')}
+                    aria-label={t('配置角色')}
+                    onClick={() => editRole(role)}
+                  >
+                    <Icon name="settings" size={17} />
+                  </button>
+                )}
                 <Appearance />
                 {data.pendingInteractions?.length > 0 && (
                   <Button
@@ -994,7 +1119,7 @@ function App() {
                   {connected ? t('本机已连接') : t('连接中')}
                 </span>
                 <button
-                  className="icon-button"
+                  className="icon-button page-refresh"
                   title={t('刷新页面数据')}
                   aria-label={t('刷新页面数据')}
                   disabled={pending > 0}
@@ -1004,61 +1129,17 @@ function App() {
                 </button>
               </div>
             </header>
-            {roleSection && !['personas', 'character', 'character-session'].includes(page) && role && (
-              <div className="role-heading">
-                <button className="text-button" onClick={() => goPage('personas')}>
-                  {t('所有角色')}
-                </button>
-                <Icon name="chevron" size={13} />
-                <strong>{role.name}</strong>
-              </div>
-            )}
-            {!extensionWindow && !settingsWindow && roleSection && role && (
-              <div className="page-sheets" role="tablist" aria-label={t('角色能力')}>
-                {[
-                  { id: 'character', text: '聊天', owner: 'persona' },
-                  { id: 'character-session', text: '后台工作会话', owner: 'persona' },
-                  { id: 'memory', text: '角色资料', owner: 'persona' },
-                  { id: 'automation', text: '任务', owner: 'persona' },
-                  ...pages
-                    .filter((entry: any) => entry.placement === 'character')
-                    .map((entry: any) => ({ id: entry.id, text: entry.title, owner: entry.owner })),
-                ]
-                  .filter(
-                    (view) =>
-                      (view.id !== 'reflections' ||
-                        !data.plugins.some(
-                          (p: any) =>
-                            p.id === 'memory' &&
-                            p.enabled &&
-                            (!data.characters.find((r: any) => r.id === role.id) ||
-                              data.characters
-                                .find((r: any) => r.id === role.id)
-                                .features.includes('memory')),
-                        )) &&
-                      (view.owner === 'persona' ||
-                        pages.some((entry: any) => entry.id === view.id) ||
-                        view.id === 'automation' ||
-                        (view.id === 'channels' && enabled.has('channels')) ||
-                        (data.plugins.some((p: any) => p.id === view.owner && p.enabled) &&
-                          (!data.characters.find((r: any) => r.id === role.id) ||
-                            data.characters
-                              .find((r: any) => r.id === role.id)
-                              .features.includes(view.owner)))),
-                  )
-                  .map((view) => (
-                    <button
-                      key={view.id}
-                      role="tab"
-                      aria-selected={page === view.id}
-                      onClick={() => goPage(view.id)}
-                    >
-                      {t(view.text)}
-                      <UnreadDot count={unread([view.id], role.id)} />
-                    </button>
-                  ))}
-              </div>
-            )}
+            {roleSection &&
+              !['personas', 'character', 'character-session'].includes(page) &&
+              role && (
+                <div className="role-heading">
+                  <button className="text-button" onClick={() => goPage('personas')}>
+                    {t('所有角色')}
+                  </button>
+                  <Icon name="chevron" size={13} />
+                  <strong>{role.name}</strong>
+                </div>
+              )}
             {!extensionWindow &&
               (settingsWindow || workspaceScope) &&
               (() => {
@@ -1116,9 +1197,16 @@ function App() {
             <div
               id={'view-' + page}
               className={
-                'page-content ' + (['chat', 'character', 'character-session'].includes(page) ? 'chat-page' : '')
+                'page-content ' +
+                (['chat', 'character', 'character-session'].includes(page) ? 'chat-page' : '')
               }
-              key={(roleSection ? (page === 'character-session' ? 'character' : page) + ':' + (role?.id ?? '') : page) + ':' + taskRevision}
+              key={
+                (roleSection
+                  ? (page === 'character-session' ? 'character' : page) + ':' + (role?.id ?? '')
+                  : page) +
+                ':' +
+                taskRevision
+              }
             >
               {error && (
                 <div className="error" role="alert">
@@ -1220,6 +1308,8 @@ function App() {
                   <Personas />
                 ) : page === 'memory' ? (
                   <Memories />
+                ) : page === 'appearance' ? (
+                  <AppearanceSettings />
                 ) : page === 'backends' ? (
                   <Backends />
                 ) : page === 'plugins' ? (
@@ -1306,7 +1396,7 @@ function RoleList({ data, openRole, act, openSettings }: any) {
         <h1>{t('角色')}</h1>
         <Button onClick={() => openRole()}>{t('＋ 新角色')}</Button>
       </div>
-      <StarterCharacters {...{data, act, openRole, openSettings}} />
+      <StarterCharacters {...{ data, act, openRole, openSettings }} />
       <div className="role-grid">
         {data.personas.map((role: Persona) => (
           <button key={role.id} className="card role-tile" onClick={() => openRole(role)}>
@@ -1591,16 +1681,36 @@ function ExtensionSettings() {
     window.addEventListener('echo:selection', selectPlugin);
     return () => window.removeEventListener('echo:selection', selectPlugin);
   }, []);
-  return <>
-    <Title title={t('扩展')} />
-    <div className="inference-tabs" role="tablist" aria-label={t('扩展')}>
-      <button type="button" role="tab" aria-selected={section === 'plugins'} className={section === 'plugins' ? 'active' : ''}
-        onClick={() => requestNavigation(() => setSection('plugins'))}>{t('组件与插件')}</button>
-      <button type="button" role="tab" aria-selected={section === 'mcp'} className={section === 'mcp' ? 'active' : ''}
-        onClick={() => requestNavigation(() => setSection('mcp'))}>{t('外部 MCP')}</button>
-    </div>
-    {section === 'plugins' ? <Plugins /> : <ExternalMcpView servers={data.externalMcpServers ?? []} act={act} />}
-  </>;
+  return (
+    <>
+      <Title title={t('扩展')} />
+      <div className="inference-tabs" role="tablist" aria-label={t('扩展')}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={section === 'plugins'}
+          className={section === 'plugins' ? 'active' : ''}
+          onClick={() => requestNavigation(() => setSection('plugins'))}
+        >
+          {t('组件与插件')}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={section === 'mcp'}
+          className={section === 'mcp' ? 'active' : ''}
+          onClick={() => requestNavigation(() => setSection('mcp'))}
+        >
+          {t('外部 MCP')}
+        </button>
+      </div>
+      {section === 'plugins' ? (
+        <Plugins />
+      ) : (
+        <ExternalMcpView servers={data.externalMcpServers ?? []} act={act} />
+      )}
+    </>
+  );
 }
 function Plugins() {
   const { data, act } = useApp();
@@ -1787,10 +1897,28 @@ function Plugins() {
               )}
             </div>
             <p>{t(plugin.description)}</p>
-            {plugin.distribution === 'local' && <div className="form-actions"><Button secondary onClick={async () => {
-              if (await confirmAction({ title: t('卸载此扩展？'), description: t('扩展接口和页面将移除，配置与数据保留。'), confirmLabel: t('卸载扩展') }))
-                await act(() => rpc('plugins.package.uninstall', { id: selected, confirmed: true }), t('扩展已卸载，数据已保留'));
-            }}>{t('卸载扩展')}</Button></div>}
+            {plugin.distribution === 'local' && (
+              <div className="form-actions">
+                <Button
+                  secondary
+                  onClick={async () => {
+                    if (
+                      await confirmAction({
+                        title: t('卸载此扩展？'),
+                        description: t('扩展接口和页面将移除，配置与数据保留。'),
+                        confirmLabel: t('卸载扩展'),
+                      })
+                    )
+                      await act(
+                        () => rpc('plugins.package.uninstall', { id: selected, confirmed: true }),
+                        t('扩展已卸载，数据已保留'),
+                      );
+                  }}
+                >
+                  {t('卸载扩展')}
+                </Button>
+              </div>
+            )}
             {data.extensionPackages?.find((entry: any) => entry.id === selected)
               ?.rollbackVersion && (
               <div className="form-actions">
@@ -1870,10 +1998,14 @@ function Plugins() {
               ))}
             {plugin.enabled && (
               <Suspense fallback={<p>{t('正在打开…')}</p>}>
-                {data.inference.adapters.some((adapter: any) => adapter.owner === selected && adapter.workerOnly) && (
+                {data.inference.adapters.some(
+                  (adapter: any) => adapter.owner === selected && adapter.workerOnly,
+                ) && (
                   <BackendsView key={selected} data={data} act={act} owner={selected} embedded />
                 )}
-                {data.inference.tasks.some((task:any)=>task.owner===selected&&task.scope==='shared') && (
+                {data.inference.tasks.some(
+                  (task: any) => task.owner === selected && task.scope === 'shared',
+                ) && (
                   <p className="muted">{t('模型在「模型服务」中统一登记，再在下方选择用途。')}</p>
                 )}
                 {selected === 'storage' && <StorageSettings act={act} />}
@@ -2208,7 +2340,11 @@ function Review() {
               />
             )}
             {job.state === 'paused' && (
-              <ReviewResume run={job} profileId={resumeModels[job.id] || job.profileId || undefined} act={act} />
+              <ReviewResume
+                run={job}
+                profileId={resumeModels[job.id] || job.profileId || undefined}
+                act={act}
+              />
             )}
             {job.state === 'completed' &&
               !job.applied &&
@@ -2330,9 +2466,14 @@ function Diagnostics() {
           <Button
             secondary
             onClick={() =>
-              act(() => rpc('settings.save', {
-                pluginId: 'mcp', value: { permissions: permissions.filter((permission) => permission.endsWith('.read')) },
-              }))
+              act(() =>
+                rpc('settings.save', {
+                  pluginId: 'mcp',
+                  value: {
+                    permissions: permissions.filter((permission) => permission.endsWith('.read')),
+                  },
+                }),
+              )
             }
           >
             {' '}

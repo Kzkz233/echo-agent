@@ -31,8 +31,8 @@ function MessageImage({ raw }: { raw: unknown }) {
   const image = replyImageSchema.safeParse(raw);
   return image.success ? <ReplyImageView image={image.data} /> : null;
 }
-function DialogueMessages({ messages, name, failedRuns, partLimits, timezone, now }: {
-  messages: Message[]; name: string; failedRuns: Record<string, string>; partLimits: ReadonlyMap<string, number>; timezone?: string; now: Date;
+function DialogueMessages({ messages, name, persona, failedRuns, partLimits, timezone, now }: {
+  messages: Message[]; name: string; persona?: Persona; failedRuns: Record<string, string>; partLimits: ReadonlyMap<string, number>; timezone?: string; now: Date;
 }) {
   return messages.map((message, index) => {
     const date = new Date(message.createdAt);
@@ -46,6 +46,7 @@ function DialogueMessages({ messages, name, failedRuns, partLimits, timezone, no
     return <Fragment key={message.id}>
       {showTime && <MessageTime className="dialogue-time" at={message.createdAt} timezone={timezone} now={now} />}
       <article className={'dialogue-delivery ' + (user ? 'outgoing' : 'incoming')} aria-label={user ? t('你') : name}>
+        {!user && <CharacterPortrait className="dialogue-avatar" persona={persona} />}
         {parts.slice(0, limit).map((part, partIndex) => <div className="dialogue-bubble" key={partIndex}>
           {partIndex === 0 && <>
             {((message.meta.attachments as { id: string; name: string }[]) ?? []).map((item) => (
@@ -810,7 +811,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                   </EmptyState>
                 )
               )}
-              {dialogue ? <DialogueMessages messages={visibleMessages} name={persona?.name ?? 'Echo'} failedRuns={failedRuns} partLimits={partLimits} timezone={timezone} now={now} /> : visibleMessages.map((message) =>
+              {dialogue ? <DialogueMessages messages={visibleMessages} name={persona?.name ?? 'Echo'} persona={persona} failedRuns={failedRuns} partLimits={partLimits} timezone={timezone} now={now} /> : visibleMessages.map((message) =>
                 message.role === 'system' || message.role === 'tool' ? (
                   <details
                     className={
@@ -908,6 +909,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
               )}
               {busy && (dialogue ? (
                 <div className="dialogue-delivery incoming" role="status" aria-label={t('正在思考')}>
+                  <CharacterPortrait className="dialogue-avatar" persona={persona} />
                   <div className="dialogue-bubble dialogue-typing"><div className="typing-dots"><i /><i /><i /></div></div>
                 </div>
               ) : (

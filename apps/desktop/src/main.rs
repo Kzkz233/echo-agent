@@ -54,6 +54,19 @@ fn set_language(app: tauri::AppHandle, language: String) -> Result<(), String> {
     }
     Ok(())
 }
+#[tauri::command]
+fn set_appearance(app: tauri::AppHandle, theme: String) -> Result<(), String> {
+    let theme = match theme.as_str() {
+        "system" => None,
+        "light" => Some(tauri::Theme::Light),
+        "dark" => Some(tauri::Theme::Dark),
+        _ => return Err("Invalid appearance".into()),
+    };
+    for window in app.webview_windows().values() {
+        window.set_theme(theme).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
 fn rpc(
     connection: &Connection,
     method: &str,
@@ -201,7 +214,7 @@ fn show_main(app: &tauri::AppHandle) -> Result<(), String> {
         WebviewUrl::App("index.html".into()),
     ))
     .title("Echo")
-    .theme(Some(tauri::Theme::Light))
+    .theme(None)
     .inner_size(1260., 840.)
     .min_inner_size(760., 580.)
     .build()
@@ -320,7 +333,7 @@ async fn open_settings(app: tauri::AppHandle, state: State<'_, SettingsWindowSta
         WebviewUrl::App(format!("index.html?window=settings&page={}", page).into()),
     ))
     .title("Echo · Settings")
-    .theme(Some(tauri::Theme::Light))
+    .theme(None)
     .inner_size(1160., 820.)
     .min_inner_size(760., 580.)
     .build()
@@ -366,7 +379,7 @@ async fn open_extension_window(app: tauri::AppHandle, page: String, persona_id: 
     let url = format!("index.html?window=extension&page={}{}", page, persona_id.map(|id| format!("&persona={}", id)).unwrap_or_default());
     workbench_window(WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into())))
         .title(format!("Echo · {}", entry["title"].as_str().unwrap_or("Plugin")))
-        .theme(Some(tauri::Theme::Light)).inner_size(1000., 760.).min_inner_size(600., 420.)
+        .theme(None).inner_size(1000., 760.).min_inner_size(600., 420.)
         .build().map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -429,6 +442,7 @@ fn main() {
             open_extension_window,
             open_workbench,
             set_language,
+            set_appearance,
             auth::open_auth_url,
             quit_echo
         ])
