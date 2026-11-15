@@ -14,6 +14,7 @@ function run(command: string, args: string[], cwd = root) {
   if (result.status !== 0) throw Error(command + ' ' + args.join(' ') + ' failed');
 }
 // The bundle reads dist/runtime. Never update that directory concurrently with Tauri/NSIS.
+run('pnpm', ['exec', 'tsx', 'scripts/icons.ts']);
 run('cargo', ['build', '--release'], join(root, 'native'));
 run('pnpm', ['run', 'build']);
 run('pnpm', ['exec', 'tsx', 'scripts/package-runtime.ts']);

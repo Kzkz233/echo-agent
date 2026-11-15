@@ -2,6 +2,10 @@
 
 Original Echo source code: Apache-2.0. Upstream notices remain applicable.
 
+## Echo wordmark
+
+The outlined Echo wordmark uses Inter by the Inter Project Authors, SIL Open Font License 1.1. Source: https://github.com/rsms/inter. The license accompanies the SVG under `apps/workbench/public/brand/Inter-OFL.txt` and remains in the installed web assets. No font binary is required. The separate Echo symbol is original project artwork.
+
 ## Sample animation
 
 Cute Girl — Free Sprites, author pzUH. Source: https://opengameart.org/content/cute-girl-free-sprites and https://pzuh.itch.io/cute-girl-free-sprites.

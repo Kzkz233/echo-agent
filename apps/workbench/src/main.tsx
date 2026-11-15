@@ -2,6 +2,7 @@ import { PageHeader, PageTabs, RoleHeaderActions, HeaderStatus } from './page-he
 import { StarterCharacters } from './starter-characters.tsx';
 import { UnreadDot, usePageBadges } from './badges.tsx';
 import { CharacterPortrait } from './character-portrait.tsx';
+import { BrandMark, BrandWordmark } from './brand.tsx';
 import { inferenceTasks } from '../../../packages/contracts/inference.ts';
 import { CharacterLibrary } from './character-library.tsx';
 import { ReviewResume } from './review-resume.tsx';
@@ -727,8 +728,8 @@ function App() {
   if (!data)
     return (
       <div className="connect-page">
-        <div className="brand-mark">{t('e')}</div>
-        <h1>Echo</h1>
+        <BrandMark />
+        <h1 className="connect-wordmark"><BrandWordmark /></h1>
         <p>{t('你的上下文，自己的节奏。')}</p>
         {error && <div className="error">{error}</div>}
         <div className="card">
@@ -785,8 +786,8 @@ function App() {
         <div className={'workbench' + (extensionWindow ? ' extension-window' : '')}>
           <aside className="sidebar">
             <div className="wordmark">
-              <span className="brand-mark">{t('e')}</span>
-              <strong>Echo</strong>
+              <BrandMark />
+              <BrandWordmark />
               <span className="version">{data.version}</span>
             </div>
             {

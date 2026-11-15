@@ -461,7 +461,7 @@ fn main() {
                 hide,
                 quit,
             });
-            let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))?;
+            let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
             TrayIconBuilder::new()
                 .icon(icon)
                 .tooltip("Echo")

@@ -194,6 +194,25 @@ try {
       if (name === 'chat') {
         await page.locator('.dialogue-avatar').first().waitFor();
         assert((await page.locator('.dialogue-bubble').count()) >= 2);
+        // Verify the actual shared vector resources and theme foreground in
+        // the rendered shell, not only that a decorative element exists.
+        const brand = await page.locator('.wordmark').evaluate(async (node) => {
+          const symbol = node.querySelector('.app-brand-symbol')!;
+          const word = node.querySelector('.app-wordmark')!;
+          const image = getComputedStyle(symbol).maskImage;
+          const url = image.match(/url\(["']?(.*?)["']?\)/)?.[1];
+          return {
+            symbol: image,
+            word: getComputedStyle(word).maskImage,
+            color: getComputedStyle(symbol).backgroundColor,
+            foreground: getComputedStyle(node).color,
+            source: url ? await (await fetch(url)).text() : '',
+          };
+        });
+        assert(brand.symbol.includes('echo-mark.svg'));
+        assert(brand.word.includes('echo-wordmark.svg'));
+        assert.equal(brand.color, brand.foreground);
+        assert(brand.source.includes('id="eye"') && !brand.source.includes('<image'));
       }
       await page.screenshot({ path: join(output, `${name}-${theme}.png`) });
       const geometry = await page

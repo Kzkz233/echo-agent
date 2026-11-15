@@ -290,6 +290,44 @@ h2 {
 .wordmark > .version {
   display: none;
 }
+.brand-mark.app-brand {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  border-radius: 0;
+  box-shadow: none;
+}
+.app-brand-symbol {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: currentColor;
+  mask: url('/brand/echo-mark.svg') center / contain no-repeat;
+}
+.app-wordmark {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 61.025px;
+  height: 21px;
+  background: currentColor;
+  color: var(--text);
+  mask: url('/brand/echo-wordmark.svg') center / contain no-repeat;
+}
+.connect-page > .app-brand {
+  width: 64px;
+  height: 64px;
+}
+.connect-wordmark {
+  margin-block: 0 12px;
+  line-height: 1;
+}
+.connect-wordmark .app-wordmark {
+  width: 110.426px;
+  height: 38px;
+}
 .nav-search {
   margin: 4px 2px 20px;
   min-height: 34px;
