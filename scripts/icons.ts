@@ -21,7 +21,7 @@ function tile(source: string) {
 await mkdir(icons, { recursive: true });
 const mainTile = tile(master), smallTile = tile(small);
 await writeFile(join(brand, 'echo-app.svg'), mainTile);
-await sharp(Buffer.from(mainTile)).resize(256, 256).png().toFile(join(icons, 'icon.png'));
+await sharp(Buffer.from(mainTile)).png().toFile(join(icons, 'icon.png'));
 await sharp(Buffer.from(smallTile)).resize(32, 32).png().toFile(join(icons, 'tray.png'));
 const frames = await Promise.all([16, 24, 32, 48, 64, 128, 256].map(async size => ({
   size,

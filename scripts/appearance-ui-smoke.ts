@@ -149,6 +149,7 @@ const http = await serve(app, { webRoot: join(project, 'dist/web') });
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const page = await browser.newPage({
   viewport: { width: 1440, height: 1000 },
+  deviceScaleFactor: 2,
   colorScheme: 'light',
 });
 page.setDefaultTimeout(15000);
@@ -297,10 +298,16 @@ try {
     false,
   );
   await appearance();
-  await page
-    .locator('.appearance-dialog')
-    .getByRole('button', { name: '跟随系统', exact: true })
-    .click();
+  // Let this debounced UI save finish before later replacing fixture defaults
+  // through the registry. Otherwise the pending 17 px edit can win that race.
+  await Promise.all([
+    page.waitForResponse(response =>
+      response.request().method() === 'POST' &&
+      response.request().postDataJSON()?.method === 'preferences.save' &&
+      response.request().postDataJSON()?.params?.theme === 'system'),
+    page.locator('.appearance-dialog')
+      .getByRole('button', { name: '跟随系统', exact: true }).click(),
+  ]);
   await closeAppearance();
   await page.emulateMedia({ colorScheme: 'light' });
   await frame.locator('html[data-echo-theme=light]').waitFor();
@@ -404,6 +411,8 @@ try {
     return values;
   });
   assert.equal(metrics['.nav-item:has(.nav-role-copy)'].height, 59);
+  assert.equal(metrics['.brand-mark'].width, 38);
+  assert.equal(metrics['.brand-mark'].height, 38);
   assert.equal(metrics['.nav-role-copy strong'].font, '14px');
   assert.equal(metrics['.nav-role-copy small'].font, '12px');
   assert.equal(metrics['.dialogue-bubble'].font, '15px');
