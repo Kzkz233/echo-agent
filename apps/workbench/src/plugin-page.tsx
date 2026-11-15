@@ -180,6 +180,20 @@ export function PluginPage({
   }, [content, contextKey]);
   const view = content?.page.view;
   const frameless = view?.type === 'webview' && view.frameless;
+  useEffect(() => {
+    if (!frameless || !src || !frame.current) return;
+    const element = frame.current;
+    const fit = () => {
+      const height = Math.max(320, window.innerHeight - element.getBoundingClientRect().top - 16);
+      element.style.height = height + 'px';
+      element.style.minHeight = '320px';
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    if (element.parentElement) observer.observe(element.parentElement);
+    window.addEventListener('resize', fit);
+    return () => { observer.disconnect(); window.removeEventListener('resize', fit); };
+  }, [frameless, src]);
   return (
     <section
       className={'plugin-page' + (frameless ? ' plugin-page-full' : '')}

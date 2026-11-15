@@ -11,6 +11,7 @@ import { MaterialSources } from '../../packages/kernel/materials.ts';
 import { localDay, localTime, configuredTimezone } from '../../packages/kernel/time.ts';
 import { operations } from '../shared.ts';
 import { agendaImport, importAgenda } from './import.ts';
+import { agendaDayRange } from './range.ts';
 import {
   agendaItemSchema,
   parsedItems,
@@ -492,11 +493,8 @@ export class Agenda {
           const timezone = this.config().timezone;
           return this.items().filter((i) => {
             if (v.personaId && i.personaId !== v.personaId) return false;
-            if (i.date) return i.date <= v.to && (i.dateEnd ?? i.date) >= v.from;
-            if (!i.start) return false;
-            const start = localDay(new Date(i.start), timezone),
-              end = localDay(new Date(i.end ?? i.start), timezone);
-            return start <= v.to && end >= v.from;
+            const range = agendaDayRange(i, timezone);
+            return Boolean(range && range[0] <= v.to && range[1] >= v.from);
           });
         });
         op('reminders', 'Read reminder history', z.object({}), 'agenda.read', () =>

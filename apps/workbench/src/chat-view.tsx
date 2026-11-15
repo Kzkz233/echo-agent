@@ -1,7 +1,9 @@
+import { MessageTime, useMessageNow } from './message-time.tsx';
+import { messageDay } from './message-time-format.ts';
 import { modelDisplayName } from '../../../packages/contracts/model-services.ts';
 import { CharacterPortrait } from './character-portrait.tsx';
 import { inferenceTasks } from '../../../packages/contracts/inference.ts';
-import { locale, statusText } from './i18n.ts';
+import { statusText } from './i18n.ts';
 import { t } from './i18n.ts';
 import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -29,23 +31,20 @@ function MessageImage({ raw }: { raw: unknown }) {
   const image = replyImageSchema.safeParse(raw);
   return image.success ? <ReplyImageView image={image.data} /> : null;
 }
-function DialogueMessages({ messages, name, failedRuns, partLimits }: {
-  messages: Message[]; name: string; failedRuns: Record<string, string>; partLimits: ReadonlyMap<string, number>;
+function DialogueMessages({ messages, name, failedRuns, partLimits, timezone, now }: {
+  messages: Message[]; name: string; failedRuns: Record<string, string>; partLimits: ReadonlyMap<string, number>; timezone?: string; now: Date;
 }) {
-  const today = new Date().toDateString();
   return messages.map((message, index) => {
     const date = new Date(message.createdAt);
     const previous = index ? new Date(messages[index - 1].createdAt) : undefined;
-    const showTime = !previous || date.toDateString() !== previous.toDateString() || date.getTime() - previous.getTime() >= 5 * 60_000;
+    const showTime = !previous || messageDay(date, timezone) !== messageDay(previous, timezone) || date.getTime() - previous.getTime() >= 5 * 60_000;
     const user = message.role === 'user';
     const parts = dialogueParts(message);
     const limit = partLimits.get(message.id) ?? parts.length;
     if (!limit) return null;
     const title = typeof message.meta.replyTitle === 'string' ? message.meta.replyTitle : undefined;
     return <Fragment key={message.id}>
-      {showTime && <time className="dialogue-time" dateTime={message.createdAt}>
-        {date.toLocaleString(locale(), { ...(date.toDateString() !== today ? { month: 'short', day: 'numeric' } : {}), hour: '2-digit', minute: '2-digit' })}
-      </time>}
+      {showTime && <MessageTime className="dialogue-time" at={message.createdAt} timezone={timezone} now={now} />}
       <article className={'dialogue-delivery ' + (user ? 'outgoing' : 'incoming')} aria-label={user ? t('你') : name}>
         {parts.slice(0, limit).map((part, partIndex) => <div className="dialogue-bubble" key={partIndex}>
           {partIndex === 0 && <>
@@ -78,6 +77,8 @@ const streamsInChat = (run: Run) => {
   return localChat(plan) && (plan?.targets.length ?? 0) <= 1;
 };
 export function ChatView({ data, act, setPage, openTask, fixedConversationId, editRole, surface, openSession, managedSettings = false }: any) {
+  const now = useMessageNow();
+  const timezone = data.clock?.timezone;
   const dialogue = surface === 'dialogue';
   managedSettings ||= (data.workSessions ?? []).some((work: any) => work.conversationId === fixedConversationId && work.origin.type !== 'delegation');
   const fullSession = surface === 'session';
@@ -809,7 +810,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                   </EmptyState>
                 )
               )}
-              {dialogue ? <DialogueMessages messages={visibleMessages} name={persona?.name ?? 'Echo'} failedRuns={failedRuns} partLimits={partLimits} /> : visibleMessages.map((message) =>
+              {dialogue ? <DialogueMessages messages={visibleMessages} name={persona?.name ?? 'Echo'} failedRuns={failedRuns} partLimits={partLimits} timezone={timezone} now={now} /> : visibleMessages.map((message) =>
                 message.role === 'system' || message.role === 'tool' ? (
                   <details
                     className={
@@ -841,12 +842,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                             : message.meta.kind === 'memory'
                               ? t('记忆召回')
                               : t('应用上下文')}
-                      <time>
-                        {new Date(message.createdAt).toLocaleTimeString(locale(), {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </time>
+                      <MessageTime at={message.createdAt} timezone={timezone} now={now} />
                     </summary>
                     <pre>{message.text}</pre>
                   </details>
@@ -860,12 +856,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                         <strong>
                           {message.role === 'user' ? t('你') : (persona?.name ?? 'Echo')}
                         </strong>
-                        <time>
-                          {new Date(message.createdAt).toLocaleTimeString(locale(), {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </time>
+                        <MessageTime at={message.createdAt} timezone={timezone} now={now} />
                         {message.source === 'observation' && (
                           <span className="tag">{t('观察互动')}</span>
                         )}

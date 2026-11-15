@@ -1,3 +1,4 @@
+import { MessageTime, useMessageNow } from './message-time.tsx';
 import { lazy, useEffect, useState } from 'react';
 import { rpc } from './client.ts';
 import { statusText, t } from './i18n.ts';
@@ -688,6 +689,7 @@ export function DelegationView({
   );
 }
 export function GroupView({ data, act, groupId, onSelect, setPage }: any) {
+  const now = useMessageNow();
   const [state, setState] = useState<any>({
       messages: [],
       turns: [],
@@ -822,7 +824,9 @@ export function GroupView({ data, act, groupId, onSelect, setPage }: any) {
           <div className="group-messages">
             {state.messages.map((m: any) => (
               <article key={m.id} className={'group-message ' + m.role}>
-                <strong>{m.meta.authorName ?? t('你')}</strong>
+                <div className="message-author"><strong>{m.meta.authorName ?? t('你')}</strong>
+                  <MessageTime at={m.createdAt} timezone={data.clock?.timezone} now={now} />
+                </div>
                 <div className="readable-pre">{m.text}</div>
                 {turns.get(m.id)?.state === 'running' && (
                   <small role="status">{t('执行中')}</small>

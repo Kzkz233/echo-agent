@@ -4,6 +4,7 @@ import { t } from './i18n.ts';
 import { useEffect, useState } from 'react';
 import { rpc } from './client.ts';
 import { localDay, localTime } from '../../../packages/kernel/time.ts';
+import { agendaOccursOn } from '../../../plugins/agenda/range.ts';
 import { useConfirm } from './ui.tsx';
 import { AgendaFields, startAgendaDrag, useAgendaMove } from './agenda-interactions.tsx';
 const dateInput = (s: string | undefined, timezone: string) =>
@@ -97,13 +98,7 @@ export function AgendaCalendar({ data, act }: any) {
   });
   const dayOf = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const contains = (item: any, day: string) =>
-    item.date
-      ? item.date <= day && (item.dateEnd ?? item.date) >= day
-      : item.start
-        ? localDay(new Date(item.start), timezone) <= day &&
-          localDay(new Date(item.end ?? item.start), timezone) >= day
-        : false;
+  const contains = (item: any, day: string) => agendaOccursOn(item, day, timezone);
   return (
     <>
       <div className="page-title">
