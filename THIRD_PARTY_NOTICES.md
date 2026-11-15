@@ -2,6 +2,10 @@
 
 Original Echo source code: Apache-2.0. Upstream notices remain applicable.
 
+## Windows Snap Layout integration
+
+The narrow native maximize hit target in `apps/desktop/src/window_chrome.rs` adapts the MIT-licensed child-window pattern from Hyph-M/tauri-plugin-snap-layout, pinned revision `890a38662a5508e1c04bdf8b1c5726adc9ef893b`. Copyright 2026 Hyph-M; 2024 clarifei; 2024 Siddharth. The complete upstream license is in `resources/window-chrome/LICENSE` and the installed `runtime/licenses/window-chrome/LICENSE`. Source: https://github.com/Hyph-M/tauri-plugin-snap-layout/tree/890a38662a5508e1c04bdf8b1c5726adc9ef893b .
+
 ## Echo wordmark
 
 The outlined Echo wordmark uses Inter by the Inter Project Authors, SIL Open Font License 1.1. Source: https://github.com/rsms/inter. The license accompanies the SVG under `apps/workbench/public/brand/Inter-OFL.txt` and remains in the installed web assets. No font binary is required. The separate Echo symbol is original project artwork.

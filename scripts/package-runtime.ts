@@ -106,6 +106,8 @@ for (const name of ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'README.md'])
     await cp(join(root, name), join(stage, name));
   } catch {}
 }
+await mkdir(join(stage, 'licenses/window-chrome'), { recursive: true });
+await cp(join(root, 'resources/window-chrome/LICENSE'), join(stage, 'licenses/window-chrome/LICENSE'));
 const publicDocs=resolve(stage,'docs');
 if(publicDocs!==resolve(root,'dist/runtime/docs'))throw Error('Unsafe docs staging path');
 await rm(publicDocs,{recursive:true,force:true});await mkdir(join(publicDocs,'screenshots'),{recursive:true});

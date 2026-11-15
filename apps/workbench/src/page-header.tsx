@@ -1,6 +1,8 @@
 import type { ReactNode, KeyboardEvent } from 'react';
 import { Icon } from './ui.tsx';
 import { t } from './i18n.ts';
+import { BrandMark, BrandWordmark } from './brand.tsx';
+import { WindowControls, nativeWindowChrome } from './window-chrome.tsx';
 
 export type PageTab = { id: string; text: string; badge?: ReactNode };
 
@@ -34,18 +36,9 @@ export function HeaderStatus({
     </span>
   );
 }
-export function RoleHeaderActions({
-  configure,
-  ...status
-}: {
-  working: boolean;
-  interactions: number;
-  configure: () => void;
-  openPending: () => void;
-}) {
+export function RoleHeaderActions({ configure }: { configure: () => void }) {
   return (
     <>
-      <HeaderStatus {...status} />
       <button
         className="icon-button"
         title={t('配置角色')}
@@ -123,22 +116,37 @@ export function PageHeader({
   role = false,
   tabs,
   actions,
+  brand = false,
+  status,
 }: {
   scope: string;
   title: string;
   role?: boolean;
   tabs?: ReactNode;
   actions: ReactNode;
+  brand?: boolean;
+  status?: ReactNode;
 }) {
   return (
-    <header className={'topbar' + (role ? ' role-topbar' : '')}>
+    <header
+      className={'topbar' + (role ? ' role-topbar' : '')}
+      data-tauri-drag-region={nativeWindowChrome ? 'deep' : undefined}
+    >
+      {brand && nativeWindowChrome && (
+        <div className="window-brand">
+          <BrandMark />
+          <BrandWordmark />
+        </div>
+      )}
       <div className="header-identity">
         <span className="breadcrumb">{t(scope)}</span>
         <Icon name="chevron" size={13} />
         <strong title={t(title)}>{t(title)}</strong>
+        {status}
       </div>
       {tabs}
       <div className="topbar-actions">{actions}</div>
+      <WindowControls />
     </header>
   );
 }

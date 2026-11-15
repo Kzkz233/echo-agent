@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod auth;
 mod window_icon;
+mod window_chrome;
 use serde::{Deserialize, Serialize};
 use std::{
     path::{Path, PathBuf},
@@ -227,6 +228,10 @@ fn workbench_window<'a>(
     // WebView2's native file-drop interception prevents HTML5 task/calendar dragging.
     // The workbench handles both internal moves and attachment drops in the DOM.
     builder = builder.disable_drag_drop_handler();
+    #[cfg(windows)]
+    { builder = builder.decorations(false).shadow(true).initialization_script(
+        "if (window.top === window.self) Object.defineProperty(window, '__ECHO_WINDOW_CHROME__', { value: true });"
+    ); }
     // Explicit local development opt-in only. No debug listener in ordinary launches.
     if let Ok(port) = std::env::var("ECHO_WEBVIEW_DEBUG_PORT")
         .unwrap_or_default()
@@ -445,6 +450,7 @@ fn main() {
             open_workbench,
             set_language,
             set_appearance,
+            window_chrome::window_chrome_update,
             auth::open_auth_url,
             quit_echo
         ])

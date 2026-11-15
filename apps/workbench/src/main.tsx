@@ -3,6 +3,7 @@ import { StarterCharacters } from './starter-characters.tsx';
 import { UnreadDot, usePageBadges } from './badges.tsx';
 import { CharacterPortrait } from './character-portrait.tsx';
 import { BrandMark, BrandWordmark } from './brand.tsx';
+import { WindowControls, nativeWindowChrome } from './window-chrome.tsx';
 import { inferenceTasks } from '../../../packages/contracts/inference.ts';
 import { CharacterLibrary } from './character-library.tsx';
 import { ReviewResume } from './review-resume.tsx';
@@ -50,6 +51,7 @@ import { PluginInferenceRoutes } from './plugin-inference-routes.tsx';
 import { ExternalMcpView } from './external-mcp-view.tsx';
 import './character-style.css';
 import './design-system.css';
+import './window-chrome.css';
 import { Appearance, AppearanceSettings } from './appearance.tsx';
 import {
   initialWorkbenchLocation,
@@ -728,6 +730,7 @@ function App() {
   if (!data)
     return (
       <div className="connect-page">
+        {nativeWindowChrome && <div className="startup-windowbar" data-tauri-drag-region="deep"><WindowControls guarded={false} /></div>}
         <BrandMark />
         <h1 className="connect-wordmark"><BrandWordmark /></h1>
         <p>{t('你的上下文，自己的节奏。')}</p>
@@ -785,7 +788,7 @@ function App() {
       >
         <div className={'workbench' + (extensionWindow ? ' extension-window' : '')}>
           <aside className="sidebar">
-            <div className="wordmark">
+            <div className="wordmark" data-tauri-drag-region={nativeWindowChrome ? 'deep' : undefined}>
               <BrandMark />
               <BrandWordmark />
               <span className="version">{data.version}</span>
@@ -966,7 +969,7 @@ function App() {
                           }}
                         >
                           <Icon name="chat" />
-                          {group.name}
+                          <span className="nav-label">{group.name}</span>
                         </button>
                       ))}
                   </>
@@ -1007,9 +1010,9 @@ function App() {
                     );
                   })}
                 <div className="sidebar-settings">
-                  <button className="nav-item" onClick={() => void openSettings()}>
+                  <button className="nav-item" aria-label={t('设置')} title={t('设置')} onClick={() => void openSettings()}>
                     <Icon name="settings" />
-                    {t('设置')}
+                    <span className="nav-label">{t('设置')}</span>
                   </button>
                 </div>
               </nav>
@@ -1025,6 +1028,9 @@ function App() {
           </aside>
           <main>
             <PageHeader
+              brand={extensionWindow}
+              status={<HeaderStatus working={pending > 0}
+                interactions={data.pendingInteractions?.length ?? 0} openPending={showPendingInteraction} />}
               role={!extensionWindow && !settingsWindow && roleSection && !!role}
               scope={
                 !extensionWindow && !settingsWindow && activeLocation.scope === 'role'
@@ -1127,19 +1133,11 @@ function App() {
               actions={
                 !extensionWindow && roleSection && role ? (
                   <RoleHeaderActions
-                    working={pending > 0}
-                    interactions={data.pendingInteractions?.length ?? 0}
                     configure={() => editRole(role)}
-                    openPending={showPendingInteraction}
                   />
                 ) : (
                   <>
                     <Appearance />
-                    <HeaderStatus
-                      working={pending > 0}
-                      interactions={data.pendingInteractions?.length ?? 0}
-                      openPending={showPendingInteraction}
-                    />
                     <span className="local-badge">
                       <span className={'status-dot ' + (connected ? '' : 'offline')} />
                       <span className="connection-label" data-label={t('本机已连接')}>

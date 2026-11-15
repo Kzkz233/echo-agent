@@ -1,7 +1,8 @@
 /* Shared product geometry. Feature styles own layout, not a second palette. */
 .topbar > .page-sheets {
   margin: 0 0 0 auto;
-  padding: 0 9px 0 0;
+  /* Reserve the last tab's unread marker, including its offset outside the label. */
+  padding: 0 12px 0 0;
   border: 0;
   align-self: stretch;
   height: 64px;
@@ -11,8 +12,10 @@
   align-items: stretch;
   overflow-x: auto;
   overflow-y: hidden;
+  scrollbar-width: none;
   background: transparent;
 }
+.topbar > .page-sheets::-webkit-scrollbar { display: none; }
 .topbar > .page-sheets button {
   padding: 0;
   border-bottom-width: 2px;
@@ -836,13 +839,27 @@ h2 {
 @media (max-width: 780px) {
   .sidebar {
     width: 62px;
-    padding: 14px 7px;
+    padding: 0 7px 12px;
   }
   .wordmark {
     padding: 0;
     min-height: 58px;
     height: 58px;
     justify-content: center;
+  }
+  .sidebar .wordmark > .app-wordmark { display: none; }
+  .sidebar .character-navigation .nav-group-label { display: none; }
+  .sidebar .character-navigation .nav-group-label:has(> .icon-button) {
+    display: flex;
+    justify-content: center;
+    padding: 0;
+    margin: 10px 0 4px;
+  }
+  .sidebar .character-navigation .nav-group-label > :not(.icon-button) { display: none; }
+  .sidebar .character-navigation .nav-item > .unread-dot {
+    position: absolute;
+    top: 4px;
+    right: 3px;
   }
   .nav-item {
     padding-inline: 5px;

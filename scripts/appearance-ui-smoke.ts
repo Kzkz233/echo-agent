@@ -557,6 +557,15 @@ try {
         .locator('.workbench')
         .evaluate((root) => ({ width: root.clientWidth, scroll: root.scrollWidth }));
       assert(geometry.scroll <= geometry.width + 2, JSON.stringify({ name, width, geometry }));
+      if (width <= 780) {
+        const rail = await page.locator('.sidebar').evaluate(sidebar => ({
+          width: sidebar.getBoundingClientRect().width,
+          logoTop: sidebar.querySelector('.wordmark')!.getBoundingClientRect().y,
+          text: [...sidebar.querySelectorAll('.nav-label,.app-wordmark,.nav-role-copy')]
+            .filter(e => e.getBoundingClientRect().width > 0).length,
+        }));
+        assert.equal(rail.width, 62); assert.equal(rail.logoTop, 0); assert.equal(rail.text, 0);
+      }
       if (width === 390) await page.screenshot({ path: join(output, `${name}-narrow.png`) });
     }
   }

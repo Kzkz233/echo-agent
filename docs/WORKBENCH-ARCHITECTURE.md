@@ -23,7 +23,8 @@ embedded content surface. These modes do not introduce another navigation level.
 `PageHeader` and `PageTabs` render parent chrome outside the content outlet.
 Selected labels reserve their heavier text width; unread markers and busy states
 do not shift sibling tabs. The role action area has stable status/configuration
-slots across all role pages. Page-local task tabs reuse the same tab component.
+slots across all role pages. Status belongs to the identity area; tabs and the
+configuration button stay adjacent. Page-local task tabs reuse the same tab component.
 
 The outlet stays mounted when the selected child changes. Child rendering and
 loading happen inside it. Chat and working conversations use their own message
@@ -56,6 +57,24 @@ canonical conversations, roles, capabilities, permissions, task configuration,
 knowledge content, or indexes.
 
 ## Verification
+
+On Windows, the common desktop window factory opts the main, settings and
+extension windows into the same 65px integrated caption. `PageHeader` and
+`WindowControls` render it; registered plugins keep their content below it and
+do not implement caption controls. A standalone extension window adds the common
+brand to its header. Browser access and non-Windows platforms retain normal
+system decorations.
+
+Tao owns frameless edge/corner resizing, work-area/maximize sizing, and native
+dragging. Tauri's deep drag regions exclude interactive elements and preserve
+double-click maximize. A window-scoped native adapter overlays only the maximize
+button with a transparent child hit target returning `HTMAXBUTTON`, allowing
+Windows to provide its Snap Layout flyout. The browser reports physical geometry;
+the native target remains right-anchored during resize, follows DPI changes, and
+leaves the top resize strip free. Its hooks are removed with the window or
+component. It never loads plugin code or changes agent permissions. Caption action
+permissions are scoped to workbench windows, not the avatar. Close uses the
+existing unsaved-edit guard. The runtime bundles the adapted pattern's MIT notice.
 
 The browser audit switches role pages without reloading, compares every tab's
 position and width, and checks the content origin. It also checks role/application

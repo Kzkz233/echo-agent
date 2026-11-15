@@ -10678,5 +10678,29 @@
   [
     "编辑关注 ",
     "Edit concern "
+  ],
+  [
+    "窗口操作",
+    "Window controls"
+  ],
+  [
+    "最小化窗口",
+    "Minimize window"
+  ],
+  [
+    "最大化窗口",
+    "Maximize window"
+  ],
+  [
+    "还原窗口",
+    "Restore window"
+  ],
+  [
+    "关闭窗口",
+    "Close window"
+  ],
+  [
+    "窗口操作失败",
+    "Window action failed"
   ]
 ]
