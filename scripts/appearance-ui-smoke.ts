@@ -61,29 +61,74 @@ await app.registry.call(
   internal,
 );
 const role = await app.registry.call('persona.character.read', { id: 'design-demo' }, internal);
-app.store.append(
-  role.mainConversationId,
-  'user',
-  'chat',
-  '这周收了不少阅读笔记，想找时间理一理。',
-  undefined,
-  { deliveryChannelId: 'core.chat' },
-);
-app.store.append(
-  role.mainConversationId,
-  'assistant',
-  'chat',
-  '整理好了，主要是「注意力」「休息」「工作节奏」这三个主题。\n\n有两条说法不太一致，我保留了原文和出处，等你决定。',
-  undefined,
+// Match the approved preview's content and reading measure as well as its palette.
+// All of this content belongs to this temporary fixture, never a user's runtime.
+app.store.remove('personas', 'companion');
+await app.registry.call(
+  'persona.character.commit',
   {
-    replyPhase: 'final',
-    deliveryChannelId: 'core.chat',
-    replyParts: [
+    requestId: 'appearance-second-role',
+    draft: characterDraft.parse({
+      persona: {
+        id: 'design-reader',
+        name: 'Miyu',
+        prompt: '用于界面验收的虚构角色。',
+        portrait:
+          'data:image/webp;base64,' +
+          (
+            await readFile(
+              join(project, 'apps/workbench/public/assets/starter-characters/miyu/portrait.webp'),
+            )
+          ).toString('base64'),
+      },
+      profileId: 'fixture',
+      features: [],
+      configurations: {},
+      tasks: [],
+    }),
+  },
+  internal,
+);
+const day = new Date();
+day.setHours(0, 0, 0, 0);
+const lines: { role: 'user' | 'assistant'; text: string; minutes: number; parts?: string[] }[] = [
+  { role: 'user', text: '这周收了不少阅读笔记，想找时间理一理。', minutes: -204 },
+  { role: 'assistant', text: '先收着就好，想整理的时候我们再一起看。', minutes: -203 },
+  { role: 'user', text: '帮我整理一下重复的内容，先给我一个简短清单？', minutes: 582 },
+  {
+    role: 'assistant',
+    text: '',
+    minutes: 583,
+    parts: [
       '整理好了，主要是「注意力」「休息」「工作节奏」这三个主题。',
-      '有两条说法不太一致，我保留了原文和出处，等你决定。',
+      '重复的观点放在一起了。另有两条笔记的说法不太一致，我先保留原文，等你决定。',
     ],
   },
-);
+  { role: 'user', text: '好。周末想把这些先放一放，去看个展。', minutes: 584 },
+  {
+    role: 'assistant',
+    text: '那就给周末留一点空白。清单放在这里，先去看你想看的那场展，回来再接着聊。',
+    minutes: 584,
+  },
+];
+for (const line of lines) {
+  const message = app.store.append(
+    role.mainConversationId,
+    line.role,
+    'chat',
+    line.parts?.join('\n\n') ?? line.text,
+    undefined,
+    {
+      replyPhase: 'final',
+      deliveryChannelId: 'core.chat',
+      ...(line.parts ? { replyParts: line.parts } : {}),
+    },
+  );
+  message.createdAt = new Date(day.getTime() + line.minutes * 60_000).toISOString();
+  app.store.db
+    .prepare('UPDATE messages SET data=? WHERE id=?')
+    .run(JSON.stringify(message), message.id);
+}
 const vault = app.files.roots().find((v) => !v.owner)!;
 await app.knowledge.save(
   vault.id,
@@ -239,8 +284,9 @@ try {
     },
     internal,
   );
-  await page.setViewportSize({ width: 1048, height: 900 });
+  await page.setViewportSize({ width: 1048, height: 814 });
   await open('persona=design-demo');
+  await page.locator('.dialogue-bubble').last().waitFor();
   const alignment = await page.evaluate(() => {
     const header = document.querySelector('.role-topbar')!.getBoundingClientRect();
     const logo = document.querySelector('.wordmark')!.getBoundingClientRect();
@@ -261,8 +307,67 @@ try {
   assert.equal(alignment.logo, 65);
   assert(Math.abs(alignment.tabBottom - alignment.headerBottom) <= 2, JSON.stringify(alignment));
   assert(alignment.centerDelta <= 2, JSON.stringify(alignment));
+  const metrics = await page.evaluate(() => {
+    const values: Record<
+      string,
+      {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        font: string;
+        lineHeight: string;
+        weight: string;
+        padding: string;
+        margin: string;
+        borderRadius: string;
+      }
+    > = {};
+    for (const selector of [
+      '.sidebar',
+      '.topbar',
+      '.wordmark',
+      '.brand-mark',
+      '.nav-item:has(.nav-role-copy)',
+      '.nav-role-copy strong',
+      '.nav-role-copy small',
+      '.nav-item:not(:has(.role-initial))',
+      '.dialogue-bubble',
+      '.composer',
+      '.composer textarea',
+    ]) {
+      const node = document.querySelector(selector);
+      if (!node) continue;
+      const box = node.getBoundingClientRect(),
+        css = getComputedStyle(node);
+      values[selector] = {
+        x: box.x,
+        y: box.y,
+        width: box.width,
+        height: box.height,
+        font: css.fontSize,
+        lineHeight: css.lineHeight,
+        weight: css.fontWeight,
+        padding: css.padding,
+        margin: css.margin,
+        borderRadius: css.borderRadius,
+      };
+    }
+    return values;
+  });
+  assert.equal(metrics['.nav-item:has(.nav-role-copy)'].height, 59);
+  assert.equal(metrics['.nav-role-copy strong'].font, '14px');
+  assert.equal(metrics['.nav-role-copy small'].font, '12px');
+  assert.equal(metrics['.dialogue-bubble'].font, '15px');
+  assert.equal(metrics['.dialogue-bubble'].lineHeight, '26.25px');
+  assert.equal(metrics['.dialogue-bubble'].width, 313);
+  assert.equal(metrics['.composer'].width, 646);
+  assert(Math.abs(metrics['.composer'].height - 55.25) < 1);
+  await writeFile(join(output, 'actual-metrics.json'), JSON.stringify(metrics, null, 2));
   await page.screenshot({ path: join(output, 'reference-chat-1048.png') });
-  await page.locator('.role-topbar').screenshot({ path: join(output, 'reference-header-1048.png') });
+  await page
+    .locator('.role-topbar')
+    .screenshot({ path: join(output, 'reference-header-1048.png') });
   await open('workspace=true&page=knowledge');
   await page.locator('.document-row').first().click();
   await page.locator('.document-reader h2').waitFor();

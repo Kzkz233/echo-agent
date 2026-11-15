@@ -8,6 +8,10 @@
 - Default shell geometry is checked at the preview reference width: 190 px sidebar,
   65 px header, and aligned tab/header edges. Fonts use one shared hierarchy;
   interface and chat scaling are separate persisted preferences.
+- Reference captures use the same invented conversation and 1048 px viewport as
+  the approved preview. Body line height, 59 px role cards, 630 px conversation
+  reading width, and 646 px composer are calibrated together. Registered view
+  tabs share the header instead of adding another strip above page content.
 - Color checks cover primary text, secondary text, custom accent extremes, outgoing
   bubbles, primary actions, and status surfaces in both modes.
 - Independent HTML extension read/write, stale mounts, strict parent CSP, and sandbox

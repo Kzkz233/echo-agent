@@ -1016,7 +1016,13 @@ function App() {
               }
             >
               <div>
-                <span className="breadcrumb">{t(viewSection(page)?.group ?? 'Echo')}</span>
+                <span className="breadcrumb">
+                  {t(
+                    !extensionWindow && !settingsWindow && roleSection && role
+                      ? '角色'
+                      : (viewSection(page)?.group ?? 'Echo'),
+                  )}
+                </span>
                 <Icon name="chevron" size={13} />
                 <strong>
                   {t(
@@ -1078,6 +1084,60 @@ function App() {
                     ))}
                 </div>
               )}
+              {!extensionWindow &&
+                (settingsWindow || workspaceScope) &&
+                (() => {
+                  const views =
+                    viewSection(page)?.views.filter(
+                      (v) =>
+                        (coreViews.has(v.id) || enabled.has(v.id)) &&
+                        (!settingsWindow || isSettingsPage(v.id)) &&
+                        (!roleSection ||
+                          (page !== 'personas' &&
+                            v.id !== 'personas' &&
+                            (!newRole || v.id === 'persona-settings'))),
+                    ) ?? [];
+                  return (
+                    views.length > 1 && (
+                      <div
+                        className="page-sheets"
+                        role="tablist"
+                        aria-label={t(viewSection(page)?.text ?? '')}
+                        onKeyDown={(event) => {
+                          if (['ArrowRight', 'ArrowLeft'].includes(event.key)) {
+                            event.preventDefault();
+                            const index = views.findIndex((v) => v.id === page);
+                            const next =
+                              views[
+                                (index + (event.key === 'ArrowRight' ? 1 : views.length - 1)) %
+                                  views.length
+                              ];
+                            goPage(next.id);
+                            requestAnimationFrame(() =>
+                              document.getElementById('sheet-' + next.id)?.focus(),
+                            );
+                          }
+                        }}
+                      >
+                        {views.map((view) => (
+                          <button
+                            key={view.id}
+                            id={'sheet-' + view.id}
+                            data-view={view.id}
+                            role="tab"
+                            tabIndex={page === view.id ? 0 : -1}
+                            aria-selected={page === view.id}
+                            aria-controls={'view-' + view.id}
+                            onClick={() => goPage(view.id)}
+                          >
+                            {t(view.text)}
+                            <UnreadDot count={unread([view.id])} />
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  );
+                })()}
               <div className="topbar-actions">
                 {role && ['character', 'character-session'].includes(page) && (
                   <button
@@ -1140,60 +1200,6 @@ function App() {
                   <strong>{role.name}</strong>
                 </div>
               )}
-            {!extensionWindow &&
-              (settingsWindow || workspaceScope) &&
-              (() => {
-                const views =
-                  viewSection(page)?.views.filter(
-                    (v) =>
-                      (coreViews.has(v.id) || enabled.has(v.id)) &&
-                      (!settingsWindow || isSettingsPage(v.id)) &&
-                      (!roleSection ||
-                        (page !== 'personas' &&
-                          v.id !== 'personas' &&
-                          (!newRole || v.id === 'persona-settings'))),
-                  ) ?? [];
-                return (
-                  views.length > 1 && (
-                    <div
-                      className="page-sheets"
-                      role="tablist"
-                      aria-label={t(viewSection(page)?.text ?? '')}
-                      onKeyDown={(event) => {
-                        if (['ArrowRight', 'ArrowLeft'].includes(event.key)) {
-                          event.preventDefault();
-                          const index = views.findIndex((v) => v.id === page);
-                          const next =
-                            views[
-                              (index + (event.key === 'ArrowRight' ? 1 : views.length - 1)) %
-                                views.length
-                            ];
-                          goPage(next.id);
-                          requestAnimationFrame(() =>
-                            document.getElementById('sheet-' + next.id)?.focus(),
-                          );
-                        }
-                      }}
-                    >
-                      {views.map((view) => (
-                        <button
-                          key={view.id}
-                          id={'sheet-' + view.id}
-                          data-view={view.id}
-                          role="tab"
-                          tabIndex={page === view.id ? 0 : -1}
-                          aria-selected={page === view.id}
-                          aria-controls={'view-' + view.id}
-                          onClick={() => goPage(view.id)}
-                        >
-                          {t(view.text)}
-                          <UnreadDot count={unread([view.id])} />
-                        </button>
-                      ))}
-                    </div>
-                  )
-                );
-              })()}
             <div
               id={'view-' + page}
               className={

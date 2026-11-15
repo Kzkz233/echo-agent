@@ -194,7 +194,7 @@ export function appearanceSnapshot(
 
 /** Small opt-in vocabulary for extension authors. Layout stays owned by the extension. */
 export const extensionBaseStyles = `
-:root{font-family:"Segoe UI Variable","Segoe UI","Noto Sans SC","PingFang SC","Microsoft YaHei UI",sans-serif;font-size:var(--font-body);font-synthesis:none;color:var(--text);background:var(--background)}
+:root{font-family:"Segoe UI Variable","Segoe UI","Noto Sans SC","PingFang SC","Microsoft YaHei UI",sans-serif;font-size:var(--font-body);line-height:1.5;font-synthesis:none;color:var(--text);background:var(--background)}
 *{box-sizing:border-box}body{margin:0}button,input,textarea,select{font:inherit;color:inherit}
 button,.echo-button{border:1px solid var(--line);border-radius:var(--radius-control);background:var(--panel);color:var(--text);padding:7px 11px;cursor:pointer}
 button:hover,.echo-button:hover{background:var(--hover)}button:disabled{opacity:.5;cursor:default}
