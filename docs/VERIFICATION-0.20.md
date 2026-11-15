@@ -1,5 +1,12 @@
 # Echo 0.20 visual system verification
 
+The 0.20.1 follow-up also checks the shared navigation/layout boundaries described
+in [WORKBENCH-ARCHITECTURE.md](WORKBENCH-ARCHITECTURE.md): explicit scope and role
+identity, editor presentation, registered plugin containers, and parent-preserving
+navigation. The baseline now contains 474 application tests. Browser checks cover
+sequential role tab changes, fixed busy/action slots, task category restoration,
+editor return, frameless iframe bounds, and preference saves during navigation.
+
 - Baseline: `pnpm verify` (473 application tests), desktop Rust tests (4),
   and native Rust tests (21; two explicit capture probes remain ignored).
 - `scripts/appearance-ui-smoke.ts` exercises eleven views in light and dark

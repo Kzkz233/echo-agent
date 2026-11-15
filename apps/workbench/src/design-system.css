@@ -441,6 +441,57 @@ h2 {
 }
 .page-sheets > button {
   font-size: var(--font-body);
+  position: relative;
+  flex-shrink: 0;
+}
+.page-sheets .tab-label {
+  display: grid;
+}
+.page-sheets .tab-label > span,
+.page-sheets .tab-label::after {
+  grid-area: 1 / 1;
+}
+.page-sheets .tab-label::after {
+  content: attr(data-label);
+  font-weight: 600;
+  visibility: hidden;
+}
+.topbar > .page-sheets .unread-dot {
+  position: absolute;
+  right: -9px;
+  top: calc(50% - 9px);
+  margin: 0;
+}
+.page-content:not(.chat-page) {
+  scrollbar-gutter: stable;
+}
+.page-content.plugin-outlet {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  max-width: none;
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+.plugin-outlet > .plugin-page-full {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+.plugin-page-full {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.plugin-page-full .plugin-webview {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  display: block;
+}
+.plugin-page-embedded .plugin-webview {
+  min-height: 320px;
 }
 .page-sheets > button[aria-selected='true'] {
   color: var(--text);
@@ -924,14 +975,41 @@ h2 {
   column-gap: 18px;
   row-gap: 0;
 }
-.topbar > div:first-child {
-  flex-shrink: 0;
-}
 .topbar > .page-sheets {
   flex-shrink: 1;
 }
 .topbar > .topbar-actions {
   flex-shrink: 0;
+}
+.header-status-slot {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  min-width: 29px;
+  height: 29px;
+}
+.header-status-slot > button {
+  position: relative;
+}
+.header-status-slot .unread-dot {
+  position: absolute;
+  right: 1px;
+  top: 1px;
+  margin: 0;
+}
+.topbar > .header-identity {
+  flex-shrink: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+.header-identity strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.role-topbar > .header-identity {
+  flex: 1 1 0;
+  min-width: 60px;
 }
 @media (max-width: 900px) {
   .topbar:has(> .page-sheets) .breadcrumb,
@@ -976,4 +1054,22 @@ h2 {
   .character-navigation .nav-item:has(.role-initial) {
     padding: 6px 4px;
   }
+}
+@media (max-width: 540px) {
+  .topbar > .header-identity .breadcrumb,
+  .topbar > .header-identity > .ui-icon {
+    display: none;
+  }
+}
+
+.connection-label {
+  display: grid;
+}
+.connection-label > span,
+.connection-label::after {
+  grid-area: 1 / 1;
+}
+.connection-label::after {
+  content: attr(data-label);
+  visibility: hidden;
 }

@@ -194,8 +194,11 @@ try {
     const helper = 'credential.helper=!"' + policy.githubCli.replaceAll('\\', '/') + '" auth git-credential';
     git('-c', 'credential.helper=', '-c', helper, 'push', '--atomic', 'origin',
       commit + ':refs/heads/main', commit + ':refs/tags/' + tag);
+    const notesPath = join(root, 'docs/releases', version + '.md');
+    const notes = await access(notesPath).then(() => ['--notes-file', notesPath],
+      () => ['--notes', 'Verified Windows x64 installer and source archive.']);
     gh('release', 'create', tag, '--repo', policy.repository, '--verify-tag', '--title', 'Echo Agent ' + version,
-      '--notes', 'Verified Windows x64 installer and source archive.', ...[...names, shaFile].map(name => join(destination, name)));
+      ...notes, ...[...names, shaFile].map(name => join(destination, name)));
     const release = JSON.parse(gh('api', 'repos/' + policy.repository + '/releases/tags/' + tag)) as {
       draft: boolean; assets: { name: string; digest: string }[];
     };

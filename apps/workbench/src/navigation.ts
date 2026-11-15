@@ -52,18 +52,14 @@ export const sections: Section[] = [
     text: '知识库',
     icon: 'knowledge',
     group: '资料与事务',
-    views: [
-      { id: 'knowledge', text: '个人知识库' },
-    ],
+    views: [{ id: 'knowledge', text: '个人知识库' }],
   },
   {
     id: 'agenda',
     text: '日程与计划',
     icon: 'agenda',
     group: '资料与事务',
-    views: [
-      { id: 'agenda', text: '日历与提醒' },
-    ],
+    views: [{ id: 'agenda', text: '日历与提醒' }],
   },
   {
     id: 'mail',
@@ -94,9 +90,7 @@ export const sections: Section[] = [
     text: '模型服务',
     icon: 'backends',
     group: '配置与维护',
-    views: [
-      { id: 'backends', text: '模型服务' },
-    ],
+    views: [{ id: 'backends', text: '模型服务' }],
   },
   {
     id: 'plugins',
@@ -117,17 +111,48 @@ export const sections: Section[] = [
     ],
   },
 ];
-export const coreViews = new Set(['chat', 'character-session', 'automation', 'appearance', 'backends', 'plugins', 'diagnostics', 'updates']);
+export const coreViews = new Set([
+  'chat',
+  'character-session',
+  'automation',
+  'appearance',
+  'backends',
+  'plugins',
+  'diagnostics',
+  'updates',
+]);
 export function navigationSections(pages: FrontendPageEntry[] = []): Section[] {
   const result = sections.map((section) => ({ ...section, views: [...section.views] }));
   for (const page of pages) {
     if (page.placement === 'plugin-settings') continue;
-    const parents = page.placement === 'settings' ? settingsSections : page.placement === 'character' ? new Set(['personas']) : workspaceSections;
-    let section = page.section && parents.has(page.section) ? result.find((item) => item.id === page.section) : undefined;
+    const parents =
+      page.placement === 'settings'
+        ? settingsSections
+        : page.placement === 'character'
+          ? new Set(['personas'])
+          : workspaceSections;
+    let section =
+      page.section && parents.has(page.section)
+        ? result.find((item) => item.id === page.section)
+        : undefined;
     if (!section) {
       const id = 'extension-' + page.placement + '-' + page.owner;
       section = result.find((item) => item.id === id);
-      if (!section) { section = { id, text: page.ownerName, icon: 'plugins', group: page.placement === 'settings' ? '配置与维护' : page.placement === 'character' ? '交流与陪伴' : '资料与事务', views: [] }; result.push(section); }
+      if (!section) {
+        section = {
+          id,
+          text: page.ownerName,
+          icon: 'plugins',
+          group:
+            page.placement === 'settings'
+              ? '配置与维护'
+              : page.placement === 'character'
+                ? '交流与陪伴'
+                : '资料与事务',
+          views: [],
+        };
+        result.push(section);
+      }
     }
     section.views.push({ id: page.id, text: page.title });
   }
@@ -138,7 +163,105 @@ export const viewSection = (page: string, pages: FrontendPageEntry[] = []) =>
 export const workspaceSections = new Set(['automation', 'knowledge', 'agenda', 'mail', 'activity']);
 export const settingsSections = new Set(['appearance', 'connections', 'plugins', 'system']);
 export const isSettingsPage = (page: string, pages: FrontendPageEntry[] = []) =>
-  (['settings', 'plugin-settings'].includes(pages.find((item) => item.id === page)?.placement ?? '') || settingsSections.has(viewSection(page)?.id ?? '')) && page !== 'channels';
+  (['settings', 'plugin-settings'].includes(
+    pages.find((item) => item.id === page)?.placement ?? '',
+  ) ||
+    settingsSections.has(viewSection(page)?.id ?? '')) &&
+  page !== 'channels';
 export const isWorkspacePage = (page: string, pages: FrontendPageEntry[] = []) =>
-  pages.find((item) => item.id === page)?.placement === 'workspace' || workspaceSections.has(viewSection(page)?.id ?? '');
+  pages.find((item) => item.id === page)?.placement === 'workspace' ||
+  workspaceSections.has(viewSection(page)?.id ?? '');
+
+// Automation can be a role child or an application page. Explicit route context
+// wins; a registered plugin's placement is authoritative for its own pages.
+export function workspaceScopeFor(
+  page: string,
+  pages: FrontendPageEntry[],
+  current: boolean,
+  context?: { workspace?: boolean; roleId?: string | null },
+) {
+  const placement = pages.find((item) => item.id === page)?.placement;
+  if (placement) return placement !== 'character';
+  const roleChild =
+    sections.find((section) => section.id === 'personas')!.views.some((view) => view.id === page) ||
+    ['automation', 'care', 'review', 'observation'].includes(page);
+  if (isWorkspacePage(page, pages) && !roleChild) return true;
+  if (context?.roleId && roleChild) return false;
+  if (context?.workspace !== undefined) return context.workspace;
+  return isWorkspacePage(page, pages) ? current : false;
+}
+export function initialWorkspaceScope(search: string) {
+  const params = new URLSearchParams(search),
+    page = params.get('page') ?? 'character';
+  return workspaceScopeFor(page, [], isWorkspacePage(page), {
+    roleId: params.has('workspace') ? undefined : (params.get('persona') ?? undefined),
+    ...(params.has('workspace') ? { workspace: params.get('workspace') === 'true' } : {}),
+  });
+}
+
+export type WorkbenchScope = 'role' | 'workspace' | 'settings' | 'group' | 'application';
+export type WorkbenchLocation = {
+  page: string;
+  scope: WorkbenchScope;
+  sectionId?: string;
+  personaId?: string;
+  presentation?: 'conversation' | 'editor' | 'embedded';
+};
+
+/** Resolve scope once for both parent chrome and the content outlet. */
+export function workbenchLocation(
+  page: string,
+  pages: FrontendPageEntry[] = [],
+  current?: WorkbenchLocation,
+  context?: { workspace?: boolean; roleId?: string | null },
+): WorkbenchLocation {
+  const registered = pages.find((item) => item.id === page);
+  let scope: WorkbenchScope;
+  if (registered)
+    scope =
+      registered.placement === 'character'
+        ? 'role'
+        : registered.placement === 'workspace'
+          ? 'workspace'
+          : 'settings';
+  else if (page === 'character-wizard') scope = 'role';
+  else if (page === 'personas') scope = 'application';
+  else if (page === 'groups') scope = 'group';
+  else if (page === 'chat') scope = 'application';
+  else if (isSettingsPage(page, pages)) scope = 'settings';
+  else if (!viewSection(page, pages)) scope = current?.scope ?? 'workspace';
+  else
+    scope = workspaceScopeFor(page, pages, current?.scope === 'workspace', context)
+      ? 'workspace'
+      : 'role';
+  const personaId = context?.roleId === null ? undefined : (context?.roleId ?? current?.personaId);
+  return {
+    page,
+    scope,
+    ...(scope === 'role' && personaId ? { personaId } : {}),
+    ...(page === 'character-wizard'
+      ? { presentation: 'editor' as const }
+      : ['chat', 'character', 'character-session'].includes(page)
+        ? { presentation: 'conversation' as const }
+        : registered?.view.type === 'webview' && registered.view.frameless
+          ? { presentation: 'embedded' as const }
+          : {}),
+    sectionId: scope === 'role' ? 'personas' : (viewSection(page, pages)?.id ?? current?.sectionId),
+  };
+}
+
+export function initialWorkbenchLocation(search: string): WorkbenchLocation {
+  const params = new URLSearchParams(search);
+  const page =
+    params.get('page') ?? (params.get('window') === 'settings' ? 'plugins' : 'character');
+  return workbenchLocation(
+    page,
+    [],
+    { page, scope: initialWorkspaceScope(search) ? 'workspace' : 'role' },
+    {
+      roleId: params.has('workspace') ? undefined : (params.get('persona') ?? undefined),
+      ...(params.has('workspace') ? { workspace: params.get('workspace') === 'true' } : {}),
+    },
+  );
+}
 import type { FrontendPageEntry } from '../../../packages/contracts/frontend.ts';

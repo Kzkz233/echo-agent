@@ -21,7 +21,7 @@ export function CharacterHome({
   backstage = false,
 }: any) {
   const confirm = useConfirm();
-  const [character, setCharacter] = useState<any>();
+  const [character, setCharacter] = useState<any>(() => data.characters.find((item: any) => item.id === role.id));
   const activity = data.characterActivities?.[role.id] ?? { enabled: true, revision: 0 };
   useEffect(() => {
     let alive = true;

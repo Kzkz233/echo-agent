@@ -141,6 +141,10 @@ await app.knowledge.save(vault.id, '本周阅读笔记整理', '三个主题：�
 });
 const extension = join(runtime, 'extension');
 await cp(join(project, 'examples/workbench-extension'), extension, { recursive: true });
+const extensionManifest = JSON.parse(await readFile(join(extension, 'echo-plugin.json'), 'utf8'));
+extensionManifest.pages.find((page: any) => page.id === 'workbenchdemo.dashboard').view.frameless =
+  true;
+await writeFile(join(extension, 'echo-plugin.json'), JSON.stringify(extensionManifest));
 const http = await serve(app, { webRoot: join(project, 'dist/web') });
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const page = await browser.newPage({
@@ -205,6 +209,20 @@ try {
   await open('workspace=true&page=workbenchdemo.dashboard');
   const frame = page.frameLocator('.plugin-webview');
   await frame.locator('#count').filter({ hasText: /^\d+$/ }).waitFor();
+  const pluginBounds = await page.locator('.plugin-webview').evaluate((element) => {
+    const frame = element.getBoundingClientRect();
+    const outlet = element.closest('.page-content')!.getBoundingClientRect();
+    return {
+      x: frame.x - outlet.x,
+      y: frame.y - outlet.y,
+      width: frame.width - outlet.width,
+      height: frame.height - outlet.height,
+    };
+  });
+  assert(
+    Object.values(pluginBounds).every((value) => Math.abs(value) < 1),
+    JSON.stringify(pluginBounds),
+  );
   await frame.locator('#message').evaluate((node) => {
     node.textContent = 'Unsaved local page state';
     (window as any).appearanceMount = 'retained';
@@ -270,6 +288,17 @@ try {
   await page.emulateMedia({ colorScheme: 'dark' });
   await frame.locator('html[data-echo-theme=dark]').waitFor();
   await page.emulateMedia({ colorScheme: 'light' });
+  // Plugin navigation uses the host guard exactly once.
+  await frame.locator('body').evaluate(() => (window as any).Echo.host('dirty', { dirty: true }));
+  await frame
+    .locator('body')
+    .evaluate(() => (window as any).Echo.host('navigate', { page: 'knowledge' }));
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: '放弃修改并离开', exact: true })
+    .click();
+  await page.locator('.knowledge-page').waitFor();
+  assert.equal(await page.locator('dialog[open]').count(), 0);
   await app.plugins.disable('workbenchdemo');
   await app.registry.call(
     'preferences.save',
@@ -368,12 +397,108 @@ try {
   await page
     .locator('.role-topbar')
     .screenshot({ path: join(output, 'reference-header-1048.png') });
+  const roleFrames: {
+    label: string | null | undefined;
+    tabs: { x: number; y: number; width: number; height: number }[];
+    contentTop: number;
+  }[] = [];
+  for (const label of ['聊天', '后台工作会话', '角色资料', '任务', '聊天']) {
+    const tab = page.locator('.role-topbar').getByRole('tab', { name: label, exact: true });
+    await tab.click();
+    await page.waitForFunction(
+      (text) => document.querySelector('.role-topbar [aria-selected=true]')?.textContent === text,
+      label,
+    );
+    roleFrames.push(
+      await page.evaluate(() => ({
+        label: document.querySelector('.role-topbar [aria-selected=true]')?.textContent,
+        tabs: [...document.querySelectorAll('.role-topbar [role=tab]')].map((e) => {
+          const r = e.getBoundingClientRect();
+          return { x: r.x, y: r.y, width: r.width, height: r.height };
+        }),
+        contentTop: document.querySelector('.page-content')!.getBoundingClientRect().top,
+      })),
+    );
+  }
+  await writeFile(join(output, 'role-navigation.json'), JSON.stringify(roleFrames, null, 2));
+  for (const frame of roleFrames.slice(1)) {
+    assert.equal(frame.contentTop, roleFrames[0].contentTop, JSON.stringify(roleFrames));
+    for (const [i, tab] of frame.tabs.entries()) {
+      const before = roleFrames[0].tabs[i];
+      assert(
+        Math.abs(tab.x - before.x) < 1 && Math.abs(tab.width - before.width) < 1,
+        JSON.stringify(roleFrames),
+      );
+    }
+  }
+  // Busy status is another fixed parent slot, independent of child content.
+  await page
+    .locator('.role-topbar')
+    .getByRole('tab', { name: '后台工作会话', exact: true })
+    .click();
+  await page.route('**/rpc', async (route) => {
+    if (
+      route.request().method() === 'POST' &&
+      route.request().postDataJSON()?.method === 'persona.package.export'
+    )
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    await route.continue();
+  });
+  await page.getByRole('button', { name: '导出角色包', exact: true }).click();
+  await page.locator('.header-status-slot [role=status]').waitFor();
+  const busyTabs = await page
+    .locator('.role-topbar [role=tab]')
+    .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().x));
+  assert(busyTabs.every((x, i) => Math.abs(x - roleFrames[0].tabs[i].x) < 1));
+  await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click();
+  await page.unroute('**/rpc');
+  // Editors return to their owning page and task category.
+  await page.locator('.role-topbar').getByRole('tab', { name: '任务', exact: true }).click();
+  await page.locator('.task-workspace').getByRole('tab', { name: '自动化', exact: true }).click();
+  await page.locator('.role-topbar').getByRole('button', { name: '配置角色', exact: true }).click();
+  await page.locator('.character-wizard input:visible').first().waitFor();
+  await page
+    .locator('.character-wizard')
+    .getByRole('button', { name: '关闭', exact: true })
+    .click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector('.task-workspace [role=tab][aria-selected=true]')?.textContent ===
+      '自动化',
+  );
+  // The same task ID has distinct, explicit role and application entry contexts.
+  await open('persona=design-demo&page=automation');
+  await page.locator('.role-topbar').waitFor();
+  await page.locator('.task-workspace').waitFor();
+  await open('workspace=true&page=automation');
+  assert.equal(await page.locator('.role-topbar').count(), 0);
   await open('workspace=true&page=knowledge');
   await page.locator('.document-row').first().click();
-  await page.locator('.document-reader h2').waitFor();
+  await page.locator('.document-reader .reader-title h2').waitFor();
+  await page
+    .getByText('有时候，一天结束时的疲惫并不来自做了太多事，而是注意力一直没有真正停下来。', {
+      exact: true,
+    })
+    .waitFor();
   await page.screenshot({ path: join(output, 'reference-knowledge-1048.png') });
   await open('window=settings&page=appearance');
   await page.screenshot({ path: join(output, 'reference-settings-1048.png') });
+  // Navigating immediately after an edit must not cancel its queued save.
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.request().postDataJSON()?.method === 'preferences.save',
+    ),
+    (async () => {
+      await page
+        .locator('.page-content')
+        .getByLabel('界面字号', { exact: true })
+        .selectOption('15');
+      await page.locator('.sidebar').getByRole('button', { name: '模型服务', exact: true }).click();
+    })(),
+  ]);
+  assert.equal(app.store.get<any>('preferences', {}).uiFontSize, 15);
   for (const width of [1080, 810, 540, 390]) {
     await page.setViewportSize({ width, height: 900 });
     for (const [name, query] of [

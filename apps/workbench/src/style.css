@@ -2537,7 +2537,8 @@ details > p {
   margin-top: 24px;
 }
 .task-workspace > .button,
-.task-workspace > button {
+.task-workspace > button,
+#task-panel > button {
   margin-bottom: 20px;
 }
 .state-animation-grid {

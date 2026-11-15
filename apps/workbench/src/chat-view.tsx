@@ -3,7 +3,7 @@ import { messageDay } from './message-time-format.ts';
 import { modelDisplayName } from '../../../packages/contracts/model-services.ts';
 import { CharacterPortrait } from './character-portrait.tsx';
 import { inferenceTasks } from '../../../packages/contracts/inference.ts';
-import { statusText } from './i18n.ts';
+import { statusText, usePreferences } from './i18n.ts';
 import { t } from './i18n.ts';
 import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -78,6 +78,7 @@ const streamsInChat = (run: Run) => {
   return localChat(plan) && (plan?.targets.length ?? 0) <= 1;
 };
 export function ChatView({ data, act, setPage, openTask, fixedConversationId, editRole, surface, openSession, managedSettings = false }: any) {
+  const appearance = usePreferences();
   const now = useMessageNow();
   const timezone = data.clock?.timezone;
   const dialogue = surface === 'dialogue';
@@ -167,7 +168,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
     const limit = dialogue ? 144 : 220;
     element.style.height = Math.min(limit, Math.max(dialogue ? 32 : 64, element.scrollHeight)) + 'px';
     element.style.overflowY = element.scrollHeight > limit ? 'auto' : 'hidden';
-  }, [text, selected, dialogue]);
+  }, [text, selected, dialogue, appearance.chatFontSize, appearance.uiFontSize]);
   const setText = (value: string, id = selected) => setDrafts((old) => ({ ...old, [id]: value }));
   useEffect(() => {
     sessionStorage.setItem('echo.drafts', JSON.stringify(drafts));

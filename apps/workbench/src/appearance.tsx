@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Icon } from './ui.tsx';
 import { rpc } from './client.ts';
 import { colorContrast } from '../../../packages/contracts/appearance.ts';
@@ -31,7 +31,7 @@ export function AppearanceSettings({ compact = false }: { compact?: boolean }) {
       }
     }, 180);
   };
-  useEffect(() => () => clearTimeout(timer.current), []);
+  // Finish the queued save when navigating away from the settings page as well.
   return (
     <>
       <section className={'appearance-settings' + (compact ? ' is-compact' : '')}>

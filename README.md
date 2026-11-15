@@ -61,7 +61,7 @@
 
 ## 项目文档
 
-[界面设计与插件主题接口](docs/DESIGN-SYSTEM.md) · [0.20 验证记录](docs/VERIFICATION-0.20.md)
+[界面设计与插件主题接口](docs/DESIGN-SYSTEM.md) · [前端分层与导航](docs/WORKBENCH-ARCHITECTURE.md) · [0.20 验证记录](docs/VERIFICATION-0.20.md)
 
 
 | 主题           | 文档                                                                                                                |

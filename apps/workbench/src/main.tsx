@@ -1,3 +1,4 @@
+import { PageHeader, PageTabs, RoleHeaderActions, HeaderStatus } from './page-header.tsx';
 import { StarterCharacters } from './starter-characters.tsx';
 import { UnreadDot, usePageBadges } from './badges.tsx';
 import { CharacterPortrait } from './character-portrait.tsx';
@@ -14,6 +15,7 @@ import {
   Fragment,
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
   useRef,
   createContext,
@@ -49,6 +51,9 @@ import './character-style.css';
 import './design-system.css';
 import { Appearance, AppearanceSettings } from './appearance.tsx';
 import {
+  initialWorkbenchLocation,
+  workbenchLocation,
+  type WorkbenchLocation,
   navigationSections,
   coreViews,
   viewSection as findViewSection,
@@ -312,14 +317,7 @@ function App() {
   const settingsWindow = new URLSearchParams(location.search).get('window') === 'settings';
   const extensionWindow = new URLSearchParams(location.search).get('window') === 'extension';
   const [data, setData] = useState<any>(),
-    [workspaceScope, setWorkspaceScope] = useState(() =>
-      workspacePage(new URLSearchParams(location.search).get('page') ?? 'character'),
-    ),
-    [page, setPage] = useState(
-      () =>
-        new URLSearchParams(location.search).get('page') ??
-        (settingsWindow ? 'plugins' : 'character'),
-    ),
+    [route, setRoute] = useState(() => initialWorkbenchLocation(location.search)),
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
     [connection, changeConnection] = useState({ url: 'http://127.0.0.1:0', token: '' }),
@@ -340,6 +338,12 @@ function App() {
     [wizardStep, setWizardStep] = useState(0),
     [navSearch, setNavSearch] = useState(''),
     [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const page = route.page;
+  const editorOrigin = useRef<WorkbenchLocation>(undefined);
+  const contentViewport = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (contentViewport.current) contentViewport.current.scrollTop = 0;
+  }, [page, roleSelection]);
   const initialLanding = useRef(false);
   useEffect(() => {
     if (!data || initialLanding.current) return;
@@ -356,9 +360,11 @@ function App() {
   }, [data]);
   const pages = data?.frontend?.pages ?? [];
   const extensionPage = pages.find((entry: any) => entry.id === page);
-  useEffect(() => {
-    if (extensionPage) setWorkspaceScope(extensionPage.placement !== 'character');
-  }, [extensionPage?.id, extensionPage?.placement]);
+  const activeLocation = workbenchLocation(page, pages, route);
+  const workspaceScope = activeLocation.scope === 'workspace';
+  const roleSection = activeLocation.scope === 'role' && activeLocation.presentation !== 'editor';
+  const setPage = (target: string, context?: { workspace?: boolean; roleId?: string | null }) =>
+    setRoute(workbenchLocation(target, pages, activeLocation, context));
   const sections = navigationSections(pages);
   const viewSection = (id: string) => findViewSection(id, pages);
   const isSettingsPage = (id: string) => settingsPage(id, pages);
@@ -384,16 +390,10 @@ function App() {
       .map((section) => section.id),
   ]);
   const role: Persona | undefined =
-    newRole ?? data?.personas.find((p: Persona) => p.id === roleSelection) ?? data?.personas[0];
-  const unread = usePageBadges(
-    connected,
-    page,
-    workspaceScope || settingsWindow ? undefined : role?.id,
-  );
-  const roleSection =
-    !settingsWindow &&
-    !(extensionPage ? extensionPage.placement !== 'character' : workspaceScope) &&
-    !['groups', 'character-wizard', 'chat', 'personas'].includes(page);
+    newRole ??
+    data?.personas.find((p: Persona) => p.id === (activeLocation.personaId ?? roleSelection)) ??
+    data?.personas[0];
+  const unread = usePageBadges(connected, page, roleSection ? role?.id : undefined);
   const popoutPlugin = async () => {
     if (!extensionPage) return;
     const personaId = extensionPage.placement === 'character' ? role?.id : undefined;
@@ -413,26 +413,37 @@ function App() {
   };
   const openRole = (selected?: Persona) =>
     requestNavigation(() => {
-      setWorkspaceScope(false);
       if (!selected) {
+        editorOrigin.current = activeLocation;
         setWizardRole(undefined);
         setWizardTaskId(undefined);
         setWizardStep(0);
-        setPage('character-wizard');
+        setPage('character-wizard', { roleId: null });
         return;
       }
       setRoleSelection(selected.id);
       sessionStorage.setItem('echo.role', selected.id);
-      setPage('character');
+      setPage('character', { roleId: selected.id });
     });
   const editRole = (selected?: Persona, step = 0, taskId?: string) =>
     requestNavigation(() => {
-      setWorkspaceScope(false);
+      editorOrigin.current = activeLocation;
       setWizardRole(selected?.id);
       setWizardTaskId(taskId);
       setWizardStep(step);
-      setPage('character-wizard');
+      setPage('character-wizard', { roleId: selected?.id ?? null });
     });
+  const showPendingInteraction = () => {
+    const interaction = data?.pendingInteractions?.[0];
+    if (!interaction) return;
+    sessionStorage.setItem('echo.chat', interaction.conversationId);
+    if (settingsWindow) void openWorkbench('chat', { conversationId: interaction.conversationId });
+    else goPage('chat', undefined, undefined, undefined, { workspace: false });
+  };
+  const closeRoleEditor = () => {
+    if (editorOrigin.current) setRoute(editorOrigin.current);
+    else setPage(role ? 'character' : 'personas');
+  };
   const openSettings = async (target = 'plugins', pluginId?: string) => {
     try {
       localStorage.setItem(
@@ -500,6 +511,12 @@ function App() {
     task?: { type: string; id: string; mode?: 'status' | 'edit' },
     context?: { workspace?: boolean; roleId?: string; conversationId?: string },
   ) => {
+    if (extensionWindow && !pages.some((entry: any) => entry.id === target)) {
+      if (isSettingsPage(target)) void openSettings(target, pluginId);
+      else
+        void openWorkbench(target, { pluginId, selection, task, roleId: activeLocation.personaId });
+      return;
+    }
     if (!extensionWindow && settingsWindow && !isSettingsPage(target)) {
       void openWorkbench(target, { pluginId, selection, task });
       return;
@@ -510,11 +527,8 @@ function App() {
     }
     if (target === page && !pluginId && !selection && !task && !context) return;
     requestNavigation(() => {
-      if (context?.workspace !== undefined) setWorkspaceScope(context.workspace);
-      else if (!isWorkspacePage(target)) setWorkspaceScope(false);
       if (context?.roleId) {
         setRoleSelection(context.roleId);
-        setWorkspaceScope(false);
       }
       if (context?.conversationId) sessionStorage.setItem('echo.chat', context.conversationId);
       if (pluginId) sessionStorage.setItem('echo.plugin', pluginId);
@@ -524,7 +538,7 @@ function App() {
         setTaskRevision((r) => r + 1);
       }
       if (target === 'personas') setNewRole(undefined);
-      setPage(target);
+      setPage(target, context);
       if (target === page)
         window.dispatchEvent(
           new CustomEvent('echo:selection', { detail: { pluginId, selection } }),
@@ -591,7 +605,10 @@ function App() {
   const refresh = useCallback(async () => {
     const revision = ++refreshRevision.current;
     const result = await rpc('system.bootstrap');
-    if (revision === refreshRevision.current) setData(result);
+    if (revision === refreshRevision.current) {
+      if (result.preferences) applySavedPreferences(result.preferences);
+      setData(result);
+    }
   }, []);
   const act = useCallback(
     async (fn: () => Promise<any>, message = '已保存') => {
@@ -675,9 +692,6 @@ function App() {
     if (section) sessionStorage.setItem('echo.sheet.' + section.id, page);
   }, [page]);
   useEffect(() => {
-    if (data?.preferences) applySavedPreferences(data.preferences);
-  }, [data?.preferences]);
-  useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
@@ -701,11 +715,13 @@ function App() {
       !data.plugins.some((p: any) => p.enabled && p.views?.includes(page))
     )
       setPage(
-        viewSection(page)?.views.find(
+        (
+          viewSection(page) ?? sections.find((section) => section.id === activeLocation.sectionId)
+        )?.views.find(
           (v) =>
             coreViews.has(v.id) ||
             data.plugins.some((p: any) => p.enabled && p.views?.includes(v.id)),
-        )?.id ?? 'plugins',
+        )?.id ?? (roleSection ? 'character' : workspaceScope ? 'knowledge' : 'plugins'),
       );
   }, [data, page]);
   if (!data)
@@ -760,7 +776,7 @@ function App() {
           act,
           setPage: goPage,
           openTask,
-          role: workspaceScope || settingsWindow ? undefined : role,
+          role: roleSection ? role : undefined,
           savedRole,
           openSettings,
           editRole,
@@ -891,7 +907,7 @@ function App() {
                       title={persona.name}
                       className={
                         'nav-item ' +
-                        (!workspaceScope && role?.id === persona.id && page !== 'groups'
+                        (activeLocation.scope === 'role' && role?.id === persona.id
                           ? 'selected'
                           : '')
                       }
@@ -921,7 +937,6 @@ function App() {
                         className="icon-button"
                         aria-label={t('创建群聊')}
                         onClick={() => {
-                          setWorkspaceScope(false);
                           setGroupSelection('');
                           setPage('groups');
                         }}
@@ -945,7 +960,6 @@ function App() {
                             (page === 'groups' && groupSelection === group.id ? 'selected' : '')
                           }
                           onClick={() => {
-                            setWorkspaceScope(false);
                             setGroupSelection(group.id);
                             setPage('groups');
                           }}
@@ -1009,209 +1023,155 @@ function App() {
             </div>
           </aside>
           <main>
-            <header
-              className={
-                'topbar' +
-                (!extensionWindow && !settingsWindow && roleSection && role ? ' role-topbar' : '')
+            <PageHeader
+              role={!extensionWindow && !settingsWindow && roleSection && !!role}
+              scope={
+                !extensionWindow && !settingsWindow && activeLocation.scope === 'role'
+                  ? '角色'
+                  : (viewSection(page)?.group ?? 'Echo')
               }
-            >
-              <div>
-                <span className="breadcrumb">
-                  {t(
-                    !extensionWindow && !settingsWindow && roleSection && role
-                      ? '角色'
-                      : (viewSection(page)?.group ?? 'Echo'),
+              title={
+                activeLocation.presentation === 'editor'
+                  ? wizardRole
+                    ? (data.personas.find((p: Persona) => p.id === wizardRole)?.name ?? '角色配置')
+                    : '创建角色'
+                  : settingsWindow || workspaceScope || page === 'personas'
+                    ? (viewSection(page)?.text ?? '设置')
+                    : page === 'groups'
+                      ? '群聊'
+                      : (role?.name ?? 'Echo')
+              }
+              tabs={
+                <>
+                  {!extensionWindow && !settingsWindow && roleSection && role && (
+                    <PageTabs
+                      label="角色能力"
+                      prefix="role"
+                      controls={'view-' + page}
+                      selected={page === 'delegation' ? 'automation' : page}
+                      items={[
+                        { id: 'character', text: '聊天', owner: 'persona' },
+                        { id: 'character-session', text: '后台工作会话', owner: 'persona' },
+                        { id: 'memory', text: '角色资料', owner: 'persona' },
+                        { id: 'automation', text: '任务', owner: 'persona' },
+                        ...pages
+                          .filter((entry: any) => entry.placement === 'character')
+                          .map((entry: any) => ({
+                            id: entry.id,
+                            text: entry.title,
+                            owner: entry.owner,
+                          })),
+                      ]
+                        .filter(
+                          (view) =>
+                            (view.id !== 'reflections' ||
+                              !data.plugins.some(
+                                (p: any) =>
+                                  p.id === 'memory' &&
+                                  p.enabled &&
+                                  (!data.characters.find((r: any) => r.id === role.id) ||
+                                    data.characters
+                                      .find((r: any) => r.id === role.id)
+                                      .features.includes('memory')),
+                              )) &&
+                            (view.owner === 'persona' ||
+                              pages.some((entry: any) => entry.id === view.id) ||
+                              view.id === 'automation' ||
+                              (view.id === 'channels' && enabled.has('channels')) ||
+                              (data.plugins.some((p: any) => p.id === view.owner && p.enabled) &&
+                                (!data.characters.find((r: any) => r.id === role.id) ||
+                                  data.characters
+                                    .find((r: any) => r.id === role.id)
+                                    .features.includes(view.owner)))),
+                        )
+                        .map((view) => ({
+                          ...view,
+                          badge: <UnreadDot count={unread([view.id], role.id)} />,
+                        }))}
+                      onSelect={(id) =>
+                        goPage(id, undefined, undefined, undefined, { roleId: role.id })
+                      }
+                    />
                   )}
-                </span>
-                <Icon name="chevron" size={13} />
-                <strong>
-                  {t(
-                    settingsWindow || workspaceScope || page === 'personas'
-                      ? (viewSection(page)?.text ?? '设置')
-                      : page === 'groups'
-                        ? '群聊'
-                        : (role?.name ?? 'Echo'),
-                  )}
-                </strong>
-              </div>
-              {!extensionWindow && !settingsWindow && roleSection && role && (
-                <div className="page-sheets" role="tablist" aria-label={t('角色能力')}>
-                  {[
-                    { id: 'character', text: '聊天', owner: 'persona' },
-                    { id: 'character-session', text: '后台工作会话', owner: 'persona' },
-                    { id: 'memory', text: '角色资料', owner: 'persona' },
-                    { id: 'automation', text: '任务', owner: 'persona' },
-                    ...pages
-                      .filter((entry: any) => entry.placement === 'character')
-                      .map((entry: any) => ({
-                        id: entry.id,
-                        text: entry.title,
-                        owner: entry.owner,
-                      })),
-                  ]
-                    .filter(
-                      (view) =>
-                        (view.id !== 'reflections' ||
-                          !data.plugins.some(
-                            (p: any) =>
-                              p.id === 'memory' &&
-                              p.enabled &&
-                              (!data.characters.find((r: any) => r.id === role.id) ||
-                                data.characters
-                                  .find((r: any) => r.id === role.id)
-                                  .features.includes('memory')),
-                          )) &&
-                        (view.owner === 'persona' ||
-                          pages.some((entry: any) => entry.id === view.id) ||
-                          view.id === 'automation' ||
-                          (view.id === 'channels' && enabled.has('channels')) ||
-                          (data.plugins.some((p: any) => p.id === view.owner && p.enabled) &&
-                            (!data.characters.find((r: any) => r.id === role.id) ||
-                              data.characters
-                                .find((r: any) => r.id === role.id)
-                                .features.includes(view.owner)))),
-                    )
-                    .map((view) => (
-                      <button
-                        key={view.id}
-                        role="tab"
-                        aria-selected={page === view.id}
-                        onClick={() => goPage(view.id)}
-                      >
-                        {t(view.text)}
-                        <UnreadDot count={unread([view.id], role.id)} />
-                      </button>
-                    ))}
-                </div>
-              )}
-              {!extensionWindow &&
-                (settingsWindow || workspaceScope) &&
-                (() => {
-                  const views =
-                    viewSection(page)?.views.filter(
-                      (v) =>
-                        (coreViews.has(v.id) || enabled.has(v.id)) &&
-                        (!settingsWindow || isSettingsPage(v.id)) &&
-                        (!roleSection ||
-                          (page !== 'personas' &&
-                            v.id !== 'personas' &&
-                            (!newRole || v.id === 'persona-settings'))),
-                    ) ?? [];
-                  return (
-                    views.length > 1 && (
-                      <div
-                        className="page-sheets"
-                        role="tablist"
-                        aria-label={t(viewSection(page)?.text ?? '')}
-                        onKeyDown={(event) => {
-                          if (['ArrowRight', 'ArrowLeft'].includes(event.key)) {
-                            event.preventDefault();
-                            const index = views.findIndex((v) => v.id === page);
-                            const next =
-                              views[
-                                (index + (event.key === 'ArrowRight' ? 1 : views.length - 1)) %
-                                  views.length
-                              ];
-                            goPage(next.id);
-                            requestAnimationFrame(() =>
-                              document.getElementById('sheet-' + next.id)?.focus(),
-                            );
-                          }
-                        }}
-                      >
-                        {views.map((view) => (
-                          <button
-                            key={view.id}
-                            id={'sheet-' + view.id}
-                            data-view={view.id}
-                            role="tab"
-                            tabIndex={page === view.id ? 0 : -1}
-                            aria-selected={page === view.id}
-                            aria-controls={'view-' + view.id}
-                            onClick={() => goPage(view.id)}
-                          >
-                            {t(view.text)}
-                            <UnreadDot count={unread([view.id])} />
-                          </button>
-                        ))}
-                      </div>
-                    )
-                  );
-                })()}
-              <div className="topbar-actions">
-                {role && ['character', 'character-session'].includes(page) && (
-                  <button
-                    className="icon-button"
-                    title={t('配置角色')}
-                    aria-label={t('配置角色')}
-                    onClick={() => editRole(role)}
-                  >
-                    <Icon name="settings" size={17} />
-                  </button>
-                )}
-                <Appearance />
-                {data.pendingInteractions?.length > 0 && (
-                  <Button
-                    secondary
-                    onClick={() => {
-                      sessionStorage.setItem(
-                        'echo.chat',
-                        data.pendingInteractions[0].conversationId,
+                  {!extensionWindow &&
+                    (settingsWindow || workspaceScope) &&
+                    (() => {
+                      const views =
+                        viewSection(page)?.views.filter(
+                          (v) =>
+                            (coreViews.has(v.id) || enabled.has(v.id)) &&
+                            (!settingsWindow || isSettingsPage(v.id)) &&
+                            (!roleSection ||
+                              (page !== 'personas' &&
+                                v.id !== 'personas' &&
+                                (!newRole || v.id === 'persona-settings'))),
+                        ) ?? [];
+                      return (
+                        views.length > 1 && (
+                          <PageTabs
+                            items={views.map((view) => ({
+                              ...view,
+                              badge: <UnreadDot count={unread([view.id])} />,
+                            }))}
+                            selected={page}
+                            controls={'view-' + page}
+                            label={viewSection(page)?.text ?? ''}
+                            onSelect={goPage}
+                          />
+                        )
                       );
-                      if (settingsWindow)
-                        void openWorkbench('chat', {
-                          conversationId: data.pendingInteractions[0].conversationId,
-                        });
-                      else goPage('chat', undefined, undefined, undefined, { workspace: false });
-                    }}
-                  >
-                    {t('待确认')} · {data.pendingInteractions.length}
-                  </Button>
-                )}
-                {pending > 0 && (
-                  <span className="saving-indicator">
-                    <span className="spinner" />
-                    {t('正在处理')}
-                  </span>
-                )}
-                <span className="local-badge">
-                  <span className={'status-dot ' + (connected ? '' : 'offline')} />
-                  {connected ? t('本机已连接') : t('连接中')}
-                </span>
-                <button
-                  className="icon-button page-refresh"
-                  title={t('刷新页面数据')}
-                  aria-label={t('刷新页面数据')}
-                  disabled={pending > 0}
-                  onClick={() => act(refresh, t('已刷新'))}
-                >
-                  <Icon name="review" size={16} />
-                </button>
-              </div>
-            </header>
-            {roleSection &&
-              !['personas', 'character', 'character-session'].includes(page) &&
-              role && (
-                <div className="role-heading">
-                  <button className="text-button" onClick={() => goPage('personas')}>
-                    {t('所有角色')}
-                  </button>
-                  <Icon name="chevron" size={13} />
-                  <strong>{role.name}</strong>
-                </div>
-              )}
+                    })()}
+                </>
+              }
+              actions={
+                !extensionWindow && roleSection && role ? (
+                  <RoleHeaderActions
+                    working={pending > 0}
+                    interactions={data.pendingInteractions?.length ?? 0}
+                    configure={() => editRole(role)}
+                    openPending={showPendingInteraction}
+                  />
+                ) : (
+                  <>
+                    <Appearance />
+                    <HeaderStatus
+                      working={pending > 0}
+                      interactions={data.pendingInteractions?.length ?? 0}
+                      openPending={showPendingInteraction}
+                    />
+                    <span className="local-badge">
+                      <span className={'status-dot ' + (connected ? '' : 'offline')} />
+                      <span className="connection-label" data-label={t('本机已连接')}>
+                        <span>{connected ? t('本机已连接') : t('连接中')}</span>
+                      </span>
+                    </span>
+                    <button
+                      className="icon-button page-refresh"
+                      title={t('刷新页面数据')}
+                      aria-label={t('刷新页面数据')}
+                      disabled={pending > 0}
+                      onClick={() => act(refresh, t('已刷新'))}
+                    >
+                      <Icon name="review" size={16} />
+                    </button>
+                  </>
+                )
+              }
+            />
             <div
+              ref={contentViewport}
               id={'view-' + page}
+              role={roleSection ? 'tabpanel' : undefined}
+              aria-labelledby={
+                roleSection ? 'role-' + (page === 'delegation' ? 'automation' : page) : undefined
+              }
               className={
                 'page-content ' +
-                (['chat', 'character', 'character-session'].includes(page) ? 'chat-page' : '')
-              }
-              key={
-                (roleSection
-                  ? (page === 'character-session' ? 'character' : page) + ':' + (role?.id ?? '')
-                  : page) +
-                ':' +
-                taskRevision
+                (activeLocation.presentation === 'conversation'
+                  ? 'chat-page'
+                  : activeLocation.presentation === 'embedded'
+                    ? 'plugin-outlet'
+                    : '')
               }
             >
               {error && (
@@ -1227,6 +1187,13 @@ function App() {
                 </div>
               )}
               <Suspense
+                key={
+                  (roleSection
+                    ? (page === 'character-session' ? 'character' : page) + ':' + (role?.id ?? '')
+                    : page) +
+                  ':' +
+                  taskRevision
+                }
                 fallback={
                   <div className="chat-loading">
                     <span className="spinner" />
@@ -1240,7 +1207,7 @@ function App() {
                       page + ':' + (extensionPage.placement === 'character' ? (role?.id ?? '') : '')
                     }
                     page={extensionPage}
-                    navigate={setPage}
+                    navigate={goPage}
                     personaId={extensionPage.placement === 'character' ? role?.id : undefined}
                     act={act}
                     popout={() => void popoutPlugin().catch((error) => setError(error.message))}
@@ -1253,10 +1220,11 @@ function App() {
                     initialStep={wizardStep}
                     initialTaskId={wizardTaskId}
                     personaId={wizardRole}
-                    onClose={() => setPage('character')}
+                    onClose={closeRoleEditor}
                     onComplete={(value: any) => {
                       savedRole(value.persona);
-                      setPage('character');
+                      if (wizardRole) closeRoleEditor();
+                      else setPage('character', { roleId: value.persona.id });
                     }}
                   />
                 ) : page === 'character' || page === 'character-session' ? (
@@ -1719,7 +1687,7 @@ function ExtensionSettings() {
   );
 }
 function Plugins() {
-  const { data, act } = useApp();
+  const { data, act, setPage } = useApp();
   const confirmAction = useConfirm();
   const plugins = data.plugins
     .filter((p: any) => !p.internalComponent)
@@ -2024,7 +1992,7 @@ function Plugins() {
                     (page: any) => page.owner === selected && page.placement === 'plugin-settings',
                   )
                   .map((page: any) => (
-                    <PluginPage key={page.id} page={page} act={act} embedded />
+                    <PluginPage key={page.id} page={page} act={act} embedded navigate={setPage} />
                   ))}
               </Suspense>
             )}

@@ -20,6 +20,8 @@ export function PluginPage({
   embedded?: boolean;
 }) {
   const preferences = usePreferences();
+  const navigation = useRef(navigate);
+  navigation.current = navigate;
   const activeBridge = useRef('');
   const sendTheme = () => {
     if (activeBridge.current)
@@ -142,7 +144,8 @@ export function PluginPage({
             });
           } else if (data.method === 'navigate') {
             if (typeof input.page !== 'string') throw Error('Invalid page');
-            requestNavigation(() => navigate?.(input.page, input.selected, input.selection));
+            if (!navigation.current) throw Error(t('插件页面当前不可用。'));
+            navigation.current(input.page, input.selected, input.selection);
             reply({ result: true });
           } else if (data.method === 'dirty') {
             setDirty(input.dirty === true);
@@ -211,27 +214,14 @@ export function PluginPage({
     return () => removeEventListener('echo-theme-changed', sendTheme);
   }, [preferences, src]);
   const view = content?.page.view;
-  const frameless = view?.type === 'webview' && view.frameless;
-  useEffect(() => {
-    if (!frameless || !src || !frame.current) return;
-    const element = frame.current;
-    const fit = () => {
-      const height = Math.max(320, window.innerHeight - element.getBoundingClientRect().top - 16);
-      element.style.height = height + 'px';
-      element.style.minHeight = '320px';
-    };
-    fit();
-    const observer = new ResizeObserver(fit);
-    if (element.parentElement) observer.observe(element.parentElement);
-    window.addEventListener('resize', fit);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', fit);
-    };
-  }, [frameless, src]);
+  const frameless = page.view.type === 'webview' && page.view.frameless;
   return (
     <section
-      className={'plugin-page' + (frameless ? ' plugin-page-full' : '')}
+      className={
+        'plugin-page' +
+        (frameless && !embedded ? ' plugin-page-full' : '') +
+        (embedded ? ' plugin-page-embedded' : '')
+      }
       data-plugin-page={page.id}
     >
       {!frameless && (

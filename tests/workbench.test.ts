@@ -1,8 +1,66 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setup } from './helpers.ts';
-import { sections } from '../apps/workbench/src/navigation.ts';
+import {
+  initialWorkspaceScope,
+  initialWorkbenchLocation,
+  workbenchLocation,
+  workspaceScopeFor,
+  sections,
+} from '../apps/workbench/src/navigation.ts';
+import type { FrontendPageEntry } from '../packages/contracts/frontend.ts';
 const caller = { kind: 'ui' as const, permissions: new Set(['*']) };
+
+test('role and application routes have explicit scope, including registered pages and deep links', () => {
+  assert.equal(initialWorkspaceScope('?page=automation&persona=example'), false);
+  assert.equal(initialWorkspaceScope('?page=automation&workspace=true'), true);
+  assert.equal(initialWorkspaceScope('?page=knowledge&persona=example'), true);
+  assert.equal(initialWorkspaceScope('?page=automation'), true);
+  assert.equal(workspaceScopeFor('automation', [], false), false);
+  assert.equal(workspaceScopeFor('automation', [], true), true);
+  assert.equal(
+    workspaceScopeFor('automation', [], true, { roleId: 'example', workspace: true }),
+    false,
+  );
+  assert.equal(workspaceScopeFor('knowledge', [], false), true);
+  const roleRoute = initialWorkbenchLocation('?page=automation&persona=example');
+  assert.equal(roleRoute.scope, 'role');
+  assert.equal(roleRoute.personaId, 'example');
+  assert.equal(workbenchLocation('character-session', [], roleRoute).personaId, 'example');
+  assert.equal(
+    workbenchLocation('character', [], roleRoute, { roleId: 'another' }).personaId,
+    'another',
+  );
+  assert.equal(workbenchLocation('knowledge', [], roleRoute).scope, 'workspace');
+  assert.equal(workbenchLocation('knowledge', [], roleRoute).personaId, undefined);
+  assert.equal(initialWorkbenchLocation('?window=settings').scope, 'settings');
+  const editor = workbenchLocation('character-wizard', [], roleRoute, { roleId: null });
+  assert.equal(editor.scope, 'role');
+  assert.equal(editor.presentation, 'editor');
+  assert.equal(editor.personaId, undefined);
+  assert.equal(
+    workbenchLocation('missing.page', [], {
+      page: 'missing.page',
+      scope: 'workspace',
+      sectionId: 'agenda',
+    }).sectionId,
+    'agenda',
+  );
+  const page = (placement: 'character' | 'workspace'): FrontendPageEntry => ({
+    id: 'example.page',
+    title: 'Example',
+    owner: 'example',
+    ownerName: 'Example',
+    placement,
+    order: 0,
+    view: { type: 'form', load: 'example.read', fields: [] },
+  });
+  assert.equal(workspaceScopeFor('example.page', [page('character')], true), false);
+  assert.equal(
+    workspaceScopeFor('example.page', [page('workspace')], false, { roleId: 'example' }),
+    true,
+  );
+});
 test('display preferences persist without altering persona or conversation data', async (t) => {
   const app = await setup(t);
   const before = app.store.documents('personas');
