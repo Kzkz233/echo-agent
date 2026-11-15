@@ -431,6 +431,24 @@ try {
       );
     }
   }
+  // Unread markers, including the last tab, cannot create overflow or move tabs.
+  const markerLayout = await page.locator('.role-topbar .page-sheets').evaluate((nav) => {
+    const x = nav.getBoundingClientRect().x;
+    const marker = document.createElement('span');
+    marker.className = 'unread-dot';
+    nav.querySelector('button:last-child')!.append(marker);
+    const result = {
+      client: nav.clientWidth,
+      scroll: nav.scrollWidth,
+      moved: nav.getBoundingClientRect().x - x,
+    };
+    marker.remove();
+    return result;
+  });
+  assert(
+    markerLayout.scroll <= markerLayout.client + 1 && Math.abs(markerLayout.moved) < 1,
+    JSON.stringify(markerLayout),
+  );
   // Busy status is another fixed parent slot, independent of child content.
   await page
     .locator('.role-topbar')

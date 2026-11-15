@@ -1,7 +1,7 @@
 /* Shared product geometry. Feature styles own layout, not a second palette. */
 .topbar > .page-sheets {
   margin: 0 0 0 auto;
-  padding: 0;
+  padding: 0 9px 0 0;
   border: 0;
   align-self: stretch;
   height: 64px;
