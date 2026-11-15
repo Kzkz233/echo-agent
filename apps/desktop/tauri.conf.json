@@ -35,6 +35,8 @@
         "silent": true
       },
       "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
         "installerHooks": "../../resources/installer-hooks.nsh",
         "compression": "zlib"
       }
