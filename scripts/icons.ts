@@ -16,7 +16,7 @@ function tile(source: string) {
   const scale = 780 / (678.1 - 35.8);
   const x = 522 - (26.9 + 649) / 2 * scale;
   const y = 518 - (35.8 + 678.1) / 2 * scale;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><title>Echo</title><rect width="1024" height="1024" rx="224" fill="#242931"/><g transform="translate(${x} ${y}) scale(${scale})">${group(source).replace('fill="#000000"', 'fill="#ffffff"')}</g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><title>Echo</title><rect width="1024" height="1024" rx="224" fill="#ffffff"/><g transform="translate(${x} ${y}) scale(${scale})">${group(source)}</g></svg>`;
 }
 await mkdir(icons, { recursive: true });
 const mainTile = tile(master), smallTile = tile(small);

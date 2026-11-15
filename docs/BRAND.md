@@ -16,7 +16,7 @@ foreground color, so they adapt to light, dark, high contrast and accent setting
 Character portraits are separate and retain their existing styling.
 
 Run `pnpm exec tsx scripts/icons.ts` after changing the sources. This generates
-the graphite application tile, browser favicon, desktop PNG, small tray PNG and
+the white application tile with a black symbol, browser favicon, desktop PNG, small tray PNG and
 the seven-size Windows ICO. Keep the optical placement and generous clear space;
 do not stretch or close the chin gap. The desktop build regenerates these assets
 before bundling, so installer and frontend use the same artwork.
