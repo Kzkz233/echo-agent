@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod auth;
+mod window_icon;
 use serde::{Deserialize, Serialize};
 use std::{
     path::{Path, PathBuf},
@@ -212,18 +213,17 @@ fn show_main(app: &tauri::AppHandle) -> Result<(), String> {
         app,
         "main",
         WebviewUrl::App("index.html".into()),
-    ))
+    )
     .title("Echo")
     .theme(None)
     .inner_size(1260., 840.)
     .min_inner_size(760., 580.)
-    .build()
-    .map_err(|e| e.to_string())?;
+    )?;
     Ok(())
 }
 fn workbench_window<'a>(
     mut builder: WebviewWindowBuilder<'a, tauri::Wry, tauri::AppHandle>,
-) -> WebviewWindowBuilder<'a, tauri::Wry, tauri::AppHandle> {
+) -> Result<tauri::WebviewWindow, String> {
     // WebView2's native file-drop interception prevents HTML5 task/calendar dragging.
     // The workbench handles both internal moves and attachment drops in the DOM.
     builder = builder.disable_drag_drop_handler();
@@ -241,7 +241,10 @@ fn workbench_window<'a>(
             }
         }
     }
-    builder
+    let window = builder.build().map_err(|e| e.to_string())?;
+    #[cfg(windows)]
+    window_icon::apply(&window)?;
+    Ok(window)
 }
 #[tauri::command]
 fn connection(state: State<Runtime>) -> Connection {
@@ -331,13 +334,12 @@ async fn open_settings(app: tauri::AppHandle, state: State<'_, SettingsWindowSta
         &app,
         "settings",
         WebviewUrl::App(format!("index.html?window=settings&page={}", page).into()),
-    ))
+    )
     .title("Echo · Settings")
     .theme(None)
     .inner_size(1160., 820.)
     .min_inner_size(760., 580.)
-    .build()
-    .map_err(|e| e.to_string())?;
+    )?;
     Ok(())
 }
 fn valid_extension_identifier(value: &str) -> bool {
@@ -377,10 +379,10 @@ async fn open_extension_window(app: tauri::AppHandle, page: String, persona_id: 
         return window.set_focus().map_err(|e| e.to_string());
     }
     let url = format!("index.html?window=extension&page={}{}", page, persona_id.map(|id| format!("&persona={}", id)).unwrap_or_default());
-    workbench_window(WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into())))
+    workbench_window(WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into()))
         .title(format!("Echo · {}", entry["title"].as_str().unwrap_or("Plugin")))
         .theme(None).inner_size(1000., 760.).min_inner_size(600., 420.)
-        .build().map_err(|e| e.to_string())?;
+    )?;
     Ok(())
 }
 fn persist_avatar(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
