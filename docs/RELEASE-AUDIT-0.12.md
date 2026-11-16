@@ -1,5 +1,7 @@
 # 0.12 implementation audit
 
+> Historical record. Current guidance is in the [documentation index](README.md). [Browse historical records](history/README.md).
+
 The 0.12.0 completion report was too broad. The main features were present, but
 the audit found integration gaps. These are corrected in 0.12.1.
 

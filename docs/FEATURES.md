@@ -1,34 +1,65 @@
-# Feature coverage
+# 使用指南
 
-Echo is a standalone, single-device application. Optional packages share permission-checked operations and typed extension points. All packages run within Echo; no separate personal workspace runtime is required.
+[文档](README.md) / 使用指南
 
-The main entry points are characters and groups. The shared character editor covers
-creation and later changes, role packages, optional capabilities, routes, permissions
-and task instances. Project Delegation creates worker conversations and returns results
-to their origin. See [character lifecycle and execution boundaries](CHARACTERS.md).
+## 对话与记忆
 
-| Area                        | Working capability                                                                                                                                                                                                                              | Boundary                                                                                                                                                                                                                                               |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Conversation workspace      | Canonical history, one active binding/run, durable queue, per-conversation injection and Review, export/deletion, context and integration inspector                                                                                             | Backend tools and reasoning capabilities differ between API, pi, Codex and DSH                                                                                                                                                                         |
-| File archive                | Registered libraries, immutable originals and media, source identity, download, paginated file list                                                                                                                                             | Managed originals are retained; no automatic object garbage collection                                                                                                                                                                                 |
-| Knowledge library           | One source to one current Markdown entry, folder browser, scoped search, batch move/archive/restore/delete, revision recovery, source inspection/rebinding, durable import jobs, attachments, portable exports                                  | Archive/delete affects entries, not saved originals. Producer-owned entries are edited through their source plugin                                                                                                                                     |
-| Document processing         | Code-based digital PDF/Office extraction, optional MinerU V4 API and installed MinerU 4.1 CLI, Markdown/image preservation, reserved-job recovery                                                                                               | Cloud parsing requires a user token and uploads originals only on import. Local MinerU and weights are installed separately; connector protocol tests use fakes. Speech transcription is not implemented                                               |
-| Semantic search             | Optional local GGUF/ONNX or API vectors, resumable explicit indexing, semantic/hybrid ranking, weighted query fusion, optional model expansion/rerank                                                                                           | Keep a local model loaded or release after two idle minutes. EmbeddingGemma 2 Q8 passed a small real-model sample; original structural text/image vectors can be imported without re-embedding. Model quality still needs workload-specific evaluation |
-| Persona profiles and memory | Editable persona, scoped core/non-core memories, unified automatic/manual recall, separate Core/Other memory tabs and effective-context deduplication                                                                                           | Core memory changes require UI confirmation                                                                                                                                                                                                            |
-| Current concerns | Current topics the character cares about; source-backed updates and fading; ordinary context and optional Review | Shown beside core/other memories, without solved/archive statuses. Lasting feelings may remain ordinary memories. |
-| Proactive conversation | Per-task probability/daily allowances, quiet intervals, scoped conversation/observation blockers and same-session delivery | Default off; budget checks do not call a model. |
-| Memory review               | Daily, round count or both; complete incremental materials including the current morning; frozen packets, checkpoints, resumable failures, source validation and optional target actions                                                        | Whole-day observation archives exclude the ongoing natural day; newly arriving material stays for the next review. No automatic main-chat compact                                                                                                      |
-| Live observation            | Local whitelist proof and occlusion masking, HSV gating, 5-second selection, four real frames and two prior summaries; same-conversation interaction                                                                                            | No screenshot retention by default. Exclusive full-screen, HDR and protected video require hardware-specific acceptance                                                                                                                                |
-| Desktop avatar              | Native frame animation, bubbles and reply input                                                                                                                                                                  | Closing the manager releases its WebView; closing the whole application stops the avatar                                                                                                                                                               |
-| Calendar and reminders      | Date-based editor, priority/time/reminder settings and conversation-bound program notices                                                                                                                                                       | Supports rescheduling and undo                                                                                                                                                                                                  |
-| Email workspace             | QQ Mail, Gmail, school/business and custom IMAP setup; protected credentials; per-account direct or HTTP(S) environment proxy; connection check; folder discovery; incremental Inbox/Sent sync, history backfill, local search, body and drafts | Password/app-password authentication. Outlook OAuth sign-in is not presented as a working password preset. Failed read-only sync can continue in the next scheduled slot                                                                               |
-| Email triggers | Per-task incoming-mail filters, program notices or role reminders, quiet time, batching and durable receipts | First sync and backfill do not alert; unknown inference is not replayed. |
-| Email actions and approval  | Frozen sending, read/unread, move, archive and move-to-trash batches; per-item receipts, account/UID-version guards and unknown-result fences                                                                                                   | No permanent remote delete. A missing special folder requires an explicit valid destination; unknown commands are not replayed                                                                                                                         |
-| Conversation channels       | Per-peer canonical bindings, originating-channel replies, optional automatic program messages                                                                                                                                                   | QQ is an optional bot adapter; platform messaging limits still apply                                                                                                                                                                                   |
-| Automation and backup       | Shared nearest-deadline clock; idempotent claims; consistent app/library backup, checksums and empty-target restore                                                                                                                             | Restored automation is off; credentials are not in backups                                                                                                                                                                                             |
+每个角色拥有独立的人设、记忆和主工作会话。聊天页呈现实际发送的消息，后台工作会话显示推理、工具调用、子任务和用量。应用聊天、已绑定的 QQ 和桌宠气泡共享该角色的会话上下文。
 
-The workbench defaults to a light theme and supports Chinese, English and custom accents. Enhancements share their base navigation section. Plugin metadata identifies the feature it enhances, while runtime dependencies remain a separate lifecycle rule. Generic settings stay in the plugin list; frequent operations have focused workspaces.
+核心记忆随人设提供给模型，普通记忆按需检索。记忆整理任务从选定信源中提取和更新记忆，默认读取主工作会话。核心记忆修改会生成审批请求。
 
-Observation tasks store separate recognition and conversation prompts. Proactive conversation rules store their own prompt and select their context providers. Memory Review policies store general guidance, separate conversation and material-source guidance, and optional target guidance by character. Source fields follow the registered plugins selected in the policy. Review adds each source's guidance only to packets that contain its materials. Shared prompts describe provenance and output formats. An observation can include a concrete attention clue alongside its summary, and passes the most recent verified window or website source to the conversation.
+群聊有独立的共享记录，可以选择本轮参与回复的角色。
 
-Calendar reminders and Memory Review reports have their own automation and delivery settings.
+[角色与群聊](CHARACTERS.md) · [渠道与表达](CHANNELS.md)
+
+## 任务与自动化
+
+角色可以在授权范围内委派 Pi、Codex 或 DeepSeek Harness 子任务。子任务选择模型、思考强度、工作目录和工具，在任务页查看进度、审批与结果。
+
+自动化包括通用提示词任务，以及插件提供的记忆整理、屏幕观察、主动交流和邮件提醒。角色自动化在角色的任务页配置，邮箱同步等共享服务在应用自动化中管理。
+
+任务结果会记录到所属角色的主工作会话。开启汇报后，由主会话按指定风格向选中的渠道交付。关闭汇报时，结果仍可在任务记录中查看。
+
+[工作会话](WORK-SESSIONS.md) · [命令行任务管理](CLI.md)
+
+## 知识库与音视频
+
+个人知识库保存笔记、原件和解析结果。导入时选择目标库和目录，文件按统一入库配置进行处理。
+
+| 材料 | 处理结果 |
+| --- | --- |
+| 文本与文档 | Markdown 正文、原件和解析得到的图片附件 |
+| 音频与视频 | 原件、带时间范围的转录及媒体片段 |
+| 图片 | 原图，以及所选解析器提供的文字或结构信息 |
+
+本地语音转录按需加载模型，先进行语音检测。无语音片段返回空转录，可疑结果进入待检查状态。
+
+检索支持关键词、语义和混合模式。启用多模态索引后，文字、图片、音频和视频可以关联到同一页或同一时间段的父块。可用模态取决于所选向量模型。
+
+修改默认流程后，在迁移入口预览受影响条目。已有正文和转录可复用，索引迁移支持暂停、续跑与回滚。
+
+[解析与迁移](knowledge-parsing.md) · [本地转录](audio-transcription.md) · [存储与导出](STORAGE.md)
+
+## 桌宠与主动交流
+
+多个角色可以同时显示为桌宠，通过气泡发送消息，并接收用户回复。角色可配置不同状态的动画和各渠道的表达风格。
+
+主动交流按配置的时间段、间隔与每日次数运行。屏幕观察只采集允许范围内的内容，识别结果保存在子任务中，再按任务设置汇总给主工作会话。
+
+[桌宠](AVATAR.md) · [主动交流](PROACTIVE.md) · [屏幕观察](OBSERVATION-CAPTURE.md)
+
+## 日程与邮件
+
+日程支持日期、优先级、时间段、提醒和改期。邮箱工作台支持 IMAP 邮箱连接、同步、检索与草稿，角色可以在授权范围内读取邮件并执行邮件操作。发送与远端整理通过审批确认。
+
+邮件同步属于共享服务。角色的邮件提醒任务可选择筛选条件、汇报方式和消息渠道。
+
+[邮件配置范围](MAIL-SCOPES.md)
+
+## 扩展
+
+设置的扩展页管理内置组件、插件和外部 MCP。独立插件通过 `.echo-plugin` 包安装，可以提供工具、页面、任务类型和渠道。外部 MCP 使用本地命令或服务地址连接，其工具按角色启用。
+
+插件启用状态、角色功能选择和工具权限分别控制安装后的运行、角色参与和实际操作授权。
+
+[插件开发](PLUGINS.md) · [独立扩展](independent-extensions.md)

@@ -1,5 +1,7 @@
 # Echo 0.20 visual system verification
 
+> Historical record. Current guidance is in the [documentation index](README.md). [Browse historical records](history/README.md).
+
 The 0.20.1 follow-up also checks the shared navigation/layout boundaries described
 in [WORKBENCH-ARCHITECTURE.md](WORKBENCH-ARCHITECTURE.md): explicit scope and role
 identity, editor presentation, registered plugin containers, and parent-preserving

@@ -1,5 +1,7 @@
 # Echo 验收记录
 
+> Historical record. Current guidance is in the [documentation index](README.md). [Browse historical records](history/README.md).
+
 ## 0.19.1 ASR 语音检测与发布质量
 
 - 全量 `pnpm verify`：463 项测试、类型与翻译检查、生产构建通过；补充 ASR、CLI、入库及迁移定向回归 31 项通过。原生模块 18 项测试通过、2 项硬件测试跳过；桌面壳 4 项测试通过。

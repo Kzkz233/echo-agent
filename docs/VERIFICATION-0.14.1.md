@@ -1,5 +1,7 @@
 # 0.14.1 follow-up audit
 
+> Historical record. Current guidance is in the [documentation index](README.md). [Browse historical records](history/README.md).
+
 This release preserves saved profiles, routes, characters, portraits, conversations,
 tasks and imported agenda data. Unavailable model selections stay visible but
 disabled; no fallback model is silently saved.

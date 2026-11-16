@@ -1,128 +1,67 @@
-# Characters, packages and delegated work
+# 角色与群聊
 
-Structured execution, subtask authorization and incremental group context are detailed in
-[Execution workspace](EXECUTION.md).
+[文档](README.md) / 角色与群聊
 
-Echo's main window contains characters, groups and shared workspaces for knowledge, calendar, mail and notifications. Settings holds only shared connections/model resources, installed plugins and maintenance. Roles own their usage, permissions, channels and tasks. Closing settings does not close conversations or the native avatar.
+## 角色页面
 
-## One configuration through the character lifecycle
+| 页面 | 内容 |
+| --- | --- |
+| 聊天 | 应用渠道实际收发的消息 |
+| 后台工作会话 | 上下文、推理、工具调用和执行记录 |
+| 角色资料 | 人设、记忆和插件提供的角色资料 |
+| 任务 | 委派子任务、自动化和历史结果 |
 
-Create a character through six steps: starting template and capabilities, identity
-and appearance, memory and knowledge, execution backends and permissions, tasks,
-then confirmation. Save an unfinished draft or edit an existing character through
-the same editor. The task list opens that editor at the task step.
+角色的主工作会话连接应用聊天、QQ、桌宠等入口。不同入口携带来源和时间信息，角色可以沿着同一段上下文继续工作。
 
-The identity step includes optional expression preferences for QQ, desktop bubbles,
-and ChatStick. A blank field uses the corresponding default. QQ and bubble preferences
-apply to the matching turn. Observation keeps its own interaction prompt on each task.
-Sticker preferences guide selection when ChatStick is enabled for the character.
-The application validates attachment format and delivery permissions.
+## 配置角色
 
-The Persona plugin owns identity and the character manifest. Each enabled plugin
-owns its configuration and operational records. `core.characters.features@1`
-provides versioned describe/read/validate/save/pack/unpack operations, using
-`character.contribute` and `character.configure` permissions. A plugin's `.character`
-descriptor registers `<plugin-id>.character`; descriptors contain editable fields,
-optional task types, a schema and owner callbacks. Installing a new contributor adds
-choices to the editor without teaching Persona about its business logic.
+在角色配置中设置人设、主模型、功能、权限、表达风格与任务。功能页面由已启用插件提供，配置保存在相应插件中。
 
-Task descriptors still use `core.automation.types@1`. Character setup creates actual
-owner-managed tasks rather than another scheduler. Sources and prompts remain on
-individual tasks. Mail sync can be selected through the Mail capability even though
-Scheduler owns its execution. Required plugin dependencies form a DAG. Optional
-providers and role capability selection do not introduce reverse hard dependencies.
+| 设置 | 作用 |
+| --- | --- |
+| 人设与外观 | 身份、行为指引、头像与桌宠素材 |
+| 模型 | 主会话模型，以及任务所用模型的继承或覆盖 |
+| 功能 | 选择角色使用的插件能力 |
+| 权限 | 工作目录、文件访问、工具和子任务授权 |
+| 通道与表达 | 各渠道的独立表达风格 |
+| 任务 | 自动化周期、信源、执行设置与汇报方式 |
 
-The character record holds selected capability IDs, main-conversation ID, task
-references, route overrides and a revision. Plugin configuration is stored only by
-its owner. Main conversations use one active backend binding. A newly created role
-without a chosen backend waits for configuration rather than invoking a global model.
-Main conversations use the built-in Pi agent loop with the selected language model. Codex
-and DSH are optional subtask executors; pure API calls remain available for auxiliary tasks.
+新建角色可使用示例或导入角色包。停用角色会暂停其会话、任务、渠道和桌宠，配置与历史会保留供重新启用。
 
-Saving validates selections and resource bindings, rejects stale revisions, stages
-tasks paused, applies plugin configuration, binds the main conversation, and enables
-the requested tasks last. A durable request receipt prevents repeated successful
-saves from duplicating conversations or tasks. A partial save is marked for attention;
-unknown host bindings require reconciliation rather than a second host session.
-Capability-dependent background work pauses while configuration is incomplete.
+## 记忆
 
-## Portable character packages
+核心记忆在常规上下文中提供给模型，变更需用户审批。普通记忆使用关键词、语义或混合检索按需召回。
 
-`echo-character-v1` contains persona text, versioned feature defaults, task templates,
-and optional validated frame assets. API credentials, local paths, backend
-bindings, conversation history and memory records are excluded. Export presents a
-preview because persona and task prompts themselves may contain personal information.
-Packages do not execute scripts or install missing plugins.
+记忆整理在角色任务中配置，选择信源、周期、允许的记忆操作和汇报渠道。默认信源是主工作会话。整理进度与历史结果可在任务页查看。
 
-Import creates an editable draft with a new identity. Tasks start paused and resource
-bindings must be selected on this machine. Missing plugins are reported. Author
-defaults and locally resolved assets are tracked separately. Updating the same package
-uses a three-way merge: untouched values follow the author's new defaults, locally
-changed values remain, and arrays are treated as whole values. Review the resulting
-draft before saving. A changed package identity is not an update to an existing role.
+[工作会话与整理流程](WORK-SESSIONS.md)
 
-## Groups
+## 委派与权限
 
-A group has members, shared background and an attributed shared transcript. For each
-turn the user selects who responds; selected members respond sequentially once. Each
-member has a dedicated host conversation for that group, using its main backend,
-persona and current permissions. Private main-chat history and private memory are not
-automatically copied into the group. Each member has its own acknowledged shared-message
-cursor. Only new shared records are sent, defaulting to a 40-message window; its own
-answers are excluded from new input. Group background is included when it changes.
+角色在用户授权范围内选择子任务执行器、模型、思考强度、目录和工具。主会话与子任务分别应用各自的文件权限，工具调用还需满足该操作的授权要求。
 
-Group turns have durable request IDs and completed-member checkpoints. Unknown
-execution blocks another turn. Reconciliation restores already completed host replies
-to the shared transcript without running the model again. Remaining unexecuted members
-are not silently replayed. Delegated results originating in a member's group conversation
-are also mirrored into the shared transcript with that member's attribution.
+子会话默认获得人设与核心记忆，其他注入项可配置。Pi 子会话继承角色的上下文压缩设置，任务可以覆盖。Codex 和 DeepSeek Harness 使用各自执行环境的会话管理。
 
-## Task delegation
+子任务的审批、执行记录和结果位于任务页。开启汇报后，结果回到主工作会话，由角色向所选渠道发送消息。
 
-Task delegation is a core character capability. Each role chooses its authorization
-ceiling, maximum concurrency and return policy. Every new subtask selects its own model,
-reasoning, project directories, permissions, instructions and per-attempt timeout within
-those grants. No reusable Worker configuration is required.
-Project work requires Pi, Codex or DSH; a plain text API is not advertised as a project
-execution agent. The main character and worker may use different backends.
+[执行器](BACKENDS.md) · [工作会话](WORK-SESSIONS.md)
 
-A request specifies a goal, acceptance criteria and bounded relevant context. Echo
-creates a separate worker conversation and durable task. The worker receives that
-brief, not the role's complete private chat or memory. Project tools and approvals are
-the selected backend's real capabilities. Codex has read-only/workspace-write policy;
-Pi exposes its configured tools and project-write policy; DSH's native file privileges
-remain governed by its preset. DSH approval requests are relayed to Echo when supported.
-The application does not equate these hosts' permission implementations.
+## 角色包
 
-Native approvals and questions appear in the workbench and a global pending indicator.
-Workers can save checkpoints and submit artifact paths and verification notes. Execution
-completion awaits separate acceptance. Results return as program records; when configured,
-an event-driven handoff lets the main role inspect and summarize them. Accepted
-work is an optional Review source. Checkpoints are references and text, not an invented
-cross-host serialization of native tool state. Nested worker delegation is currently
-disabled; the parent role can arrange follow-up tasks.
+角色包使用 `echo-character-v1` 格式，包含人设、功能默认值、任务模板和可选桌宠素材。导入后生成新的可编辑角色，需要选择本机模型、目录和渠道，任务初始暂停。
 
-MCP writes require a short-lived authority supplied to a live eligible turn, scoped to
-its originating conversation. A caller-supplied conversation ID alone cannot authorize
-a task. User interface requests use the authenticated local operation interface. Stable
-request IDs prevent repeat acceptance. Unknown side effects require host reconciliation.
-Resuming validates the current role policy and concurrency; changed backend/project/
-permissions require a new delegation. Revoking or changing a role's delegation policy
-cancels its active workers. Plugin unload cancels workers and unregisters contributions.
+导出预览用于检查提示词及素材。凭据、会话历史、记忆记录和本机连接信息留在原设备的数据目录中。
 
-## Verification boundary
+同一角色包更新采用三方合并，未修改的字段跟随作者更新，用户修改过的字段保留。数组按完整字段处理，保存前检查合并结果。
 
-Automated coverage uses temporary data and local fake inference/host endpoints. It
-checks configuration reuse, package asset validation and upgrade merging, ownership,
-permission withdrawal, duplicate suppression, group attribution, interruption recovery,
-UI creation/editing and the independent native settings window. It does not spend paid
-model tokens or prove that an arbitrary third-party preset grants a specific sandbox.
+## 群聊
 
+群聊包含成员、共享背景和独立会话记录。每轮可以选择一个或多个成员回复，成员依次完成本轮发言。每个成员使用自己的模型、人设和权限。
 
-## Character activity (0.15)
+成员读取带署名的群聊内容，个人主会话与私有记忆按群聊隔离规则处理。执行记录保留已完成成员的结果和进度。
 
-`characters.setActive` changes the runtime activity of an existing character using an optimistic revision. It does not rewrite the character draft, per-task enable intent, avatar profile, memory or history. `character.activity.changed` is the lifecycle event. Router-owned cancellation signals fence in-flight generation even across an immediate disable/enable cycle. Queued inputs, bubbles and unstarted channel deliveries are cancelled or expired; messages arriving while inactive are consumed without replay. Irreversible external effects already performed cannot be undone; ambiguous deliveries remain unknown and are never retried automatically.
+## 扩展接口
 
-Observe releases sampling when no active character needs it and starts with fresh frames. Care suspends admissions. Review preserves validated checkpoints; an interrupted read can resume on reactivation when its task is still enabled, while arbitrary failed/unknown workers require explicit review. Group rounds involving a disabled member stop. Shared application-level services remain available. Extensions with character-owned timers or workers must subscribe to the lifecycle event, cancel their work and use the role-scoped Router signal for generation; listening to application/plugin shutdown alone is insufficient.
+角色配置通过 `core.characters.features@1` 注册，插件提供描述、读取、校验、保存和打包接口。自动化任务通过 `core.automation.types@1` 注册。角色停用事件为 `character.activity.changed`，插件据此暂停所属后台工作。
 
-Starter examples are composed through the same character, task, avatar import and group operations as user-created roles. They are created only by an explicit action, never during startup or upgrade. Artwork provenance survives role export/import in the atlas manifest. Multiple active roles can display independent native avatars.
+[配置归属](PRODUCT-CONFIGURATION.md) · [插件开发](PLUGINS.md)

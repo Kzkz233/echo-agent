@@ -1,5 +1,7 @@
 # 0.14 implementation checklist
 
+> Historical record. Current guidance is in the [documentation index](README.md). [Browse historical records](history/README.md).
+
 Approved scope: consolidate application components and knowledge workflows, retain optional domain plugins, repair model capability discovery, and complete calendar migration and interaction.
 
 - [x] Required/optional dependency terminology and DAG/lifecycle validation; stop exposing `enhances` as a separate relation.

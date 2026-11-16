@@ -1,92 +1,72 @@
 <p align="center">
-  <img src="apps/desktop/icons/icon.png" width="84" height="84" alt="Echo Agent 标志">
+  <img src="apps/desktop/icons/icon.png" width="80" height="80" alt="Echo 标志">
 </p>
 
 <h1 align="center">Echo Agent</h1>
 
-<p align="center"><strong>面向长期协作的个人 Agent 工作台</strong></p>
+<p align="center">有记忆、能协作的桌面 AI 伙伴。</p>
 
 <p align="center">
-  在 Windows 上创建有记忆的 AI 角色，在会话里交办工作，也让角色按你的规则主动跟进。
+  <a href="https://github.com/Kzkz233/echo-agent/releases/latest">下载 Windows 版</a> ·
+  <a href="docs/GETTING-STARTED.md">快速开始</a> ·
+  <a href="docs/README.md">文档</a> ·
+  <a href="https://github.com/Kzkz233/echo-agent/releases">更新日志</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kzkz233/echo-agent/releases/latest"><img alt="最新发布" src="https://img.shields.io/github/v/release/Kzkz233/echo-agent?label=Release&amp;color=242931"></a>
-  <a href="https://github.com/Kzkz233/echo-agent/releases/latest"><img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-242931"></a>
-  <a href="LICENSE"><img alt="Apache 2.0 许可证" src="https://img.shields.io/badge/License-Apache%202.0-242931"></a>
+  <a href="https://github.com/Kzkz233/echo-agent/releases/latest"><img src="https://img.shields.io/github/v/release/Kzkz233/echo-agent?label=release&amp;color=242931" alt="最新版本"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-242931" alt="Apache 2.0"></a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/Kzkz233/echo-agent/releases/latest"><strong>下载 Windows 安装包</strong></a>
-  &nbsp;·&nbsp;
-  <a href="#快速开始">快速开始</a>
-  &nbsp;·&nbsp;
-  <a href="#项目文档">项目文档</a>
-  &nbsp;·&nbsp;
-  <a href="https://github.com/Kzkz233/echo-agent/issues">问题反馈</a>
-</p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/chat-dark.png">
+  <img src="docs/screenshots/chat-light.png" alt="Echo 聊天界面，展示示例角色 Hina 的连续对话" width="1100">
+</picture>
 
-<p align="center">
-  <img src="docs/screenshots/starter-studio.png" width="960" alt="Echo Agent 工作台的示例入口，展示 Hina 与 Miyu">
-  <br>
-  <sub>从示例角色 Hina 与 Miyu 开始，体验角色会话、群聊、桌宠和自动化。</sub>
-</p>
+Echo 是开源的 Windows 个人 Agent 应用。你可以创建有独立人设与记忆的角色，在聊天中交办工作，让角色通过工具、子任务和自动化持续跟进。模型服务由你选择，角色与资料保存在本机，功能通过插件扩展。
 
-## 快速开始
+## 核心能力
 
-1. **安装 Echo Agent。** 从 [最新发布](https://github.com/Kzkz233/echo-agent/releases/latest) 下载以 `_x64-setup.exe` 结尾的安装程序。安装程序可补齐缺失的 WebView2。
-2. **连接模型。** 打开 **设置 → 模型服务**，添加在线 API 或本地模型服务。测试连接后，选择模型并保存。
-3. **开始对话。** 新建角色、导入角色包，或在角色页面选择 **从示例开始**，创建 Hina、Miyu 和她们的双人工作室。示例需要同时支持语言与视觉的模型。桌宠与自动化任务可在角色配置中分别启用。
+- **持续对话** — 应用聊天、QQ 和桌宠气泡接入同一个角色工作会话，各渠道可设置独立表达风格。
+- **记忆与知识** — 整理角色记忆，归档文档和音视频，使用全文、语义或混合检索查找资料。
+- **任务执行** — 为角色配置工具与工作目录，委派 Pi、Codex 或 DeepSeek Harness 子任务，查看执行过程、审批和结果。
+- **主动陪伴** — 配置主动交流与屏幕观察，通过桌宠和消息渠道接收反馈。
+- **可扩展架构** — 安装独立插件，连接外部 MCP 服务，扩展工具、页面、渠道和自动化任务。
 
-后续可在 **设置 → 运行维护 → 版本与更新** 检查更新，核对桌面和后端版本，并准备回滚。详见 [更新与恢复](docs/UPDATES.md)。
+## 安装与开始
 
-## 主要功能
+1. 下载最新 Release 中的 **Windows x64 安装程序**，文件名以 `_x64-setup.exe` 结尾。
+2. 在 **设置 → 模型服务** 添加模型连接，填写服务地址和凭据，选择可用模型。
+3. 创建角色或选择 **从示例开始**，指定语言模型后进入聊天。
 
-每个角色有独立的会话、记忆、授权和任务。Echo Agent 内置会话与工具执行能力，语言模型由你选择。工作可以留在同一个角色里持续跟进，自动化任务的输出可以按任务送到主会话、通知、桌宠气泡或已绑定的 QQ。
+安装程序会检测 WebView2，缺失时引导安装。示例角色附带桌宠素材，屏幕观察需要另行配置视觉模型和允许观察的内容。
 
-| 功能                   | 可以做什么                                                                                                                                      |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| **角色与会话**         | 编辑人设，导入或导出角色包，与单个角色对话或邀请多个角色参加群聊。                                                                              |
-| **工具与子任务**       | 给角色授权工作目录和工具，让它自行处理任务或委派子任务。在角色工作台查看进度、结果和历史。可通过插件接入 Codex 或 DeepSeek Harness 执行子任务。 |
-| **记忆与知识库**       | 按时间或对话轮数整理角色记忆。个人知识库支持文档解析、原件与版本管理，以及关键词、语义和混合检索。音视频文件可在本机转录为带时间定位的正文，模型按需加载。安装包附带可离线使用的 BGE 中文向量模型。 |
-| **主动交流与屏幕观察** | 设置角色主动交流的频率和避让条件，或允许角色观察指定网站和应用。白名单与画面裁切在本机处理，观察模型和输出位置按任务配置。                      |
-| **桌宠与消息渠道**     | 多个角色可以同时显示为桌宠，从气泡直接回复角色。也可启用 QQ 插件，让绑定的聊天进入同一角色会话。                                                |
-| **日程、邮件与扩展**   | 按需启用日历和邮箱提醒。插件可以注册工具、自动化任务类型、消息输出和工作台入口。                                             |
+[安装与首次配置](docs/GETTING-STARTED.md) · [更新与恢复](docs/UPDATES.md)
+
+## 文档
+
+| 使用 Echo | 开发与扩展 |
+| --- | --- |
+| [角色、记忆与群聊](docs/CHARACTERS.md) | [应用架构](docs/ARCHITECTURE.md) |
+| [任务与自动化](docs/FEATURES.md#任务与自动化) | [插件开发](docs/PLUGINS.md) |
+| [知识库与音视频](docs/FEATURES.md#知识库与音视频) | [独立扩展](docs/independent-extensions.md) |
+| [模型服务](docs/INFERENCE.md) | [界面与主题](docs/DESIGN-SYSTEM.md) |
+| [命令行](docs/CLI.md) | [贡献指南](CONTRIBUTING.md) |
+
+[浏览全部文档](docs/README.md)
 
 ## 数据与权限
 
-- 角色、会话、记忆和知识默认存放在本机。Windows 凭据使用系统保护机制保存。使用在线服务时，Echo Agent 会把请求所需的数据发给所选服务。
-- 屏幕观察默认关闭。启用后，只处理白名单内的可见内容，截图默认不保存。
-- 工作目录和工具权限按角色授权。核心记忆变更、邮件发送和远端邮件整理需要审批。停用角色会停止其会话、自动化任务、渠道收发和桌宠，配置与历史保留。
+角色、会话和知识库默认存放在本机。连接在线模型、文档解析或消息服务后，请求所需内容会发送给相应服务。工具和工作目录按角色授权，屏幕观察默认关闭，核心记忆变更需要审批。
 
-## 项目文档
+[数据存储](docs/STORAGE.md) · [隐私说明](docs/PRIVACY.md) · [安全说明](SECURITY.md)
 
-[界面设计与插件主题接口](docs/DESIGN-SYSTEM.md) · [前端分层与导航](docs/WORKBENCH-ARCHITECTURE.md) · [0.20 验证记录](docs/VERIFICATION-0.20.md)
+## 参与项目
 
+欢迎提交问题、文档改进和代码贡献。报告问题时，请附版本、复现步骤及经过脱敏的日志。开发环境和验证方法见贡献指南。
 
-| 主题           | 文档                                                                                                                |
-| -------------- | ------------------------------------------------------------------------------------------------------------------- |
-| 角色配置与使用 | [角色与群聊](docs/CHARACTERS.md) · [桌宠](docs/AVATAR.md) · [消息渠道](docs/CHANNELS.md)                            |
-| 模型与任务     | [模型服务](docs/INFERENCE.md) · [子任务执行器](docs/BACKENDS.md) · [任务与自动化](docs/TASKS-AND-ACTIVITY.md)       |
-| 数据与检索     | [检索与知识存储](docs/RETRIEVAL-AND-STORAGE.md) · [知识库解析与迁移](docs/knowledge-parsing.md) · [本地语音转录](docs/audio-transcription.md) · [数据目录与备份](docs/STORAGE.md) · [隐私与恢复](docs/PRIVACY.md) |
-| 架构与扩展     | [应用架构](docs/ARCHITECTURE.md) · [插件开发](docs/PLUGINS.md) · [安全报告](SECURITY.md)                            |
-
-## 命令行
-
-安装包自带命令行工具，可以诊断后台、查看任务、手动运行整理并在终端发送消息。详见 [命令行指南](docs/CLI.md)。
-
-## 开发与贡献
-
-需要 Node.js 24+ 和 pnpm。构建 Windows 桌面版还需要 Rust、MSVC 和 WebView2。
-
-```powershell
-pnpm install --frozen-lockfile
-pnpm verify
-pnpm desktop:build
-```
-
-详见 [贡献指南](CONTRIBUTING.md)。
+[问题反馈](https://github.com/Kzkz233/echo-agent/issues) · [贡献指南](CONTRIBUTING.md)
 
 ## 许可证
 
-项目原创代码采用 [Apache-2.0](LICENSE)。Hina 与 Miyu 的示例动画由 Ryu JaeHyun 创作，按 CC BY 4.0 使用。素材来源与第三方组件许可见 [第三方声明](THIRD_PARTY_NOTICES.md)。
+原创代码采用 [Apache-2.0](LICENSE)。示例角色动画由 Ryu JaeHyun 创作，按 CC BY 4.0 使用。素材来源与依赖许可见 [第三方声明](THIRD_PARTY_NOTICES.md)。

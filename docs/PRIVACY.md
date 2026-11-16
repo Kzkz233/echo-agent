@@ -1,27 +1,54 @@
-# Privacy and recovery
+# 隐私与数据
 
-- No telemetry, automatic provider selection, bundled API account or secret sharing.
-- Capture is off by default. No screenshot upload or model download without user configuration.
-- Actual browser document URLs are verified through Windows accessibility. Other top-level windows and unauthorized iframe regions must be denied; unknown geometry is not permission to capture more.
-- The capture helper draws authorized visible rectangles into a black buffer. Browser chrome is excluded. Layered window regions and invisible system input-pane hosts are treated separately so a transparent fullscreen helper is not mistaken for an opaque screen-covering window.
-- Window/URL proofs are rechecked before/after capture. Changes discard the frame. This is a desktop capture implementation with OS/version limitations, not a security boundary against malicious software running as the same Windows user.
-- Pausing increments the observation generation and aborts requests. A stale generation cannot publish text or start an interaction. No screenshot is retained for failed inference.
-- UI endpoints require a random token, validate loopback Host and permitted Origin, and do not accept an API key in a URL query. There is no LAN listener.
-- Windows credentials use current-user DPAPI. Non-Windows fallback uses an AES-GCM key file with restricted filesystem mode; it is not a hardware-backed vault.
-- Explicit local extensions and external Harnesses are programs under the user's account, with their own permissions. Do not load untrusted code merely because it runs in another process.
+[文档](README.md) / 隐私与数据
 
-## Durable operations
+Echo 默认将角色、会话、记忆和知识库保存在本机。应用不包含遥测、共享 API 账号或预置个人凭据。联网服务由用户配置。
 
-Accepted input has a durable submission record. Request IDs prevent repeat execution; conflicting reuse is an error. Each logical conversation has one active binding epoch. Startup changes interrupted running operations to unknown and does not blindly repeat them. Queued input that has not begun can resume; an unknown run blocks later generation until reconciled or explicitly resolved.
+## 数据流向
 
-Native result inspection can settle a Codex run. Backends without a supported query API require human confirmation. An accepted prompt is not a completed reply. Bubble delivery is separately claimed and acknowledged only after rendering; a claimed but unacknowledged result is not automatically replayed to another window.
+| 功能 | 数据处理 |
+| --- | --- |
+| 本地阅读与关键词检索 | 在本机读取和检索资料 |
+| 在线模型 | 将本次请求需要的提示词、消息及附件发送给所选服务 |
+| 在线文档解析 | 将选中的文档提交给已配置的解析服务 |
+| QQ 等消息渠道 | 将所选消息与附件发送给该渠道 |
+| 屏幕观察 | 在本机检查允许范围，采集后的画面按任务配置交给视觉模型 |
+| 本地模型 | 在本机加载用户选择的模型，下载另需配置 |
 
-Review stores its frozen material collection, packet receipts, accumulated notes and source references. It does not advance processed watermarks on partial reading. Core memory changes require explicit approval and are not available through ordinary MCP memory writes. Review uses a distinct task route and does not compress or rewrite the user's main conversation as maintenance.
+角色的私有提示词和历史消息可能是模型请求的一部分。选择服务时，应同时确认该服务的数据处理政策。
 
-The repository and desktop distribution contain no production profile or real conversation. Test fixtures use synthetic text, a local fake model and isolated external-Harness homes. Publishing a user's data directory is outside the release workflow.
+## 屏幕观察
 
-`pnpm desktop:build` remaps the builder's home and checkout paths in Rust compiler output, including dependency panic locations. Release packaging rejects executables that still contain the builder's home path, as UTF-8 or UTF-16, before creating release directories. Debug-symbol stripping alone does not remove those diagnostic strings.
+采集默认关闭。应用在编码前检查窗口、可见区域和允许的网站地址，采集前后重新确认范围。无法确认的区域不采集，画面变化时丢弃该帧。截图以短时缓冲传递，不建立截图目录。
 
-Libraries store Markdown, properties and revisions in their own SQLite containers. Immutable media/originals are separate hash-addressed objects. Export defaults to ordinary knowledge and removes source-machine paths unless requested; a full private backup has a broader scope. Media is streamed through one-object, expiring access tickets that are revoked on Files unload. Imported external images are not fetched automatically by the Markdown reader.
+暂停观察会中止当前请求，过期结果不能触发新的交流。视觉识别文本可以按任务设置形成记录和汇报。采集受 Windows、窗口类型和受保护内容限制。
 
-Optional private acceptance data must live outside the checkout and all packaging inputs. It is not a default profile. A local user may provision their own credentials there without changing the public distribution. QQ uses a dedicated direct dispatcher rather than the system proxy. Its peer IDs, text and receipts are private Runtime data; no Observe reply is automatically sent to QQ.
+[采集实现与限制](OBSERVATION-CAPTURE.md)
+
+## 凭据与扩展
+
+Windows 上的服务凭据使用当前用户的 DPAPI 保护。角色包使用配置引用，导出时不携带实际密钥。
+
+桌面界面连接仅监听本机回环地址的后端，需要随机令牌，并验证 Host 与 Origin。不要公开连接文件或将本机端口直接暴露到公网。
+
+独立扩展、外部 MCP 命令和 worker 是用户选择运行的程序。Echo 的工具授权约束应用操作，进程隔离本身不构成操作系统沙箱。
+
+[安全边界](../SECURITY.md)
+
+## 记录与恢复
+
+输入、工具执行和消息投递分别保存回执。中断后结果不明的操作会等待核对，避免重复执行外部写入或发送。
+
+知识库原件按内容哈希存储，正文保留修订。导出默认包含普通知识，并移除本机来源路径。完整备份覆盖更广的数据范围，凭据、模型权重和扩展程序需分别管理。
+
+记忆整理保存固定材料、阅读进度和变更记录。核心记忆修改需要用户审批。整理主会话材料与压缩模型上下文是独立操作。
+
+[存储、导出与备份](STORAGE.md) · [更新与恢复](UPDATES.md)
+
+## 项目发布
+
+项目截图和测试使用示例角色、虚构内容与隔离运行目录。发布流程检查源码和安装产物中的私有资料、凭据特征、本机路径及未经批准的媒体。
+
+提交问题时请移除日志、截图中的凭据和私人内容。发布范围检查的维护方式见发布规范。
+
+[发布规范](RELEASING.md)

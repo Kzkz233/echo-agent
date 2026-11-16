@@ -1,67 +1,61 @@
-# Channels
+# 渠道与表达
 
-ChatStick is an optional character plugin. Configure images and their intended use from
-the character workspace. A reply may select one enabled image from that character's catalog.
-Echo records it with the canonical assistant message. The workbench can render it from the
-managed file library, and compatible adapters can attach it to an already authorized reply.
-Files resolves the same stored attachment for the workbench, QQ, and the native avatar.
-QQ uploads the image separately and tracks its reply sequence alongside text segments.
-The native avatar can show one small image alongside text for regular and Care replies.
-Observe bubbles present text. An unavailable image leaves the text usable.
-ChatStick needs the file archive and character features. It runs independently of Channels
-and memory recall, and contributes its short selection rules and catalog to eligible turns.
+[文档](README.md) / 渠道与表达
 
-External chat and avatar replies receive short formatting guidance on their own turn.
-This guidance lives in the inference input and leaves Echo's stored message and the role prompt intact.
+## 对话与投递
 
-Conversation channels are a built-in component. Enable the optional QQ or Avatar provider as needed. A provider contributes a destination without creating a second model execution.
+应用聊天、QQ、桌宠气泡和通知收件箱是不同的展示位置。它们接入角色的主工作会话，角色可以结合已有上下文分别回复。
 
-An enabled binding is `(adapter, peer) → conversation`. Each external peer has at most one active binding. Incoming remote message IDs are deduplicated before canonical input is queued. A new peer appears in Channels but cannot call a model until explicitly bound. Channel input is never an approval authority.
+在角色的 **通道与表达** 中配置各渠道风格。任务选择汇报渠道后，主会话会按对应风格分别组织内容，并调用 `echo_respond` 交付。聊天页只显示实际投递的消息，推理与工具过程位于后台工作会话。
 
-Human replies return to their source binding. Normal workbench/avatar input stays local. Automation output is selected per task: main chat, native bubble, notification inbox, or a bound external channel. Observe may use an explicitly selected external channel; upgrading preserves the previous destinations. An empty selection retains the task result without presenting it.
+模型可以在一次交付中提供多条消息，也可以先发送简短进展、继续处理，再发送结果。应用聊天和 QQ 支持分条呈现及发送间隔，具体分段仍受渠道限制约束。
 
-## QQ
+## 连接 QQ
 
-Configure a bot App ID and a credential reference; store the secret through the frontend. Echo uses official Tencent gateway event normalization with an owned WebSocket lifecycle. Missed heartbeat acknowledgements terminate a silent connection, reconnect uses bounded delays, and reconnect does not resend old replies. QQ REST and gateway traffic use direct networking, independent of VPN proxy settings for other providers.
+1. 启用 QQ 插件，配置机器人 App ID 与凭据。
+2. 在渠道设置中将外部联系人绑定到角色会话。
+3. 在角色配置中设置 QQ 回复风格，在任务中选择是否向 QQ 汇报。
 
-Text is split into at most five passive-reply segments with stable `msg_id` / `msg_seq`. Confirmed IDs and TraceIDs are recorded. Each failed network request may retry once after 2.5 seconds; confirmed parts never replay. Certificate, parsing, HTTP and missing-message-ID errors are not blindly retried. If an earlier attempt may have reached the server, a later definite connection failure does not erase that uncertainty.
+同一个外部联系人最多有一个有效绑定。新联系人完成绑定后才能触发角色执行。回复通常返回来源渠道，任务汇报使用任务预先选择的目标。主动推送还需满足 QQ 平台权限。
 
-Inspect receipts in Channels. Only a definite failure can be explicitly retried, and only unconfirmed parts are attempted. An unknown result is fenced for inspection. A server acceptance receipt does not prove client visibility. Automated tests use local synthetic HTTP/WebSocket endpoints and send no real QQ messages.
+QQ 使用官方网关和 REST 接口。网关连接由插件管理，心跳超时后重连。文字与图片的发送序号、消息 ID 和回执分别记录。分段数量和长度受平台限制，无法容纳的首选分段会按发送预算调整。
 
-QQ supports text and a single attached reply image. Unsolicited pushes require Tencent platform permission and explicit configuration. Removing QQ cancels its sockets and timers and preserves bindings and history.
+## 聊天表情
 
+启用聊天表情插件后，可为角色添加表情图片、说明和使用偏好，并按渠道选择是否启用。渠道通过注册信息声明图片支持情况，不支持图片的目标不可启用表情。
 
-## Unified task output (0.16)
+符合条件的交流会注入表情目录与可用目标。模型选择的图片由 Files 解析为受保护的附件，再由渠道适配器呈现。当前表情适用于用户交流和主动交流，屏幕观察气泡使用文字。
 
-`core.outputs.targets@1` is the typed, permission-checked destination registry. Providers declare targets for a conversation and implement idempotent `deliver` and read-only `inspect`. New plugins need `outputs.provide`; UI choices come from registered providers, not a hardcoded channel list. A destination has a stable ID, revision, readiness, optional presentation hint and legacy migration metadata. Replies retain one canonical record. Channels adapt delivery; they never generate another reply.
+## 任务汇报
 
-The task owner declares an `outputs` configuration field. The unified trigger path freezes a delivery plan before generation. Review freezes its report plan before reading material. Binding revisions are rechecked before submission; missing, disabled or changed targets do not redirect old results. Pending, sending, queued, delivered, failed, unknown, skipped and manually closed receipts are durable. Known failures may be explicitly retried without inference. Unknown results require inspection or explicit closure and are never replayed. Explicit closure stops tracking; it does not retract accepted upstream messages.
+任务结果先记录到角色主工作会话。开启 **汇报结果** 后，父会话准备汇报并调用渠道投递工具。关闭汇报时保留结果，不唤醒父会话。
 
-Main chat is a presentation destination. Generated replies stay in canonical context even when shown only elsewhere. TaskResults records automation and delegation results in the parent context. A task can retain its result without waking the parent, or request a parent reporting turn using its selected destinations and reporting instructions. The parent calls `echo_respond` separately for each destination. The task result remains available regardless of selected destinations; presentation receipts do not duplicate it as human input.
+汇报目标在任务执行前固定。渠道绑定改变或被停用时，旧结果不会转发到新目标。通知收件箱是独立投递目标，其表达风格与聊天分别配置。
 
-For Pi turns with delivery targets, supported Chat Completions and Responses requests use
-`tool_choice: required` from the first step. This permits authorized work tools as
-well as `echo_respond`; it does not force an immediate reply. Callers that already
-permit a quiet outcome also expose `echo_silence`, which terminates without a send
-and is unavailable after a reply has started. Turns without delivery targets keep
-normal model output. Anthropic and DeepSeek Chat thinking turns retain native
-automatic tool selection where forced selection is incompatible. All
-protocols retain the same completion checks: ordinary assistant text is never
-forwarded or regenerated to compensate for a missing delivery call.
+[工作会话与任务结果](WORK-SESSIONS.md)
 
-Responses input normalization omits empty `annotations` on replayed output-text
-parts. It preserves actual citations, tool-call/result pairs, tool payloads and
-canonical stored messages. Program-added provenance headers are not reply text.
+## 发送回执
 
-Canonical system events carry `context: event` at the model boundary. Adapters
-replay them chronologically as marked application data instead of promoting past
-task requests and retrieved references into current system instructions. Fixed
-role rules and the current turn's channel contract keep their instruction role.
-Verified prior channel replies carry their submission metadata; Pi replays these
-as historical `echo_respond` calls paired with receipts when delivery is available.
-Their message headers belong to receipt provenance, not to the reply arguments.
-This is transcript reconstruction only: no old tool runs or deliveries execute.
+运行记录区分已受理、排队、已投递、失败和结果未知。服务端接受请求与用户实际看到消息是不同状态。桌宠气泡在渲染后确认显示。
 
-The role editor owns task output choices. Runtime task pages show results and receipts, with inspect/retry controls. Legacy binding subscriptions are retained for compatibility, but current automation settings are migrated to task-level choices. Destination bindings and credentials are local resources, so exported role packages require output choices to be checked again after import.
+确定失败的发送可从记录中重试，已确认的部分不会重发。结果未知的发送需要核对或明确关闭记录。关闭记录不撤回远端已接受的消息。
 
-Delivery uses event-driven, indexed SQLite queries, no polling timer. Queue fan-out is bounded, and listings return at most 100 recent outputs. Character suspension aborts in-flight work and expires queued local presentation. Ambiguous external effects are retained for reconciliation.
+## 扩展接口
+
+Channels 管理入站与绑定，Deliveries 管理出站。渠道插件通过版本化注册表提供目标，前端从同一注册信息生成配置项。
+
+| 接口 | 内容 |
+| --- | --- |
+| `core.outputs.targets@1` | 投递目标、版本、可用状态、展示能力，以及幂等 deliver 和只读 inspect |
+| `channels.image-adapters@1` | 外部渠道图片发送能力 |
+| `outputs.provide` | 注册投递目标所需的插件权限 |
+
+绑定采用 `(adapter, peer) → conversation`。入站消息按远端消息 ID 去重，经过公共输入队列提交。渠道来源不构成审批权限。
+
+Agent 交付使用 `echo_respond`。允许静默的调用方可提供 `echo_silence`，在尚未开始回复时结束当前交互。普通模型文本不自动转发。工具选择策略遵循对应模型协议的限制，完成检查在公共管线执行。
+
+会话持久化保留原生工具调用与结果，渠道消息是展示投影。历史恢复不会执行旧工具或重新发送消息。来源与时间信息作为消息元数据进入上下文，过去的任务记录保持其应用数据属性。
+
+插件停用会释放连接、定时器和待执行工作，绑定与历史记录保留。角色包导入后需重新确认本机渠道与投递目标。
+
+[上下文与历史恢复](CONTEXT.md) · [插件开发](PLUGINS.md)

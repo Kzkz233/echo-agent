@@ -1,29 +1,49 @@
-# Local audio transcription
+# 本地语音转录
 
-Audio Transcription (`@echo/asr`) is an optional application plugin. It contributes a speech model category, a typed inference provider and a knowledge parser. Disabling it removes these contributions without disabling knowledge, memory or semantic retrieval. No model loads at application startup.
+[文档](README.md) / 本地语音转录
 
-## Configure
+语音转录插件为知识库提供音视频解析。模型在处理文件时加载，结束后释放。解析结果包括原件、转录正文和对应的时间范围。
 
-1. Enable **Audio Transcription** in Extensions.
-2. In **Model Services → Speech recognition models**, add a local llama.cpp service and select a compatible `llama-server` executable.
-3. Add the ASR GGUF model and its matching audio encoder. Select CPU or GPU and the CPU thread count. Quantization is determined by the selected files.
-4. In the plugin settings, select this model for **Library audio and video transcription**. Choose the FFmpeg executable; FFprobe must be installed beside it or available on PATH. Optional language and vocabulary settings apply to subsequent jobs.
-5. Import an audio or video file into a personal library. The matching parser is selected automatically when it is the only active media parser. An explicit parser selection takes precedence. Documents retain their separate parser.
+## 配置
 
-The recommended Qwen3-ASR 1.7B Q8 pair is pinned in `resources/models/qwen3-asr-1.7b/manifest.json`. The language model and encoder together require 2,520,744,288 bytes of disk space; runtime memory also includes computation buffers. Model files and native runtimes are not embedded in the application installer.
+1. 在 **设置 → 扩展** 启用语音转录插件。
+2. 在 **模型服务 → 语音识别模型** 添加本地 llama.cpp 服务，选择兼容的 llama-server。
+3. 配置 ASR GGUF 模型、配套音频编码器、CPU 或 GPU，以及线程数。
+4. 在语音转录插件设置中选择模型和 FFmpeg。FFprobe 需与 FFmpeg 位于同一目录或可从 PATH 找到。
+5. 在知识系统的统一入库流程中选择音视频转录解析器，然后导入文件。
 
-## Processing and resource use
+Qwen3-ASR 1.7B Q8 模型与编码器的配套版本记录在 [模型清单](../resources/models/qwen3-asr-1.7b/manifest.json)。两个文件共约 2.52 GB，运行时还需要计算缓存。模型权重和 ASR 原生运行时由用户配置。
 
-Originals are archived using streamed hashing. The source-based `files.extract@2` contract carries a library ID, file ID and expected source hash rather than an arbitrary file path or the entire file as Base64. Legacy parsers retain `files.extract@1` and its size limit.
+语言与词汇提示可在插件设置中填写。量化类型由实际模型文件决定。
 
-The parser uses FFmpeg to extract short 16 kHz mono PCM segments. It keeps one segment on disk at a time. The ASR model is loaded on demand, reused during the file and released when processing finishes, fails or is cancelled. A guardian owns the local server and stops it if the parent application exits.
+## 语音检测与结果
 
-Completed segments are checkpointed. Import progress, pause and resume appear in the library import history. Only a complete transcript replaces the knowledge entry, through the common publication transaction. A job freezes its transcription settings and model artifacts; changing defaults affects new jobs. Resume keeps the old plan. Explicitly reparsing the archived original creates a new generation with new defaults; incompatible transcripts are never combined. A restarted application leaves interrupted imports paused until the user resumes them. CPU threads and executable locations are execution bindings and can be repaired without discarding completed segments when artifact identities match. See [Knowledge parsing](knowledge-parsing.md).
+转录前使用 Silero 16 kHz ONNX 检测语音。检测器按需在 CPU worker 中运行，任务结束、暂停或插件停用后释放。
 
-The default segment length is 30 seconds, configurable between 10 and 60 seconds. Files may be up to 8 GiB and 24 hours. Only file and pipe media protocols are allowed, so importing a file cannot cause FFmpeg to fetch remote media. Transcripts are untrusted source material, not agent instructions.
+- **检测到语音** 时，只转录对应区间，并保留原始时间位置。
+- **没有语音或音轨** 时，正常返回空转录。
+- **结果可疑** 时，标记为待检查。未接受的候选文字保留在任务回执中，不进入正文或文本索引。
 
-Time ranges identify audio segments, not word-level alignment. Click a time range to load the archived original at that position using the common protected attachment renderer. Playback depends on the desktop browser supporting the original format. This version does not claim speaker identification or precise word timestamps. These can be contributed as additional capabilities later.
+语音检测不能保证转录准确，音乐、歌声和噪声仍可能影响判断。无语音区间可继续用于原生音视频索引。
 
-## Verification
+## 处理与续跑
 
-`tests/asr.test.ts` covers model eligibility, plugin lifecycle, streamed imports, checkpoint resume, cancellation and protocol normalization using synthetic inference. `scripts/asr-smoke.ts` accepts explicit local paths and tests the actual installed model in an isolated library without paid inference or personal data. It is a functional compatibility check, not an ASR quality benchmark.
+原件通过流式处理保存。FFmpeg 分段生成 16 kHz 单声道音频，默认每段 30 秒，可配置为 10–60 秒。文件上限为 8 GiB 和 24 小时。解析仅允许本地文件和管道协议。
+
+已完成的分段会保存检查点，导入记录提供暂停与续跑。任务固定模型、检测器和内容设置，续跑沿用该计划。修改默认配置后，需要重新解析才会应用到已有条目。
+
+正文、附件和时间范围通过公共解析事务发布。失败或取消会保留原有正文。时间范围对应音频片段，点击后使用知识库的原件播放器定位播放。
+
+[解析、索引与迁移](knowledge-parsing.md)
+
+## 扩展与验证
+
+| 合约 | 职责 |
+| --- | --- |
+| `asr.detectors@1` | 语音检测器目录与实现版本 |
+| `asr.detect-speech@1` | 对源音频执行语音检测 |
+| `files.parsers@1` / `files.extract@3` | 注册并执行知识库音视频解析 |
+
+检测器、模型身份和设置保存在固定解析计划中。其他插件可通过同一接口提供检测器或解析器。旧版 `files.extract@1` 和 `@2` 解析器保留各自的兼容入口。
+
+`tests/asr.test.ts` 使用合成推理验证生命周期、分段续跑和协议。`scripts/asr-smoke.ts` 接受显式本机路径，在隔离库中执行真实转录验收。

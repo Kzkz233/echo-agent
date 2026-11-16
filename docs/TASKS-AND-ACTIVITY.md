@@ -42,30 +42,31 @@ DSH multi-root requests fail explicitly instead of silently widening permissions
 
 ## Review tasks
 
-Multiple policies per character have independent cursors, source selections, model/executor,
-instructions, reading checkpoints, and continuation notes. Existing policy counts are not
-expanded during upgrade. Only genuine old global settings create a compatibility policy;
-marking a conversation for Review alone does not silently create a task.
+Each Review policy owns its source selections, cursors, model/executor, instructions and
+reading checkpoints. New tasks default to the main work conversation. Supplementary
+materials come from optional registered providers. Source selection belongs to the task.
 
-Continuation uses bounded task notes, with full previous jobs retained as records; it does
-not replay every past packet into each new model request. No automatic post-Review compact
-is introduced. Raw-observation retention considers the slowest configured consumer,
-including paused policies. Newly created tasks can read retained archival sources.
+Review uses the shared work-session runtime and context-compaction policy. It reads frozen
+material packets, checkpoints progress and searches a bounded set of related memories.
+Raw-observation retention considers the slowest configured consumer, including paused
+policies. Newly created tasks can read retained archival sources.
 
 Ordinary add/update/merge/archive/delete and core proposals are individual task grants.
-Defaults retain the prior add-only permission. Mutation proposals can reference only full
-memory records included in the frozen reading context, and must carry their current versions.
+Migrations preserve existing grants. The worker reads full current memory records before
+changing them, and mutations carry their current versions.
 Writes are serialized, idempotent, scoped to the character, and retain before/after records.
 Current grants are checked again before application. Core changes always go through the
 optional Approvals contracts; rejection, stale versions or withdrawn grants never alter the
 active core memory. Guidance remains editable; the enforcement protocol is program-owned.
 The editor provides a read-only preview of assembled guidance.
 
-Memory recall consumes `memory.queries@1` and `memory.retrieval@1`. The base memory plugin
+Memory recall consumes `knowledge.queries@1` and `knowledge.retrieval@1`. The base memory plugin
 provides local keyword extraction, model-assisted query construction, and keyword retrieval.
 Semantic enhancement contributes semantic and hybrid choices without becoming a hard
 dependency. Shared embedding indices remain application-owned. Pure semantic selection
 fails explicitly if unavailable; the other choices can use the configured keyword fallback.
+
+[Work sessions, authorization and reporting](WORK-SESSIONS.md) describes the shared runtime.
 
 ## Care
 

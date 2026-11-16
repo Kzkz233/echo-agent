@@ -1,9 +1,27 @@
-# Security boundaries
+# Security
 
-Echo listens on loopback and requires a per-launch bearer token. Host/origin checks and a restrictive content policy protect the workbench. Do not expose the port publicly or share `connection.json`.
+## Reporting
 
-Local extensions are trusted executable code, not an operating-system sandbox. They require explicit trust and own their processes. MCP permissions limit exposed application operations; they cannot restrict arbitrary code a user has chosen to launch. External Harnesses retain their own permissions and authentication rules.
+Do not include credentials, private conversations or desktop captures in public issues. For an ordinary bug, submit a minimal reproduction with invented data and the affected version.
 
-Capture authorization is checked locally before encoding. Unknown sources, changing geometry and inaccessible committed URLs are denied. Only selected visible regions are encoded; screenshots are not persisted by default. GPU-protected or exclusive-fullscreen content can be unavailable. Avoid treating visual summaries as verified facts.
+For a suspected vulnerability, request a private reporting channel from the maintainer before publishing exploit details. Describe the affected component and potential impact without exposing secrets or live user data.
 
-Do not post keys, private logs or desktop captures in a public issue. A minimal reproduction with invented data is preferred. The optional `ECHO_WEBVIEW_DEBUG_PORT` diagnostic setting exposes a local WebView debugging interface and must be used only with isolated test data; ordinary launches do not enable it.
+## Local service
+
+Echo listens on loopback and requires a random bearer token. Host and Origin checks and a restrictive content policy protect the workbench. Keep `connection.json` private and do not expose the port publicly.
+
+The optional `ECHO_WEBVIEW_DEBUG_PORT` setting exposes a local WebView debugging interface. Use it only with isolated test data. Ordinary launches leave it disabled.
+
+## Extensions and tools
+
+Local extensions are trusted executable code. They own processes running under the user's account. Application permissions restrict operations exposed through the registry and MCP bridge. They do not sandbox arbitrary code that the user chooses to launch.
+
+External workers retain their own authentication and permission rules. Review their effective grants when connecting an executor or MCP server.
+
+## Screen capture
+
+Capture authorization is checked locally before encoding. Unknown sources, changing geometry and inaccessible committed URLs are denied. Only selected visible regions are encoded, and screenshots are not persisted by default.
+
+GPU-protected or exclusive-fullscreen content can be unavailable. Capture checks do not protect against malicious software running as the same Windows user. Visual summaries remain model-generated interpretations.
+
+[Privacy and data handling](docs/PRIVACY.md) · [Capture design](docs/OBSERVATION-CAPTURE.md)

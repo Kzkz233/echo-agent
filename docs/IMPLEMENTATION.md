@@ -1,5 +1,7 @@
 # Implementation map
 
+> Historical record. Current guidance is in the [documentation index](README.md). [Browse historical records](history/README.md).
+
 Echo is an independent application. Public sources and release inputs contain generic fixtures only. An optional private acceptance runtime is kept outside the checkout; it is not a release input or a dependency on the original application.
 
 | Directory                            | Responsibility                                                                                                    |

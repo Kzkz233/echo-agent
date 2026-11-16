@@ -1,6 +1,6 @@
 # Architecture
 
-Echo is a new application, not a collection of separately deployed Workspace services. No old-interface compatibility layer is included.
+Echo is a desktop agent application built around canonical conversations, typed operations and lifecycle-managed extensions. The host owns authorization, persistence and execution. Plugins contribute product capabilities through versioned contracts.
 
 ## Layers
 
@@ -34,7 +34,7 @@ Node/TypeScript owns application state; React/Vite is the default-light manageme
 
 ## Minimal core
 
-As of 0.14, the visible fixed components are Storage, Clock, Model Services,
+The fixed components are Storage, Clock, Model Services,
 Character System, Task System and Knowledge System. Existing implementation IDs
 such as `files`, `documents`, `assets`, `embeddings` and `local-models` are internal
 adapters, not separately toggled product features. Their bounded execution and
@@ -140,7 +140,7 @@ data into Persona.
 
 The workbench opens the character list before showing character settings, memory, reflections or avatar. These plugins share a stable character ID. The Persona Library holds current profile snapshots. Historical reference material belongs in the knowledge library with its original source and character attribution.
 
-`Conversation` has a stable ID and explicit per-conversation injection/Review switches. `Message` retains role, source, sequence, timestamp and metadata. An observation signal is a system/application record; the generated reply is an assistant record. Rendering a bubble does not generate or mirror another reply.
+`Conversation` has a stable ID and an ordered history. `Message` retains role, source, sequence, timestamp and metadata. Review source selection belongs to the automation task. Context injection is configured through registered blocks and work-session defaults. Observation results enter the parent as attributed task records. Rendering a bubble does not generate or mirror another reply.
 
 Application scope and character scope are separate from plugin lifetime. Every plugin has
 one application-level lifecycle and is enabled or disabled by the Plugin Manager. Its
