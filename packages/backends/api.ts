@@ -7,7 +7,7 @@ import {
   type Profile,
 } from '../contracts/index.ts';
 import { readModelListing, selectedReasoning, effectiveReasoning } from './model-metadata.ts';
-import { endpoint, modelApiKey, modelListRequest, modelProtocol } from './protocol.ts';
+import { endpoint, modelApiKey, modelListRequest, modelProtocol, outputTokensField } from './protocol.ts';
 import { protocolTranscript } from './transcript.ts';
 import { materializeMessage } from '../contracts/message-context.ts';
 export { endpoint } from './protocol.ts';
@@ -142,7 +142,7 @@ export class ApiBackend implements Backend {
         body: JSON.stringify({
           model: profile.model,
           messages,
-          max_tokens: profile.maxOutputTokens,
+          [outputTokensField(profile)]: profile.maxOutputTokens,
           stream: true,
           stream_options: { include_usage: true },
           ...thinking(profile, request.reasoning),

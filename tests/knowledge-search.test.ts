@@ -189,10 +189,13 @@ test('model expansion and reranking run only on explicit requests and cannot add
   await app.plugins.enable('embeddings');
   const backend = new FakeBackend();
   app.router.backends.set('api', backend);
+  const model = app.router.inference.models().find(row => row.id === 'test')!;
+  await app.router.inference.saveModel({ ...model, reasoning: 'high', reasoningStyle: 'effort', reasoningLevels: ['high'] });
   await app.knowledge.save('local', 'Alpha', 'alpha beta');
   await app.knowledge.save('local', 'Beta', 'alpha beta gamma');
   backend.responder = async (r) => {
-    assert.equal(r.reasoning, 'off');
+    assert.equal(r.reasoning, undefined);
+    assert.equal(r.profile.reasoning, 'high');
     const input = JSON.parse(r.messages.at(-1)!.text);
     return { text: JSON.stringify(input.candidates.map((c: any) => c.id).reverse()) };
   };
@@ -222,4 +225,6 @@ test('model expansion and reranking run only on explicit requests and cannot add
     await app.registry.call('semantic.expand', { query: 'Find related ideas' }, ui),
     ['alpha', 'beta'],
   );
+  assert.equal(backend.calls.at(-1)?.reasoning, undefined);
+  assert.equal(backend.calls.at(-1)?.profile.reasoning, 'high');
 });

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { summarizeContext } from '../packages/backends/context-summary.ts';
 import { EchoError, profileSchema } from '../packages/contracts/index.ts';
-import { setup, conversation } from './helpers.ts';
+import { setup, conversation, FakeBackend } from './helpers.ts';
 
 test('summary uses configured output allowance and rejects incomplete results without replay', async () => {
   const profile = profileSchema.parse({
@@ -81,4 +81,37 @@ test('generation settings can be saved for the next run while execution identity
     code: 'backend_busy',
   });
   assert.equal(app.router.profile('test').maxOutputTokens, 128000);
+});
+
+test('compression inherits model reasoning unless a conversation explicitly overrides it', async () => {
+  const profile = profileSchema.parse({ id: 'fixture', name: 'Fixture', kind: 'pi', reasoning: 'high',
+    reasoningSupport: { source: 'manual', levels: ['off', 'high'] } });
+  const captured: any[] = [];
+  const input = { profile, prompt: 'Summarize', text: 'History', maxChars: 8000,
+    signal: new AbortController().signal, generate: async (request: any) => { captured.push(request); return { text: 'Summary' }; } };
+  await summarizeContext(input);
+  await summarizeContext({ ...input, reasoning: 'off' });
+  assert.equal(captured[0].reasoning, 'inherit');
+  assert.equal(captured[0].profile.reasoning, 'high');
+  assert.equal(captured[1].reasoning, 'off');
+});
+
+test('failed history compression stops the run without silently dropping unsummarized history', async t => {
+  const app = await setup(t, []), backend = new FakeBackend();
+  app.router.useConversationRuntime(app.api, { kind: 'pi', generate: request => backend.generate(request) });
+  const c = conversation(app, { reasoning: 'high', compaction: { triggerTokens: 1024, keepRecentPercent: 10 } });
+  await app.router.bind(c.id, 'test', new AbortController().signal);
+  for (let i = 0; i < 6; i++) app.store.append(c.id, i % 2 ? 'assistant' : 'user', 'human', 'OLD_HISTORY '.repeat(130), 'old-' + i);
+  const before = app.store.allMessages(c.id);
+  backend.responder = async request => {
+    assert.equal(request.toolPolicy, 'none');
+    assert.equal(request.reasoning, 'high');
+    throw new EchoError('provider_http_504', 'Synthetic timeout');
+  };
+  await assert.rejects(app.router.send({ conversationId: c.id, requestId: 'failed-summary', text: 'Continue' }),
+    { code: 'context_compaction_failed' });
+  assert(!app.store.runs().some(run => run.requestId === 'failed-summary'));
+  assert.equal(backend.calls.length, 1);
+  assert.equal(app.store.document('conversation-compactions', c.id), undefined);
+  assert.deepEqual(app.store.allMessages(c.id).slice(0, before.length), before);
 });

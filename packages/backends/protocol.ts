@@ -60,6 +60,16 @@ function anthropicBase(profile: Profile) {
   return endpoint(profile, '').href.replace(/\/$/, '').replace(/\/v1$/, '');
 }
 
+/** API and agent execution must interpret the same saved model options. */
+export function outputTokensField(profile: Profile): 'max_tokens' | 'max_completion_tokens' {
+  const field = profile.modelOptions.maxTokensField;
+  return field === 'max_tokens' || field === 'max_completion_tokens'
+    ? field
+    : new URL(profile.endpoint).hostname === 'api.openai.com'
+      ? 'max_completion_tokens'
+      : 'max_tokens';
+}
+
 export async function modelProtocol(profile: Profile, override?: string) {
   const api = profile.protocol;
   endpoint(profile, '');
@@ -97,20 +107,14 @@ export async function modelProtocol(profile: Profile, override?: string) {
     contextWindow:
       typeof profile.modelOptions.contextWindowTokens === 'number'
         ? profile.modelOptions.contextWindowTokens
-        : profile.contextChars,
+        : 0, // Unknown token capacity; contextChars is Echo's input character budget.
     maxTokens: profile.maxOutputTokens,
     ...(api === 'openai-completions'
       ? {
           compat: {
             supportsMidConvoSystemMessages: true,
             supportsStore: false,
-            maxTokensField:
-              profile.modelOptions.maxTokensField === 'max_tokens' ||
-              profile.modelOptions.maxTokensField === 'max_completion_tokens'
-                ? profile.modelOptions.maxTokensField
-                : new URL(profile.endpoint).hostname === 'api.openai.com'
-                  ? 'max_completion_tokens'
-                  : 'max_tokens',
+            maxTokensField: outputTokensField(profile),
           },
         }
       : {}),

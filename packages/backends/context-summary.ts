@@ -4,8 +4,8 @@ import {
   type GenerateRequest,
   type GenerateResult,
   type Profile,
+  type Reasoning,
 } from '../contracts/index.ts';
-import { effectiveReasoning } from './model-metadata.ts';
 
 /** Summary size is a writing target. The model's configured output budget still
  * applies; truncating a summary must never silently discard conversation history. */
@@ -16,10 +16,10 @@ export async function summarizeContext(input: {
   maxChars: number;
   generate: (request: GenerateRequest) => Promise<GenerateResult>;
   signal: AbortSignal;
+  reasoning?: Reasoning;
   onItem?: GenerateRequest['onItem'];
 }) {
   const { profile, signal, maxChars } = input;
-  const support = effectiveReasoning(profile, profile.reasoningSupport);
   try {
     const result = await input.generate({
       profile,
@@ -34,8 +34,7 @@ export async function summarizeContext(input: {
       ],
       toolPolicy: 'none',
       requestId: randomUUID(),
-      reasoning:
-        support?.levels.includes('off') ? 'off' : 'inherit',
+      reasoning: input.reasoning ?? 'inherit',
       onItem: input.onItem,
       signal,
     });

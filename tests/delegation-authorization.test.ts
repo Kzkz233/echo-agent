@@ -109,14 +109,19 @@ test('opt-in main reviewer settles a bounded worker edit and records the decisio
   const file = join(root, 'sample.txt');
   const outside = join(await temporary(t), 'outside.txt');
   let reviewed = 0;
-  app.router.useConversationRuntime(app.api, {
+  const reviewer = new FakeBackend();
+  reviewer.responder = async request => {
+    reviewed++;
+    assert.equal(request.toolPolicy, 'none');
+    assert.match(request.messages[0].text, /审核当前子任务/);
+    assert.equal(request.profile.maxOutputTokens, 128000);
+    assert.equal(request.reasoning, 'high');
+    return { text: 'ALLOW' };
+  };
+  app.router.backends.set('api', reviewer);
+  app.router.useConversationRuntime(reviewer, {
     kind: 'pi',
     async generate(request) {
-      if (request.toolPolicy === 'none') {
-        reviewed++;
-        assert.match(request.messages[0].text, /审核当前子任务/);
-        return { text: 'ALLOW' };
-      }
       assert.equal(request.permissions?.pi.projectWrite, true);
       const result = await request.onInteraction?.({ kind: 'approval', title: 'Fixture edit',
         workspaceWrite: { path: file, operation: 'edit' } }, request.signal);
@@ -137,6 +142,10 @@ test('opt-in main reviewer settles a bounded worker edit and records the decisio
       } },
     }),
   });
+  const model = app.router.inference.models().find(row => row.id === 'test')!;
+  await app.router.inference.saveModel({ ...model, maxOutputTokens: 65536,
+    reasoningStyle: 'effort', reasoningLevels: ['off', 'high'], reasoning: 'off' });
+  app.store.saveConversation({ ...app.store.conversation(role.mainConversationId)!, reasoning: 'high', maxOutputTokens: 128000 });
   const task = await call('delegation.request', { requestId: 'reviewer-task', conversationId: role.mainConversationId,
     goal: 'Edit fixture', acceptance: 'Finish scoped edit', execution: { projectDirectory: root, write: true } });
   await until(() => app.router.interactions.list(task.workerConversationId).length === 1);

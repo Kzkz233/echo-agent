@@ -27,7 +27,7 @@ test('Responses review-sized tool loops retain valid pairs before and after comp
     let text = ''; for await (const part of req) text += part;
     const body = JSON.parse(text); requests.push(body);
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'x-request-id': 'fixture-request' });
-    if (body.reasoning?.effort === 'none') {
+    if (JSON.stringify(body.input).includes('归纳此前执行过程')) {
       summaries++;
       res.end(output([{ id: 'summary_fixture', type: 'message', role: 'assistant',
         content: [{ type: 'output_text', text: 'Earlier material was read. Continue the current task.' }] }]));

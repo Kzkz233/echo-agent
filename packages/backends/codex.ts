@@ -501,17 +501,13 @@ export class CodexBackend implements Backend {
             );
       }
     });
-    const started = Date.now();
     const timer = setInterval(
       () => {
-        if (
-          (!hostRequests.size && Date.now() - progressAt >= request.profile.timeoutMs) ||
-          Date.now() - started >= 1800000
-        )
+        if (!hostRequests.size && Date.now() - progressAt >= request.profile.timeoutMs)
           reject(
             new EchoError(
               'codex_timeout',
-              'Codex 长时间没有进展或已达到执行时限；请核对运行。',
+              'Codex 长时间没有进展；请核对运行。',
               true,
             ),
           );

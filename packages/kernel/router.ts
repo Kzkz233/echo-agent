@@ -1118,6 +1118,7 @@ export class Router {
         recent,
         base: prefix + '\n' + currentText,
         generate: true,
+        reasoning: input.reasoning ?? conversation.reasoning,
         signal: combined,
       });
       const summary = compacted.summary;

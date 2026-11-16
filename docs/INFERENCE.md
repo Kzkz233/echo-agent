@@ -22,11 +22,17 @@ Character tasks inherit the main model unless an explicit compatible model is se
 
 ## Output and reasoning
 
-The model's maximum output applies to replies and context summaries. Conversation and task overrides take precedence. Summary prompts request concise text within the context budget; there is no separate fixed token allowance for summaries. Incomplete summaries do not replace the original history.
+The model's maximum output applies to replies and context summaries. Conversation and task overrides take precedence. Summary prompts request concise text within the context budget; there is no separate fixed token allowance for summaries. Failed history compression stops preparation of the next run and preserves the original history.
+
+The input character budget and the model's total token capacity are separate settings. An unknown token capacity does not reduce the configured output allowance. Agent and auxiliary API requests use the same output parameter format. Explicit model capacity still constrains generation.
 
 Generation settings can be saved while an existing run awaits reconciliation and apply to the next request. Changing the model identity or connection remains blocked until its outstanding execution is resolved.
 
 Automatic reasoning discovery reads explicit provider metadata or a documented adapter. A model listing that contains only IDs does not declare reasoning support. Explicit effort settings still use the selected protocol's native parameters; missing metadata does not silently disable them. Select a parameter format and supported levels from the provider's documentation for custom APIs. Roles and tasks can override the model's default effort. Draft forms and execution use the same declarations.
+
+Search expansion, language reranking and context summaries inherit the selected model's reasoning setting unless their task or conversation supplies an override. Delegated approval uses the main conversation's model and reasoning through the shared inference path; its existing authorization checks still apply.
+
+Agent execution uses inactivity timers to detect missing progress. A worker's total execution limit belongs to its task lifecycle and cancellation signal; backends do not impose another fixed thirty-minute ceiling. Pending human decisions pause the inactivity timer. Individual API requests retain the model's request timeout.
 
 ## Extension contracts
 

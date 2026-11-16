@@ -10,6 +10,7 @@ import {
   id,
   invariant,
   memorySchema,
+  reasoning,
   type Memory,
   type Message,
 } from '../../packages/contracts/index.ts';
@@ -32,7 +33,7 @@ export const memoryConfigSchema = z.object({
   planner: z.boolean().default(false),
   historyWindow: z.number().int().min(0).max(20).default(4),
   queryChars: z.number().int().min(64).max(1000).default(320),
-  reasoning: z.enum(['inherit', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh']).default('off'),
+  reasoning: reasoning.default('off'),
   queryPrompt: z
     .string()
     .max(12000)
@@ -50,7 +51,7 @@ const memoryFields: Field[] = [
     key: 'reasoning',
     label: '查询构造思考强度',
     type: 'select' as const,
-    options: ['inherit', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh'],
+    options: reasoning.options,
     optionLabels: {
       inherit: '跟随模型',
       off: '关闭思考',
@@ -59,6 +60,7 @@ const memoryFields: Field[] = [
       medium: '中',
       high: '高',
       xhigh: '极高',
+      max: '最高',
     },
   },
   { key: 'queryPrompt', label: '查询构造提示词', type: 'textarea' as const },

@@ -498,7 +498,6 @@ export class SemanticSearch {
                 { role: 'user', text: v.query },
               ],
               signal,
-              'off',
             );
             return [
               ...new Set(
@@ -556,7 +555,6 @@ export class SemanticSearch {
                 { role: 'user', text: JSON.stringify({ query, candidates }) },
               ],
               signal,
-              'off',
             );
             const ids = z
               .array(z.string())

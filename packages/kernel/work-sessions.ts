@@ -87,13 +87,15 @@ export class WorkSessions {
       personaId: input.personaId, kind: 'worker', injection: true,
       createdAt: old?.createdAt ?? now,
       permissions: input.permissions ?? old?.permissions,
-      compaction: input.compaction,
-      maxOutputTokens: input.maxOutputTokens,
-      contextBlocks: input.contextBlocks,
+      // Metadata refreshes retain configuration. An explicit undefined resets
+      // an override to inheritance when the owning task changes its settings.
+      ...('compaction' in input ? { compaction: input.compaction } : {}),
+      ...('maxOutputTokens' in input ? { maxOutputTokens: input.maxOutputTokens } : {}),
+      ...('contextBlocks' in input ? { contextBlocks: input.contextBlocks } : {}),
     });
     const row: WorkSession = { ...previous, id: input.id, conversationId, personaId: input.personaId,
       parentConversationId: input.parentConversationId, title: input.title, origin: input.origin,
-      state: previous?.state ?? 'idle', persistent: input.persistent ?? true,
+      state: previous?.state ?? 'idle', persistent: input.persistent ?? previous?.persistent ?? true,
       execution: input.execution ?? previous?.execution ?? 'agent',
       profileId: input.profileId ?? previous?.profileId,
       createdAt: previous?.createdAt ?? now, updatedAt: now };

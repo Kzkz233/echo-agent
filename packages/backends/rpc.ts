@@ -120,12 +120,10 @@ export class StdioRpc {
     if (this.stopped) return Promise.reject(new EchoError('rpc_disconnected', '后端未连接。'));
     const id = ++this.sequence;
     return new Promise((resolve, reject) => {
-      const started = Date.now();
       const expire = () => {
         // A live tool loop is not a missing RPC acknowledgement. Only callers
         // with scoped progress evidence opt in to an inactivity deadline.
-        const remaining = activity ? Math.min(timeoutMs - (Date.now() - activity()),
-          1800000 - (Date.now() - started)) : 0;
+        const remaining = activity ? timeoutMs - (Date.now() - activity()) : 0;
         if (remaining > 0) {
           const pending = this.pending.get(id);
           if (pending) pending.timer = setTimeout(expire, remaining);

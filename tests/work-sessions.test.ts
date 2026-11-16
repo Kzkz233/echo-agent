@@ -232,6 +232,27 @@ test('automation workers compact inherited context and revoked grants cannot rem
     app.plugins.characterPermissions()).size, 0);
 });
 
+test('work registration retains settings on metadata refresh and supports explicit inheritance resets', async t => {
+  const app = await setup(t), parent = await role(app);
+  const input = { id: 'refresh-work', personaId: parent.id, parentConversationId: parent.mainConversationId,
+    title: 'Fixture', origin: { owner: 'review', type: 'fixture', id: 'refresh', name: 'Fixture' } };
+  const work = app.router.workSessions.register({ ...input, persistent: false,
+    compaction: { triggerTokens: 32000, keepRecentPercent: 20 }, maxOutputTokens: 128000,
+    contextBlocks: ['persona.core'] });
+  const saved = app.store.conversation(work.conversationId)!;
+  const refreshed = app.router.workSessions.register({ ...input, title: 'Renamed fixture' });
+  const after = app.store.conversation(work.conversationId)!;
+  assert.deepEqual(after.compaction, saved.compaction);
+  assert.equal(after.maxOutputTokens, 128000);
+  assert.deepEqual(after.contextBlocks, ['persona.core']);
+  assert.equal(refreshed.persistent, false);
+  app.router.workSessions.register({ ...input, compaction: undefined, maxOutputTokens: undefined, contextBlocks: undefined });
+  const reset = app.store.conversation(work.conversationId)!;
+  assert.equal(reset.compaction, undefined);
+  assert.equal(reset.maxOutputTokens, undefined);
+  assert.equal(reset.contextBlocks, undefined);
+});
+
 test('task result retries are concurrent-safe and freeze their reporting instruction', async t => {
   const app = await setup(t), parent = await role(app), fake = new FakeBackend();
   app.router.backends.set('api', fake);

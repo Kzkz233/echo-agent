@@ -1,4 +1,4 @@
-import type { Backend, Conversation, Message, Profile } from '../contracts/index.ts';
+import { EchoError, type Backend, type Conversation, type Message, type Profile, type Reasoning } from '../contracts/index.ts';
 import { contextCompaction } from '../contracts/compaction.ts';
 import { estimateTokens } from '../contracts/generation-metrics.ts';
 import type { Store } from './store.ts';
@@ -40,6 +40,7 @@ export async function compactConversation(input: {
   base: string;
   generate: boolean;
   signal: AbortSignal;
+  reasoning?: Reasoning;
 }) {
   const { store, events, conversation, backend, profile, recent, base, generate, signal } = input;
   const timezone = configuredTimezone(store);
@@ -101,17 +102,21 @@ export async function compactConversation(input: {
           profile, prompt, text: [checkpoint?.text, ...lines].filter(Boolean).join('\n'),
           maxChars: Math.min(8000, Math.floor(charBudget / 2)),
           generate: request => backend.generate(request), signal,
+          reasoning: input.reasoning ?? conversation.reasoning,
         });
         signal.throwIfAborted();
         const text = result.text.trim();
         if (!text || text.length > Math.min(8000, Math.floor(charBudget / 2)))
-          throw Error('无可用的会话摘要');
+          throw new EchoError('context_compaction_failed', '上下文压缩未取得有效摘要，原始历史已保留。');
         checkpoint = { through, text, version: 2 };
         store.put(namespace, conversation.id, checkpoint);
         events.emit('context.compacted', { conversationId: conversation.id, through });
-      } catch {
+      } catch (error) {
         signal.throwIfAborted();
         events.emit('context.compaction.failed', { conversationId: conversation.id });
+        // Continuing with only the fitting tail would conceal the failed
+        // summary and silently remove unsummarized history from this run.
+        throw error;
       }
     }
   }
