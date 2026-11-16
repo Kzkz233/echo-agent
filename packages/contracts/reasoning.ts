@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { outputTokenLimit } from './generation-limits.ts';
 
 export const reasoningLevels = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
 export const reasoningLevel = z.enum(reasoningLevels);
@@ -25,6 +26,7 @@ export const modelListingSchema = z.object({
   id: z.string().min(1).max(300),
   label: z.string().min(1).max(300),
   reasoning: reasoningSupportSchema.optional(),
+  maxOutputTokens: outputTokenLimit.optional(),
 });
 export type ReasoningSupport = z.infer<typeof reasoningSupportSchema>;
 export type ModelListing = z.infer<typeof modelListingSchema>;

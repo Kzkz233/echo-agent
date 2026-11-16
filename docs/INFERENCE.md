@@ -24,7 +24,9 @@ Character tasks inherit the main model unless an explicit compatible model is se
 
 ## Output and reasoning
 
-The model's maximum output applies to replies and context summaries. Conversation and task overrides take precedence. Summary prompts request concise text within the context budget; there is no separate fixed token allowance for summaries. Failed history compression stops preparation of the next run and preserves the original history.
+New models automatically use the output capacity declared by their model catalog. A custom endpoint without capacity metadata uses a 65,536-token fallback. Leave the output field blank for automatic selection; manual output limits and the input character budget are available under **Advanced generation limits**. Existing saved limits remain unchanged.
+
+The output limit applies to one model response, including replies and context summaries. It is not a cumulative task budget: an Agent can make multiple model calls and execute tools throughout a task. Conversation and task overrides take precedence over the model setting while still respecting declared model capacity and available context. There is no fixed 128K configuration ceiling. Summary prompts request concise text within the context budget; there is no separate fixed token allowance for summaries. Failed history compression stops preparation of the next run and preserves the original history.
 
 The input character budget and the model's total token capacity are separate settings. An unknown token capacity does not reduce the configured output allowance. Agent and auxiliary API requests use the same output parameter format. Explicit model capacity still constrains generation.
 

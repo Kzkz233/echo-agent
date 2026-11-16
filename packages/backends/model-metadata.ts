@@ -1,4 +1,5 @@
 import { EchoError, type Profile, type Reasoning } from '../contracts/index.ts';
+import { outputTokenLimit } from '../contracts/generation-limits.ts';
 import {
   reasoningLevels,
   type ModelListing,
@@ -130,10 +131,13 @@ export function readModelListing(
       const id = row?.id ?? row?.model;
       if (typeof id !== 'string' || !id || id.length > 300 || seen.has(id)) return [];
       seen.add(id);
+      const capacity = outputTokenLimit.safeParse(row.max_output_tokens ?? row.maxOutputTokens ??
+        row.max_completion_tokens ?? row.top_provider?.max_completion_tokens ?? row.limits?.max_output_tokens);
       return [
         {
           id,
           label: String(row.name ?? row.display_name ?? row.displayName ?? id).slice(0, 300),
+          ...(capacity.success ? { maxOutputTokens: capacity.data } : {}),
           ...(readReasoningSupport(row, source)
             ? { reasoning: readReasoningSupport(row, source) }
             : {}),

@@ -46,7 +46,7 @@ export function WorkContextSettings({ personaId, profileId, features, value = {}
       </label>
     </div>}
     {outputSupported && <label className="field"><span>{t('单次模型输出上限（tokens）')}</span>
-      <input type="number" min={64} max={131072} value={value.maxOutputTokens ?? ''}
+      <input type="number" min={64} value={value.maxOutputTokens ?? ''}
         placeholder={t('沿用模型配置')} onChange={event => onChange({ ...value,
           maxOutputTokens: event.target.value ? Number(event.target.value) : undefined })} />
     </label>}

@@ -2,6 +2,7 @@ import { outputTargets } from './delivery.ts';
 import { z } from 'zod';
 import { conversationPermissions, type HostAnswer, type HostInteraction } from './interaction.ts';
 import { contextCompaction } from './compaction.ts';
+import { outputTokenLimit, defaultOutputTokens } from './generation-limits.ts';
 import type { ContextDetail, GenerationMetrics } from './generation-metrics.ts';
 import type { ExecutionUpdate, SessionCapabilities, SteerRequest } from './execution.ts';
 import {
@@ -50,7 +51,9 @@ export const profileSchema = z.object({
     .min(1)
     .max(7)
     .optional(),
-  maxOutputTokens: z.number().int().min(64).max(131072).default(65536),
+  maxOutputTokens: outputTokenLimit.default(defaultOutputTokens),
+  automaticOutputTokens: z.boolean().optional(),
+  modelMaxOutputTokens: outputTokenLimit.optional(),
   contextChars: z.number().int().min(4000).max(4000000).default(120000),
   command: z.string().default('codex'),
   args: z.array(z.string()).default(['app-server']),
@@ -73,7 +76,7 @@ export const conversationSchema = z.object({
   injection: z.boolean().default(false),
   permissions: conversationPermissions.optional(),
   compaction: contextCompaction.optional(),
-  maxOutputTokens: z.number().int().min(64).max(131072).optional(),
+  maxOutputTokens: outputTokenLimit.optional(),
   workerRecall: z.boolean().optional(),
   contextBlocks: z.array(id).max(200).optional(),
   kind: z.enum(['main', 'chat', 'group-member', 'worker']).optional(),

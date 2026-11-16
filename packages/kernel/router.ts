@@ -772,7 +772,8 @@ export class Router {
     // Thinking effort and output length are independent. Inherit the saved model
     // budget unless this task explicitly overrides it; never silently shrink a
     // non-thinking Review to 8K or enlarge an intentional user limit.
-    const requestedOutput = limits?.maxOutputTokens ?? profile.maxOutputTokens;
+    const requestedOutput = Math.min(limits?.maxOutputTokens ?? profile.maxOutputTokens,
+      profile.modelMaxOutputTokens ?? Infinity);
     const contextWindow = profile.modelOptions.contextWindowTokens;
     const availableOutput =
       typeof contextWindow === 'number'
@@ -785,9 +786,9 @@ export class Router {
         : Math.min(requestedOutput, Math.max(64, availableOutput));
     if (maxOutputTokens !== undefined) {
       invariant(
-        Number.isInteger(maxOutputTokens) && maxOutputTokens >= 64 && maxOutputTokens <= 131072,
+        Number.isSafeInteger(maxOutputTokens) && maxOutputTokens >= 64,
         'output_budget',
-        '任务输出上限必须为 64–131072 tokens。',
+        '单次输出上限必须为不小于 64 的安全整数。',
       );
       profile.maxOutputTokens = maxOutputTokens;
     }
@@ -1043,7 +1044,7 @@ export class Router {
       ? this.store.document<{ maxOutputTokens?: number }>('character-settings.delegation', conversation.personaId) : undefined;
     const outputLimit = conversation.maxOutputTokens ?? workerDefaults?.maxOutputTokens;
     const profile = { ...this.profile(binding.profileId),
-        ...(outputLimit ? { maxOutputTokens: outputLimit } : {}) },
+        ...(outputLimit ? { maxOutputTokens: outputLimit, automaticOutputTokens: false } : {}) },
       backend = this.executionBackend(profile, conversation.id);
     const attachments = this.attachments.metadata(input.attachmentIds ?? [], conversation.id);
     invariant(

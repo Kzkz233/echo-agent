@@ -16,6 +16,7 @@ import { project as sourceProject } from './helpers.ts';
 import { PiBackend } from '../packages/backends/pi.ts';
 import { createServer } from 'node:http';
 import { z } from 'zod';
+import { listenBrowserHttp } from '../packages/kernel/http-listener.ts';
 
 test('Pi publishes one progress message and can finish with a structured reply tool', async (t) => {
   const app = await setup(t, []);
@@ -34,7 +35,7 @@ test('Pi publishes one progress message and can finish with a structured reply t
       } }],
     } }] }) + '\n\ndata: [DONE]\n\n');
   });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  await listenBrowserHttp(server);
   t.after(() => new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); }));
   seedProfile(app, profileSchema.parse({ id: 'test', kind: 'api', name: 'Loopback', model: 'fixture', endpoint: `http://127.0.0.1:${(server.address() as any).port}/v1` }));
   const run = await app.router.send({ conversationId: chat.id, text: 'Check the sources', requestId: 'fixture-reply-tool' });
@@ -69,7 +70,7 @@ test('Pi receives explicit remaining channel targets after each final submission
       } }],
     } }] }) + '\n\ndata: [DONE]\n\n');
   });
-  await new Promise<void>(done => server.listen(0, '127.0.0.1', done));
+  await listenBrowserHttp(server);
   t.after(() => new Promise<void>(done => { server.closeAllConnections(); server.close(() => done()); }));
   seedProfile(app, profileSchema.parse({ id: 'test', name: 'Loopback', kind: 'api', model: 'fixture',
     endpoint: `http://127.0.0.1:${(server.address() as any).port}/v1` }));
@@ -175,7 +176,7 @@ test('Pi separates file permissions from approved or explicitly granted Echo mut
         '\n\ndata: [DONE]\n\n',
     );
   });
-  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+  await listenBrowserHttp(server);
   t.after(() => {
     server.closeAllConnections();
     return new Promise<void>((done) => server.close(() => done()));
@@ -228,7 +229,7 @@ test('Pi retains transport causes and never silently retries a submitted HTTP re
     calls++;
     request.socket.destroy();
   });
-  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+  await listenBrowserHttp(server);
   t.after(() => {
     server.closeAllConnections();
     return new Promise<void>((done) => server.close(() => done()));
@@ -278,7 +279,7 @@ test('Pi compatible APIs use max_tokens without OpenAI storage parameters and al
         '\n\ndata: [DONE]\n\n',
     );
   });
-  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+  await listenBrowserHttp(server);
   t.after(() => {
     server.closeAllConnections();
     return new Promise<void>((done) => server.close(() => done()));
@@ -333,7 +334,7 @@ test('Pi rejects exhausted thinking budgets and empty completions without treati
         '\n\ndata: [DONE]\n\n',
     );
   });
-  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+  await listenBrowserHttp(server);
   t.after(() => {
     server.closeAllConnections();
     return new Promise<void>((done) => server.close(() => done()));
@@ -359,7 +360,7 @@ test('Pi rejects exhausted thinking budgets and empty completions without treati
         signal: AbortSignal.timeout(5000),
       }),
       (error: any) => {
-        assert.equal(error.code, code);
+        assert.equal(error.code, code, error.message);
         assert.equal(error.uncertain, false);
         assert.match(error.message, /2048/);
         assert.doesNotMatch(error.message, /Synthetic reasoning/);

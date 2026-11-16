@@ -3,6 +3,7 @@ import { id, reasoning, profileSchema } from './index.ts';
 import { replySubmission } from './delivery.ts';
 import { transcriptMessage } from './transcript.ts';
 import { reasoningStyle, reasoningLevel } from './reasoning.ts';
+import { outputTokenLimit } from './generation-limits.ts';
 export const modality = z.enum(['text', 'image', 'audio', 'video']);
 export const modelProfileSchema = z
   .object({
@@ -32,7 +33,7 @@ export const modelProfileSchema = z
     reasoning: reasoning.default('inherit'),
     reasoningStyle: reasoningStyle.default('auto'),
     reasoningLevels: z.array(reasoningLevel).min(1).max(7).optional(),
-    maxOutputTokens: z.number().int().min(64).max(131072).default(65536),
+    maxOutputTokens: outputTokenLimit.optional(),
     contextChars: z.number().int().min(4000).max(4000000).default(120000),
     timeoutMs: z.number().int().min(1000).max(1800000).default(300000),
     options: z.record(z.string(), z.unknown()).default({}),

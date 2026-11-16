@@ -981,23 +981,25 @@ function BackendServices({
                                 onChange={(reasoning) => setModel({ ...model, reasoning: reasoning as any })}
                               />
                               <p className="muted">{t('自动适配只读取接口声明的能力；上游未提供时，请按接口文档选择参数格式。角色与任务可覆盖默认强度。')}</p>
+                              <details>
+                                <summary>{t('高级生成限制')}</summary>
                               {modelAdapter.engine !== 'codex' && (
                                 <label className="field">
                                   <span>{t('单次最大输出 token')}</span>
                                   <input
                                     type="number"
                                     min={64}
-                                    max={131072}
                                     aria-label={t('单次最大输出 token')}
-                                    value={model.maxOutputTokens}
+                                    value={model.maxOutputTokens ?? ''}
+                                    placeholder={t('自动')}
                                     onChange={(e) =>
                                       setModel({
                                         ...model,
-                                        maxOutputTokens: Number(e.target.value),
+                                        maxOutputTokens: e.target.value ? Number(e.target.value) : undefined,
                                       })
                                     }
                                   />
-                                  <small>{t('正式回答与上下文压缩均沿用此上限；会话或任务的输出配置优先。')}</small>
+                                  <small>{t('留空自动使用模型声明的输出能力；未声明时使用通用默认值。这是单次响应上限，不限制任务总用量。会话或任务可单独覆盖。')}</small>
                                 </label>
                               )}
                               <label className="field">
@@ -1010,6 +1012,7 @@ function BackendServices({
                                   }
                                 />
                               </label>
+                              </details>
                               {(modelAdapter.family === 'api' || modelAdapter.engine === 'dsh') && (
                                 <label className="field">
                                   <span>{t('模型上下文窗口（tokens，可选）')}</span>

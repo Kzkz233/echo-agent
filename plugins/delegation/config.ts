@@ -3,6 +3,7 @@ import { id, reasoning } from '../../packages/contracts/index.ts';
 import type { Field } from '../../packages/kernel/registry.ts';
 import { executionRequest, executionTimeoutMinutes } from '../../packages/contracts/work.ts';
 import { contextCompaction } from '../../packages/contracts/compaction.ts';
+import { outputTokenLimit } from '../../packages/contracts/generation-limits.ts';
 export { executionRequest };
 export type { ExecutionRequest } from '../../packages/contracts/work.ts';
 export const defaultDelegationPrompt =
@@ -26,7 +27,7 @@ export const workerTemplate = z.object({
   prompt: z.string().max(12000).default(''),
   toolPermissions: z.array(id).max(200).optional(),
   compaction: contextCompaction.optional(),
-  maxOutputTokens: z.number().int().min(64).max(131072).optional(),
+  maxOutputTokens: outputTokenLimit.optional(),
   workerRecall: z.boolean().optional(),
   contextBlocks: z.array(id).max(200).optional(),
 });
@@ -50,7 +51,7 @@ const policySchema = z.object({
   defaultReasoning: reasoning.default('inherit'),
   contextBlocks: z.array(id).max(200).optional(),
   compaction: contextCompaction.optional(),
-  maxOutputTokens: z.number().int().min(64).max(131072).optional(),
+  maxOutputTokens: outputTokenLimit.optional(),
   allowedProfileIds: z.array(id).max(100).default([]),
   workspaces: z.array(workspace).max(100).default([]),
   toolPermissions: z.array(id).max(200).optional(),

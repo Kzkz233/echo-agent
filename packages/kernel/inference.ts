@@ -385,19 +385,30 @@ export class InferenceCatalog {
       cached?.models.find((item) => item.id === profile.model)?.reasoning,
     );
   }
+  private cachedOutputCapacity(profile: Profile) {
+    return this.store.get<{ models: ModelListing[] } | undefined>(this.catalogKey(profile), undefined)
+      ?.models.find(item => item.id === profile.model)?.maxOutputTokens;
+  }
   async prepare(profile: Profile, override?: string, signal?: AbortSignal): Promise<Profile> {
     signal?.throwIfAborted();
+    const capacity = this.cachedOutputCapacity(profile);
+    if (capacity) profile = { ...profile, modelMaxOutputTokens: capacity, maxOutputTokens: profile.automaticOutputTokens
+      ? capacity : Math.min(profile.maxOutputTokens, capacity) };
     const requested = !override || override === 'inherit' ? profile.reasoning : override;
     if (requested === 'inherit') return profile;
     const declared = effectiveReasoning(profile);
     if (declared?.source === 'manual') return { ...profile, reasoningSupport: declared };
     try {
       const rows = await this.discover(profile, false, signal);
+      const listing = rows.find(row => row.id === profile.model);
       return {
         ...profile,
+        ...(listing?.maxOutputTokens ? { modelMaxOutputTokens: listing.maxOutputTokens,
+          maxOutputTokens: profile.automaticOutputTokens
+            ? listing.maxOutputTokens : Math.min(profile.maxOutputTokens, listing.maxOutputTokens) } : {}),
         reasoningSupport: effectiveReasoning(
           profile,
-          rows.find((row) => row.id === profile.model)?.reasoning,
+          listing?.reasoning,
         ),
       };
     } catch {
@@ -430,6 +441,13 @@ export class InferenceCatalog {
       embeddingDimensions: model.embedding.dimensions,
     });
     profile.reasoningSupport = this.cachedReasoning(profile);
+    profile.automaticOutputTokens = model.maxOutputTokens === undefined;
+    const capacity = this.cachedOutputCapacity(profile);
+    if (capacity) {
+      profile.modelMaxOutputTokens = capacity;
+      profile.maxOutputTokens = profile.automaticOutputTokens
+        ? capacity : Math.min(profile.maxOutputTokens, capacity);
+    }
     return profile;
   }
   compatible(model: ModelProfile, task: InferenceTask) {

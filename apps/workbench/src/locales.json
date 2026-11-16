@@ -10696,6 +10696,14 @@
     "Window action failed"
   ],
   [
+    "高级生成限制",
+    "Advanced generation limits"
+  ],
+  [
+    "留空自动使用模型声明的输出能力；未声明时使用通用默认值。这是单次响应上限，不限制任务总用量。会话或任务可单独覆盖。",
+    "Leave blank to use the model's declared output capacity, or the general default when unknown. This limits one response, not the total task. Sessions and tasks may override it."
+  ],
+  [
     "在此日期新增 ",
     "Add entry on "
   ],

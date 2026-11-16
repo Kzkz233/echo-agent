@@ -79,7 +79,7 @@ test('generation defaults allow long work but preserve explicitly saved small bu
     connectionId: 'fixture',
   });
   assert.equal(profile.maxOutputTokens, 65536);
-  assert.equal(model.maxOutputTokens, 65536);
+  assert.equal(model.maxOutputTokens, undefined);
   assert.equal(profile.timeoutMs, 300000);
   assert.equal(model.timeoutMs, 300000);
   assert.equal(

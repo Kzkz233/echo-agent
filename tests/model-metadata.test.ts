@@ -5,6 +5,43 @@ import { profileSchema } from '../packages/contracts/index.ts';
 import { readModelListing, readReasoningSupport } from '../packages/backends/model-metadata.ts';
 import { thinking, ApiBackend } from '../packages/backends/api.ts';
 import { modelProtocol } from '../packages/backends/protocol.ts';
+import { defaultOutputTokens } from '../packages/contracts/generation-limits.ts';
+
+test('automatic output uses declared model capacity, preserves manual settings and invalidates changed connections', async t => {
+  const app = await setup(t, []);
+  const catalog = app.router.inference;
+  await catalog.saveModel({ ...catalog.models().find(model => model.id === 'test')!, maxOutputTokens: undefined });
+  assert.equal(catalog.models().find(model => model.id === 'test')!.maxOutputTokens, undefined);
+  assert.equal(catalog.resolve('test').maxOutputTokens, defaultOutputTokens);
+  let capacity = 262144;
+  app.router.backends.set('api', Object.assign(new FakeBackend(), { listModels: async () =>
+    readModelListing([{ id: 'synthetic', max_output_tokens: capacity, supported_reasoning_efforts: ['high'] }]) }));
+  await catalog.discover(catalog.resolve('test'), true);
+  const automatic = catalog.resolve('test');
+  assert.equal(automatic.maxOutputTokens, 262144);
+  assert.equal(automatic.automaticOutputTokens, true);
+  assert.equal((await modelProtocol(automatic)).model.maxTokens, 262144);
+  await catalog.saveModel({ ...catalog.models().find(model => model.id === 'test')!, maxOutputTokens: 128000 });
+  assert.equal(catalog.resolve('test').maxOutputTokens, 128000);
+  capacity = 64000;
+  await catalog.discover(catalog.resolve('test'), true);
+  assert.equal(catalog.resolve('test').maxOutputTokens, 64000);
+  assert.equal(catalog.models().find(model => model.id === 'test')!.maxOutputTokens, 128000);
+  const prepared = await catalog.prepare({ ...automatic, maxOutputTokens: 32000, automaticOutputTokens: false }, 'high');
+  assert.equal(prepared.maxOutputTokens, 32000);
+  assert.equal((await catalog.prepare({ ...automatic, reasoning: 'inherit', maxOutputTokens: 128000, automaticOutputTokens: false })).maxOutputTokens, 64000);
+  await catalog.saveModel({ ...catalog.models().find(model => model.id === 'test')!, maxOutputTokens: undefined });
+  const connection = catalog.connections().find(row => row.id === 'test')!;
+  await catalog.saveConnection({ ...connection, config: { ...connection.config, endpoint: 'http://127.0.0.1:2/v1' } });
+  assert.equal(catalog.resolve('test').maxOutputTokens, defaultOutputTokens);
+});
+
+test('model output metadata requires a positive numeric output capacity rather than context size', () => {
+  const rows = readModelListing([{ id: 'context', context_length: 1000000 },
+    { id: 'invalid', max_output_tokens: -1 }, { id: 'string', max_output_tokens: '128000' },
+    { id: 'declared', top_provider: { max_completion_tokens: 262144 } }]);
+  assert.deepEqual(rows.map(row => row.maxOutputTokens), [undefined, undefined, undefined, 262144]);
+});
 
 test('a catalog refresh failure retains known capabilities only for the same connection identity', async t => {
   const app = await setup(t, []), caller = { kind: 'ui' as const, permissions: new Set(['*']) };

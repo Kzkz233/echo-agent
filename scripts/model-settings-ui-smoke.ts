@@ -7,6 +7,7 @@ import { chromium, expect } from '@playwright/test';
 import { Application } from '../apps/server/application.ts';
 import { serve } from '../apps/server/http.ts';
 import { PiBackend } from '../packages/backends/pi.ts';
+import { listenBrowserHttp } from '../packages/kernel/http-listener.ts';
 
 const project = resolve(import.meta.dirname, '..');
 const runtime = await mkdtemp(join(tmpdir(), 'Echo-model-settings-'));
@@ -38,7 +39,7 @@ const upstream = createServer(async (req, res) => {
       '\n\ndata: [DONE]\n\n',
   );
 });
-await new Promise<void>((done) => upstream.listen(0, '127.0.0.1', done));
+await listenBrowserHttp(upstream);
 const app = await Application.create({ runtime, project, plugins: [] });
 await app.router.inference.saveConnection({
   id: 'fixture',
@@ -69,6 +70,7 @@ try {
   );
   await page.getByRole('button', { name: 'Synthetic model', exact: true }).click();
   await page.getByText('生成参数', { exact: true }).click();
+  await page.getByText('高级生成限制', { exact: true }).click();
   await expect(page.getByText('上游未提供思考能力元数据', { exact: true }).first()).toBeVisible();
   await page.getByLabel('API 思考参数格式', { exact: true }).selectOption('effort');
   const declaration = page.getByRole('group', { name: '手动声明支持的思考级别', exact: true });
@@ -89,6 +91,7 @@ try {
   await page.getByRole('button', { name: 'Synthetic model', exact: true }).click();
   await page.getByText('生成参数', { exact: true }).click();
   await expect(page.getByLabel('默认思考强度', { exact: true })).toHaveValue('high');
+  await page.getByText('高级生成限制', { exact: true }).click();
   await expect(page.getByLabel('单次最大输出 token', { exact: true })).toHaveValue('128000');
   await new PiBackend(app.registry, async () => undefined).generate({
     profile: saved,
@@ -107,7 +110,18 @@ try {
       requestId: 'automatic-' + effort, signal: AbortSignal.timeout(10000) });
   assert.equal(bodies[1].reasoning_effort, 'high');
   assert.equal(bodies[2].reasoning_effort, 'none');
-  await page.getByLabel('单次最大输出 token', { exact: true }).fill('131073');
+  await page.getByLabel('单次最大输出 token', { exact: true }).fill('');
+  await page.getByRole('button', { name: '保存模型', exact: true }).click();
+  await expect.poll(() => app.router.inference.models().find(model => model.id === 'fixture')?.maxOutputTokens).toBeUndefined();
+  await page.reload();
+  await page.getByRole('button', { name: 'Synthetic model', exact: true }).click();
+  await page.getByText('生成参数', { exact: true }).click();
+  await page.getByText('高级生成限制', { exact: true }).click();
+  await expect(page.getByLabel('单次最大输出 token', { exact: true })).toHaveValue('');
+  await page.getByLabel('单次最大输出 token', { exact: true }).fill('128000');
+  await page.getByRole('button', { name: '保存模型', exact: true }).click();
+  await expect.poll(() => app.router.profile('fixture').maxOutputTokens).toBe(128000);
+  await page.getByLabel('单次最大输出 token', { exact: true }).fill('63');
   await page.getByRole('button', { name: '保存模型', exact: true }).click();
   await expect(page.locator('.inference-editor .form-actions').getByRole('alert')).toBeVisible();
   assert.equal(app.router.profile('fixture').maxOutputTokens, 128000);
@@ -117,6 +131,7 @@ try {
   await page.getByRole('button', { name: 'Synthetic model', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByText('生成参数', { exact: true }).click();
+  await page.getByText('高级生成限制', { exact: true }).click();
   await expect(page.getByLabel('单次最大输出 token', { exact: true })).toHaveValue('128000');
   await page.setViewportSize({ width: 1000, height: 760 });
   await expect(page.getByLabel('默认思考强度', { exact: true })).toBeVisible();
@@ -134,6 +149,7 @@ try {
     wireOutputTokens: bodies[0].max_tokens,
     wireReasoning: bodies[0].reasoning_effort,
     automaticReasoningHonored: true,
+    automaticOutputPersists: true,
     pageErrors: errors.length,
     realProviderCalls: 0,
   };

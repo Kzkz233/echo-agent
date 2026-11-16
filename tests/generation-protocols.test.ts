@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { PiBackend } from '../packages/backends/pi.ts';
 import { generationProtocol } from '../packages/contracts/index.ts';
 import { setup } from './helpers.ts';
+import { listenBrowserHttp } from '../packages/kernel/http-listener.ts';
 
 const ui = { kind: 'ui' as const, permissions: new Set(['*']) };
 const sse = (data: Record<string, unknown>) =>
@@ -195,7 +196,7 @@ for (const protocol of generationProtocol.options)
           res.end();
         }
       });
-      await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+      await listenBrowserHttp(server);
       t.after(() => {
         server.closeAllConnections();
         return new Promise<void>((done) => server.close(() => done()));

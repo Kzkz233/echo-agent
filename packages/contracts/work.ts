@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { id, reasoning } from './index.ts';
 import { contextCompaction } from './compaction.ts';
+import { outputTokenLimit } from './generation-limits.ts';
 
 const optionalOutput = z.preprocess(
   value => value === '' || value === null ? undefined : value,
-  z.number().int().min(64).max(131072).optional(),
+  outputTokenLimit.optional(),
 );
 /** Zero disables the total deadline; request/inactivity timeouts are independent. */
 export const executionTimeoutMinutes = z.number().int().min(0)

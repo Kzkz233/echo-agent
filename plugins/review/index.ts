@@ -48,6 +48,7 @@ import {
 } from '../memory/changes.ts';
 import { contributeSignal } from '../../packages/kernel/trigger-actions.ts';
 import { contextCompaction } from '../../packages/contracts/compaction.ts';
+import { outputTokenLimit } from '../../packages/contracts/generation-limits.ts';
 import { conversationPermissions } from '../../packages/contracts/interaction.ts';
 import { executionTimeoutMinutes, type WorkAuthority } from '../../packages/contracts/work.ts';
 import { candidateSchema, candidateNamespace, checkpoint, readingComplete, candidatesFor, type Candidate } from './checkpoints.ts';
@@ -57,7 +58,7 @@ const conversationSource = 'core.conversation';
 const sourceOf = (material: Material) =>
   material.sourceId ?? (material.conversationId ? conversationSource : undefined);
 const reviewSettings = reviewConfigSchema.extend({
-  defaultMaxOutputTokens: z.number().int().min(0).max(131072)
+  defaultMaxOutputTokens: z.number().int().min(0).safe()
     .refine((value) => value === 0 || value >= 64).default(0),
 });
 const taskSchema = reviewConfigSchema.extend({
@@ -77,7 +78,7 @@ const taskSchema = reviewConfigSchema.extend({
   profileId: id.optional(),
   maxOutputTokens: z.preprocess(
     (value) => (value === '' ? undefined : value),
-    z.number().int().min(64).max(131072).optional(),
+    outputTokenLimit.optional(),
   ),
   reasoning: z
     .enum(['inherit', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
@@ -2219,7 +2220,7 @@ export class Reviews {
             id,
             confirmed: z.literal(true),
             profileId: id.optional(),
-            maxOutputTokens: z.number().int().min(64).max(131072).optional(),
+            maxOutputTokens: outputTokenLimit.optional(),
           }),
           'review.write',
           (v, caller) => {
