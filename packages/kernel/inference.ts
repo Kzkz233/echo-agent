@@ -387,6 +387,8 @@ export class InferenceCatalog {
     signal?.throwIfAborted();
     const requested = !override || override === 'inherit' ? profile.reasoning : override;
     if (requested === 'inherit') return profile;
+    const declared = effectiveReasoning(profile);
+    if (declared?.source === 'manual') return { ...profile, reasoningSupport: declared };
     try {
       const rows = await this.discover(profile, false, signal);
       return {
@@ -617,10 +619,15 @@ export class InferenceCatalog {
         .fromJSONSchema(adapter.modelSchema as any)
         .parse(prepared.options) as Record<string, unknown>;
     }
+    const identity = (model: ModelProfile) => {
+      const { name, maxOutputTokens, contextChars, timeoutMs, reasoning, reasoningStyle, reasoningLevels, ...rest } = model;
+      return JSON.stringify(rest);
+    };
     invariant(
-      !this.store.unresolved().some((r) => r.profileId === value.id),
+      old && identity(modelProfileSchema.parse(old)) === identity(value) ||
+        !this.store.unresolved().some((r) => r.profileId === value.id),
       'backend_busy',
-      '请先处理此模型的运行',
+      '此模型仍有运行或待核对结果，暂时不能更换模型或连接；生成参数可保存，并从下次请求生效。',
     );
     this.store.put('profiles', value.id, value);
     return value;

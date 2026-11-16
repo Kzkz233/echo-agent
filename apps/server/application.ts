@@ -901,6 +901,7 @@ export class Application {
         personaId: id.optional(),
         refresh: z.boolean().default(false),
         style: reasoningStyle.optional(),
+        reasoningLevels: modelProfileSchema.shape.reasoningLevels,
       }),
       'system.read',
       async (v) => {
@@ -921,7 +922,11 @@ export class Application {
                 ? this.router.route(v.taskId, v.personaId)
                 : undefined;
         invariant(profile, 'missing_profile', '请先选择推理模型。');
-        const actual = v.style ? { ...profile, reasoningStyle: v.style } : profile;
+        const actual = { ...profile, ...(v.style ? { reasoningStyle: v.style } : {}),
+          ...(v.reasoningLevels ? { reasoningLevels: v.reasoningLevels } : {}) };
+        const declared = effectiveReasoning(actual);
+        if (declared?.source === 'manual')
+          return { model: actual.model, reasoning: declared, status: 'known' };
         try {
           const models = await this.router.inference.discover(actual, v.refresh);
           const selected = models.find((item) => item.id === profile.model);

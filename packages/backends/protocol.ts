@@ -76,7 +76,10 @@ export async function modelProtocol(profile: Profile, override?: string) {
     profile.reasoningStyle === 'none'
       ? { effort: undefined }
       : selectedReasoning({ ...profile, reasoningSupport: support }, override);
-  const style = profile.reasoningStyle === 'auto' ? support?.style : profile.reasoningStyle;
+  // Unknown capability metadata is not an instruction to discard an explicit
+  // effort setting. Use the selected protocol's native parameter; custom APIs
+  // can declare a different format without inventing supported effort levels.
+  const style = profile.reasoningStyle === 'auto' ? (support?.style ?? 'effort') : profile.reasoningStyle;
   const nonChat = api !== 'openai-completions';
   const reasoning =
     effort && effort !== 'off' && (style === 'effort' || (nonChat && style === 'deepseek'))

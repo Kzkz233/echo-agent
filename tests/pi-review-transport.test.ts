@@ -71,7 +71,7 @@ test('Responses review-sized tool loops retain valid pairs before and after comp
   for (const body of requests) {
     assert.equal(body.store, false);
     assert.equal(body.stream, true);
-    assert.equal(body.max_output_tokens, body.reasoning?.effort === 'none' ? 2048 : 128000);
+    assert.equal(body.max_output_tokens, 128000);
     assert(!body.input.some((item: any) => item.role === 'developer'));
     const calls = body.input.filter((item: any) => item.type === 'function_call').map((item: any) => item.call_id).sort();
     const results = body.input.filter((item: any) => item.type === 'function_call_output').map((item: any) => item.call_id).sort();

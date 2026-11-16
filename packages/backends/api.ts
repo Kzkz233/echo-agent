@@ -19,7 +19,7 @@ export function thinking(profile: Profile, override?: string) {
   const { effort } = selectedReasoning(profile, override);
   const style =
     profile.reasoningStyle === 'auto'
-      ? (profile.reasoningSupport?.style ?? 'none')
+      ? (profile.reasoningSupport?.style ?? 'effort')
       : profile.reasoningStyle;
   if (!effort || style === 'none') return {};
   if (style === 'enable_thinking') return { enable_thinking: effort !== 'off' };

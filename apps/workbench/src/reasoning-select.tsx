@@ -28,6 +28,7 @@ export function ReasoningSelect({
   support: supplied,
   capabilitiesOnly = false,
   style,
+  reasoningLevels,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -42,6 +43,7 @@ export function ReasoningSelect({
   support?: ReasoningSupport;
   capabilitiesOnly?: boolean;
   style?: string;
+  reasoningLevels?: ReasoningSupport['levels'];
 }) {
   const [result, setResult] = useState<{
     key: string;
@@ -50,7 +52,7 @@ export function ReasoningSelect({
     status?: string;
   }>();
   const [revision, refresh] = useState(0);
-  const key = JSON.stringify([profileId, connectionId, model, taskId, personaId, style]);
+  const key = JSON.stringify([profileId, connectionId, model, taskId, personaId, style, reasoningLevels]);
   const current = result?.key === key ? result : undefined;
   const support = supplied ?? current?.support;
   useEffect(() => {
@@ -65,6 +67,7 @@ export function ReasoningSelect({
         taskId,
         personaId,
         style,
+        reasoningLevels,
         refresh: revision > 0,
       },
     )
@@ -146,6 +149,9 @@ export function ReasoningSelect({
         </div>
       ) : (
         select
+      )}
+      {!support && current && !capabilitiesOnly && (
+        <small className="muted">{t('未声明思考能力；可在模型的生成参数中选择兼容格式并声明支持级别。')}</small>
       )}
       {support ? (
         <small className={unsupported ? 'warning' : 'muted'}>

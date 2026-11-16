@@ -910,12 +910,14 @@ function BackendServices({
                                 style={model.reasoningStyle}
                                 connectionId={model.connectionId}
                                 model={model.model}
+                                reasoningLevels={model.reasoningLevels}
                                 onChange={() => {}}
                               />
                               {['api', 'pi'].includes(modelAdapter.engine) && (
                                 <label className="field">
                                   <span>{t('API 思考参数格式')}</span>
                                   <select
+                                    aria-label={t('API 思考参数格式')}
                                     value={model.reasoningStyle}
                                     onChange={(e) =>
                                       setModel({ ...model, reasoningStyle: e.target.value as any })
@@ -968,11 +970,24 @@ function BackendServices({
                                   </small>
                                 </fieldset>
                               )}
+                              <ReasoningSelect
+                                label="默认思考强度"
+                                value={model.reasoning}
+                                style={model.reasoningStyle}
+                                connectionId={model.connectionId}
+                                model={model.model}
+                                reasoningLevels={model.reasoningLevels}
+                                onChange={(reasoning) => setModel({ ...model, reasoning: reasoning as any })}
+                              />
+                              <p className="muted">{t('自动适配只读取接口声明的能力；上游未提供时，请按接口文档选择参数格式。角色与任务可覆盖默认强度。')}</p>
                               {modelAdapter.engine !== 'codex' && (
                                 <label className="field">
                                   <span>{t('单次最大输出 token')}</span>
                                   <input
                                     type="number"
+                                    min={64}
+                                    max={131072}
+                                    aria-label={t('单次最大输出 token')}
                                     value={model.maxOutputTokens}
                                     onChange={(e) =>
                                       setModel({
@@ -981,6 +996,7 @@ function BackendServices({
                                       })
                                     }
                                   />
+                                  <small>{t('正式回答与上下文压缩均沿用此上限；会话或任务的输出配置优先。')}</small>
                                 </label>
                               )}
                               <label className="field">

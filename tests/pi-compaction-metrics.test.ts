@@ -7,8 +7,11 @@ import { Registry } from '../packages/kernel/registry.ts';
 
 test('Pi counts in-run compaction usage and replaces obsolete history detail', async (t) => {
   let calls = 0;
+  const outputLimits: number[] = [];
   const server = createServer(async (req, res) => {
-    for await (const _chunk of req) { /* Consume the synthetic request. */ }
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    outputLimits.push(JSON.parse(body).max_tokens);
     calls++;
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     res.end('data: ' + JSON.stringify({ id: 'synthetic', model: 'synthetic',
@@ -22,7 +25,7 @@ test('Pi counts in-run compaction usage and replaces obsolete history detail', a
   const result = await new PiBackend(new Registry(), async () => undefined).generate({
     profile: profileSchema.parse({ id: 'fixture', name: 'Synthetic', kind: 'pi', model: 'synthetic',
       endpoint: `http://127.0.0.1:${(server.address() as any).port}/v1`, reasoning: 'off',
-      contextChars: 40000, maxOutputTokens: 512 }),
+      contextChars: 40000, maxOutputTokens: 128000, modelOptions: { contextWindowTokens: 512000 } }),
     requestId: 'compaction-metrics', signal: new AbortController().signal,
     compaction: { triggerTokens: 1800, keepRecentPercent: 40 },
     messages: [{ role: 'system', text: 'Synthetic role.' },
@@ -34,6 +37,7 @@ test('Pi counts in-run compaction usage and replaces obsolete history detail', a
   });
   assert(compacted);
   assert(calls > 1);
+  assert(outputLimits.every(limit => limit === 128000), JSON.stringify(outputLimits));
   assert.equal(result.metrics?.modelSteps, calls);
   assert.deepEqual(result.metrics?.totalUsage, { input: calls * 100, output: calls * 5, cacheRead: calls * 10, cacheWrite: 0 });
   assert.equal(result.metrics?.cacheHitPercent, 10);

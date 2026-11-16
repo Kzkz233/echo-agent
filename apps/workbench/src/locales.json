@@ -10702,5 +10702,21 @@
   [
     "窗口操作失败",
     "Window action failed"
+  ],
+  [
+    "未声明思考能力；可在模型的生成参数中选择兼容格式并声明支持级别。",
+    "Reasoning capabilities are not declared. Set the parameter format and supported levels in the model generation settings."
+  ],
+  [
+    "默认思考强度",
+    "Default reasoning effort"
+  ],
+  [
+    "自动适配只读取接口声明的能力；上游未提供时，请按接口文档选择参数格式。角色与任务可覆盖默认强度。",
+    "Automatic mode uses declared capabilities. If unavailable, choose a parameter format from the API documentation. Roles and tasks can override the default effort."
+  ],
+  [
+    "正式回答与上下文压缩均沿用此上限；会话或任务的输出配置优先。",
+    "Replies and context summaries use this output limit. Conversation or task overrides take precedence."
   ]
 ]

@@ -20,6 +20,14 @@ Character tasks inherit the main model unless an explicit compatible model is se
 
 [First connection](GETTING-STARTED.md#连接模型) · [Configuration ownership](PRODUCT-CONFIGURATION.md) · [Worker execution](BACKENDS.md)
 
+## Output and reasoning
+
+The model's maximum output applies to replies and context summaries. Conversation and task overrides take precedence. Summary prompts request concise text within the context budget; there is no separate fixed token allowance for summaries. Incomplete summaries do not replace the original history.
+
+Generation settings can be saved while an existing run awaits reconciliation and apply to the next request. Changing the model identity or connection remains blocked until its outstanding execution is resolved.
+
+Automatic reasoning discovery reads explicit provider metadata or a documented adapter. A model listing that contains only IDs does not declare reasoning support. Explicit effort settings still use the selected protocol's native parameters; missing metadata does not silently disable them. Select a parameter format and supported levels from the provider's documentation for custom APIs. Roles and tasks can override the model's default effort. Draft forms and execution use the same declarations.
+
 ## Extension contracts
 
 | Contract | Responsibility |

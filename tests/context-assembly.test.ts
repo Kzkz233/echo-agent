@@ -35,7 +35,8 @@ test('main Pi compacts by default and keeps canonical history across turns', asy
   assert.equal(first.state, 'succeeded', first.error ?? 'Compacted turn failed');
   assert.equal(fake.calls.length, 2);
   const [summary, turn] = fake.calls;
-  assert.equal(summary.reasoning, 'off');
+  assert.equal(summary.profile.maxOutputTokens, turn.profile.maxOutputTokens);
+  assert.equal(summary.reasoning, 'inherit');
   assert(summary.messages.some((message) => message.text.includes('EARLY')));
   assert(turn.messages.some((message) => message.role === 'user' && message.text.includes('SYNTHETIC SUMMARY')));
   assert(turn.messages.some((message) => message.text === recent));

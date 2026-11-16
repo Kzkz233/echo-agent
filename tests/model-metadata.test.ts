@@ -4,6 +4,7 @@ import { setup, conversation, FakeBackend, until } from './helpers.ts';
 import { profileSchema } from '../packages/contracts/index.ts';
 import { readModelListing, readReasoningSupport } from '../packages/backends/model-metadata.ts';
 import { thinking } from '../packages/backends/api.ts';
+import { modelProtocol } from '../packages/backends/protocol.ts';
 
 test('reasoning discovery uses explicit capabilities and preserves unknown model catalogs', () => {
   assert.equal(readReasoningSupport({ id: 'deepseek-reasoner', reasoning: true }), undefined);
@@ -23,7 +24,22 @@ test('reasoning discovery uses explicit capabilities and preserves unknown model
   assert.deepEqual(thinking(profile, 'max'), { reasoning_effort: 'max' });
   assert.throws(() => thinking(profile, 'medium'), /不支持/);
   assert.deepEqual(thinking({ ...profile, reasoningStyle: 'none' }), {});
-  assert.deepEqual(thinking({ ...profile, reasoningSupport: undefined }), {});
+  assert.deepEqual(thinking({ ...profile, reasoningSupport: undefined }), { reasoning_effort: 'high' });
+  assert.deepEqual(thinking({ ...profile, reasoningSupport: undefined }, 'off'), { reasoning_effort: 'none' });
+  assert.deepEqual(thinking({ ...profile, reasoningSupport: undefined, reasoning: 'inherit' }), {});
+});
+
+test('native protocols retain explicit reasoning without inventing capability metadata', async () => {
+  const profile = profileSchema.parse({ id: 'fixture', name: 'Fixture', kind: 'pi',
+    endpoint: 'http://127.0.0.1:1/v1', model: 'synthetic', protocol: 'openai-responses', reasoning: 'high' });
+  const enabled = await modelProtocol(profile);
+  assert.equal(enabled.reasoning, 'high');
+  assert.equal(enabled.model.reasoning, true);
+  const disabled = await modelProtocol(profile, 'off');
+  const payload = await disabled.onPayload!({ model: 'synthetic' }, disabled.model);
+  assert.deepEqual(payload, { model: 'synthetic', reasoning: { effort: 'none' } });
+  assert.equal((await modelProtocol({ ...profile, reasoning: 'inherit' })).reasoning, undefined);
+  assert.equal(profile.reasoningSupport, undefined);
 });
 
 test('canceling a run waiting on metadata prevents inference without canceling other readers', async (t) => {
@@ -75,6 +91,25 @@ test('a boolean thinking protocol supports explicit off and a task override with
   });
   assert.deepEqual(thinking(profile), { enable_thinking: true });
   assert.deepEqual(thinking(profile, 'off'), { enable_thinking: false });
+});
+
+test('draft reasoning declarations match saved settings and apply without catalog metadata', async (t) => {
+  const app = await setup(t, []), caller = { kind: 'ui' as const, permissions: new Set(['*']) };
+  const backend = Object.assign(new FakeBackend(), { listModels: async () => [{ id: 'synthetic', label: 'Synthetic' }] });
+  app.router.backends.set('api', backend);
+  const draft = { connectionId: 'test', model: 'synthetic', style: 'effort', reasoningLevels: ['low', 'high'] };
+  const result = await app.registry.call('profiles.reasoning', draft, caller);
+  assert.equal(result.status, 'known');
+  assert.equal(result.reasoning?.source, 'manual');
+  assert.deepEqual(result.reasoning?.levels, ['low', 'high']);
+  await app.router.inference.saveModel({ ...app.router.inference.models().find(p => p.id === 'test')!,
+    reasoningStyle: 'effort', reasoningLevels: ['low', 'high'], reasoning: 'high' });
+  const saved = await app.registry.call('profiles.reasoning', { profileId: 'test' }, caller);
+  assert.deepEqual(saved.reasoning, result.reasoning);
+  assert.deepEqual(thinking(app.router.profile('test')), { reasoning_effort: 'high' });
+  const unknown = await app.registry.call('profiles.reasoning', { ...draft, style: 'auto', reasoningLevels: undefined }, caller);
+  assert.equal(unknown.status, 'unknown');
+  assert.equal(unknown.reasoning, null);
 });
 
 test('model metadata is cached, refreshed, shared with execution and invalidated on endpoint changes', async (t) => {
