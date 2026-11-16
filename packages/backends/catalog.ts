@@ -140,6 +140,7 @@ export function registerInferenceAdapters(
               ? 'Codex App Server'
               : 'DeepSeek Harness SDK',
       family: ['api', 'pi'].includes(kind) ? 'api' : 'harness',
+      mutableModelOptions: ['api', 'pi'].includes(kind) ? ['contextWindowTokens', 'maxTokensField'] : [],
       workerOnly: ['codex', 'dsh'].includes(kind),
       sessionBackend: true,
       connectionSchema: z.toJSONSchema(connectionSchema),

@@ -19,6 +19,7 @@ import type { PluginContext } from './registry.ts';
 import { modelListingSchema, type ModelListing } from '../contracts/reasoning.ts';
 import { effectiveReasoning } from '../backends/model-metadata.ts';
 import { transcriptionInput, transcriptionOutput } from '../contracts/speech.ts';
+import { connectionDeployment } from '../contracts/model-services.ts';
 export function contributeInferenceTask(
   ctx: Pick<PluginContext, 'capabilities'>,
   task: z.input<typeof taskSchema>,
@@ -243,7 +244,8 @@ export class InferenceCatalog {
     return this.store.documents<ModelProfile>('profiles');
   }
   connections() {
-    return this.store.documents<Connection>('connections');
+    return this.store.documents<Connection>('connections').map(connection => ({ ...connection,
+      deployment: connectionDeployment(connection, this.adapterCache.get(connection.adapterId)) }));
   }
   references(profileId: string) {
     const result: { id: string; kind: string; label: string }[] = [];
@@ -373,7 +375,7 @@ export class InferenceCatalog {
       signal.removeEventListener('abort', abort);
     }
   }
-  private cachedReasoning(profile: Profile) {
+  cachedReasoning(profile: Profile) {
     const cached = this.store.get<{ models: ModelListing[] } | undefined>(
       this.catalogKey(profile),
       undefined,
@@ -504,6 +506,7 @@ export class InferenceCatalog {
     await this.refresh();
     const value = connectionSchema.parse(raw),
       adapter = this.adapter(value.adapterId);
+    value.deployment = connectionDeployment(value, adapter);
     value.config = z.fromJSONSchema(adapter.connectionSchema as any).parse(value.config) as Record<
       string,
       unknown
@@ -620,12 +623,16 @@ export class InferenceCatalog {
         .parse(prepared.options) as Record<string, unknown>;
     }
     const identity = (model: ModelProfile) => {
-      const { name, maxOutputTokens, contextChars, timeoutMs, reasoning, reasoningStyle, reasoningLevels, ...rest } = model;
-      return JSON.stringify(rest);
+      const { name, maxOutputTokens, contextChars, timeoutMs, reasoning, reasoningStyle, reasoningLevels, options, ...rest } = model;
+      const normalized = z.fromJSONSchema(adapter.modelSchema as any).parse(options) as Record<string, unknown>;
+      const stable = (value: any): any => Array.isArray(value) ? value.map(stable) : value && typeof value === 'object'
+        ? Object.fromEntries(Object.keys(value).sort().map(key => [key, stable(value[key])])) : value;
+      return JSON.stringify(stable({ ...rest, options: Object.fromEntries(Object.entries(normalized)
+        .filter(([key]) => !adapter.mutableModelOptions?.includes(key))) }));
     };
     invariant(
-      old && identity(modelProfileSchema.parse(old)) === identity(value) ||
-        !this.store.unresolved().some((r) => r.profileId === value.id),
+      !this.store.unresolved().some((r) => r.profileId === value.id) ||
+        old && identity(modelProfileSchema.parse(old)) === identity(value),
       'backend_busy',
       '此模型仍有运行或待核对结果，暂时不能更换模型或连接；生成参数可保存，并从下次请求生效。',
     );

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { id, reasoning } from '../../packages/contracts/index.ts';
 import type { Field } from '../../packages/kernel/registry.ts';
-import { executionRequest } from '../../packages/contracts/work.ts';
+import { executionRequest, executionTimeoutMinutes } from '../../packages/contracts/work.ts';
 import { contextCompaction } from '../../packages/contracts/compaction.ts';
 export { executionRequest };
 export type { ExecutionRequest } from '../../packages/contracts/work.ts';
@@ -22,7 +22,7 @@ export const workerTemplate = z.object({
   fullAccess: z.boolean().optional(),
   approvals: z.enum(['ask', 'deny']).default('ask'),
   terminal: z.boolean().default(false),
-  timeoutMinutes: z.number().int().min(1).max(120).default(20),
+  timeoutMinutes: executionTimeoutMinutes.default(0),
   prompt: z.string().max(12000).default(''),
   toolPermissions: z.array(id).max(200).optional(),
   compaction: contextCompaction.optional(),
@@ -58,16 +58,16 @@ const policySchema = z.object({
   approvalReviewer: z.enum(['user', 'main']).default('user'),
   allowFullAccess: z.boolean().default(false),
   terminal: z.boolean().default(false),
-  timeoutMinutes: z.number().int().min(1).max(120).default(20),
+  timeoutMinutes: executionTimeoutMinutes.default(0),
 });
 export const settings = z.preprocess((raw) => {
   if (!raw || typeof raw !== 'object') return raw;
   const value = raw as Record<string, any>;
   if (value.authorizationVersion === 3) return value;
   const legacy: WorkerTemplate[] = Array.isArray(value.templates)
-    ? value.templates.map((t: any) => workerTemplate.parse(t))
+    ? value.templates.map((t: any) => workerTemplate.parse({ timeoutMinutes: 20, ...t }))
     : value.profileId
-      ? [workerTemplate.parse({ ...value, id: 'default', name: 'Legacy' })]
+      ? [workerTemplate.parse({ timeoutMinutes: 20, ...value, id: 'default', name: 'Legacy' })]
       : [];
   const roots = new Map<string, { path: string; write: boolean }>();
   for (const template of legacy)
@@ -92,7 +92,8 @@ export const settings = z.preprocess((raw) => {
       (legacy.length && legacy.every((t) => t.approvals === 'deny') ? 'deny' : 'ask'),
     terminal: value.terminal ?? legacy.some((t) => t.terminal),
     toolPermissions: value.toolPermissions ?? (legacy.length ? undefined : []),
-    timeoutMinutes: value.timeoutMinutes ?? Math.max(20, ...legacy.map((t) => t.timeoutMinutes)),
+    timeoutMinutes: value.timeoutMinutes ?? (legacy.length && legacy.every(t => t.timeoutMinutes > 0)
+      ? Math.max(20, ...legacy.map(t => t.timeoutMinutes)) : 0),
   };
 }, policySchema);
 export type DelegationPolicy = z.infer<typeof settings>;
@@ -150,7 +151,8 @@ export const characterFields: Field[] = [
     description: '主会话可代审已授权目录内的文件修改。终端和业务审批交给用户。',
   },
   { key: 'concurrency', label: '同时执行上限', type: 'number', min: 1, max: 4 },
-  { key: 'timeoutMinutes', label: '单轮执行时限上限（分钟）', type: 'number', min: 1, max: 120 },
+  { key: 'timeoutMinutes', label: '单轮执行时限上限（分钟）', type: 'number', min: 0,
+    description: '0 表示不限时。' },
   { key: 'prompt', label: '主角色委派指引', type: 'textarea' },
   { key: 'reportOnCompletion', label: '子任务结束后由主角色接棒', type: 'boolean' },
   { key: 'reportPrompt', label: '接棒与验收指引', type: 'textarea' },

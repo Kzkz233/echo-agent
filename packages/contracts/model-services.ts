@@ -1,5 +1,17 @@
 import type { AdapterDescriptor, Connection, ModelProfile } from './inference.ts';
 export type ModelPurpose = 'generation' | 'embedding' | 'reranking' | 'transcription';
+/** Adapter type owns execution classification; deployment only locates API services. */
+export function connectionDeployment(connection: Connection, adapter?: Pick<AdapterDescriptor, 'family'>): Connection['deployment'] {
+  if (adapter?.family === 'harness') return 'harness';
+  if (adapter?.family === 'local-runtime') return 'local';
+  if (adapter?.family === 'api' && connection.deployment === 'harness') {
+    try {
+      if (['localhost', '127.0.0.1', '[::1]'].includes(new URL(String(connection.config.endpoint)).hostname)) return 'local';
+    } catch {}
+    return 'cloud';
+  }
+  return connection.deployment;
+}
 export function modelDisplayName(model: { name?: string; model?: string }) {
   if (model.name && !['New model', '新的模型'].includes(model.name)) return model.name;
   return model.model?.replaceAll('\\', '/').split('/').filter(Boolean).at(-1) || model.name || '';

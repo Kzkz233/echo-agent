@@ -49,7 +49,7 @@ import {
 import { contributeSignal } from '../../packages/kernel/trigger-actions.ts';
 import { contextCompaction } from '../../packages/contracts/compaction.ts';
 import { conversationPermissions } from '../../packages/contracts/interaction.ts';
-import type { WorkAuthority } from '../../packages/contracts/work.ts';
+import { executionTimeoutMinutes, type WorkAuthority } from '../../packages/contracts/work.ts';
 import { candidateSchema, candidateNamespace, checkpoint, readingComplete, candidatesFor, type Candidate } from './checkpoints.ts';
 export { localDay } from '../../packages/kernel/time.ts';
 
@@ -67,7 +67,7 @@ const taskSchema = reviewConfigSchema.extend({
   report: z.boolean().default(true),
   compaction: contextCompaction.optional(),
   contextBlocks: z.array(id).max(200).optional(),
-  timeoutMinutes: z.number().int().min(1).max(120).default(30),
+  timeoutMinutes: executionTimeoutMinutes.default(0),
   outputTargets: outputTargets.optional(),
   id,
   contextMode: z.enum(['continue', 'fresh']).default('continue'),
@@ -2007,7 +2007,8 @@ export class Reviews {
                 },
                 { key: 'autoApply', label: '自动纳入非核心记忆', kind: 'boolean' },
                 { key: 'workerSettings', label: '上下文设置', kind: 'work-context' },
-                { key: 'timeoutMinutes', label: '执行时限（分钟）', kind: 'number', min: 1, max: 120 },
+                { key: 'timeoutMinutes', label: '执行时限（分钟）', kind: 'number', min: 0,
+                  description: '0 表示不限时。' },
                 {
                   key: 'memoryOperations', portability: 'value',
                   label: '允许的记忆操作',

@@ -53,6 +53,11 @@ await app.router.inference.saveModel({
   connectionId: 'fixture',
   model: 'synthetic',
 });
+// Reproduce editing request settings while an earlier run awaits reconciliation.
+app.store.saveConversation({ id: 'pending', personaId: 'fixture', title: 'Synthetic',
+  injection: false, review: false, createdAt: new Date().toISOString() });
+app.store.createRun({ id: 'pending', requestId: 'pending', conversationId: 'pending', profileId: 'fixture',
+  epoch: 1, state: 'unknown', source: 'human', input: 'Synthetic', createdAt: new Date().toISOString(), meta: {} });
 const http = await serve(app, { webRoot: join(project, 'dist/web') });
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
@@ -77,6 +82,9 @@ try {
   const saved = app.router.profile('fixture');
   assert.equal(saved.reasoning, 'high');
   assert.deepEqual(saved.reasoningSupport?.levels, ['low', 'high']);
+  await page.getByRole('button', { name: '服务设置', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '保存服务', exact: true })).toBeVisible();
   await page.reload();
   await page.getByRole('button', { name: 'Synthetic model', exact: true }).click();
   await page.getByText('生成参数', { exact: true }).click();
@@ -99,6 +107,17 @@ try {
       requestId: 'automatic-' + effort, signal: AbortSignal.timeout(10000) });
   assert.equal(bodies[1].reasoning_effort, 'high');
   assert.equal(bodies[2].reasoning_effort, 'none');
+  await page.getByLabel('单次最大输出 token', { exact: true }).fill('131073');
+  await page.getByRole('button', { name: '保存模型', exact: true }).click();
+  await expect(page.locator('.inference-editor .form-actions').getByRole('alert')).toBeVisible();
+  assert.equal(app.router.profile('fixture').maxOutputTokens, 128000);
+  await page.getByLabel('单次最大输出 token', { exact: true }).fill('127999');
+  await page.getByRole('button', { name: '服务设置', exact: true }).click();
+  await page.getByRole('button', { name: '放弃修改并离开', exact: true }).click();
+  await page.getByRole('button', { name: 'Synthetic model', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByText('生成参数', { exact: true }).click();
+  await expect(page.getByLabel('单次最大输出 token', { exact: true })).toHaveValue('128000');
   await page.setViewportSize({ width: 1000, height: 760 });
   await expect(page.getByLabel('默认思考强度', { exact: true })).toBeVisible();
   assert.deepEqual(errors, []);
@@ -108,6 +127,10 @@ try {
     manualDraftPreview: true,
     defaultReasoningEditable: true,
     settingsPersistAcrossReload: true,
+    savedNavigationClean: true,
+    discardedDraftCleared: true,
+    saveFailureVisibleAtButton: true,
+    pendingRunSettingsEditable: true,
     wireOutputTokens: bodies[0].max_tokens,
     wireReasoning: bodies[0].reasoning_effort,
     automaticReasoningHonored: true,

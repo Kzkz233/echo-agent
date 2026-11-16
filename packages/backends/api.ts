@@ -42,12 +42,17 @@ export class ApiBackend implements Backend {
   async listModels(profile: Profile) {
     const key = await this.secrets(profile.apiKeyRef);
     const { url, headers } = modelListRequest(profile, key);
-    const response = await this.fetcher(url, {
-      method: 'GET',
-      redirect: 'error',
-      headers,
-      signal: AbortSignal.timeout(profile.timeoutMs),
-    });
+    let response: Response;
+    try {
+      response = await this.fetcher(url, {
+        method: 'GET', redirect: 'error', headers,
+        signal: AbortSignal.timeout(profile.timeoutMs),
+      });
+    } catch (error) {
+      const code = (error as any)?.cause?.code;
+      const detail = typeof code === 'string' && /^[A-Z0-9_]+$/.test(code) ? ` (${code})` : '';
+      throw new EchoError('provider_transport', '无法连接模型目录。请检查网络或服务状态。' + detail);
+    }
     invariant(
       response.ok,
       'provider_http_' + response.status,

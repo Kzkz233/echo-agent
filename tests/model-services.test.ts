@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { connectionForPurpose, modelDisplayName } from '../packages/contracts/model-services.ts';
+import { connectionForPurpose, modelDisplayName, connectionDeployment } from '../packages/contracts/model-services.ts';
 import {
   adapterSchema,
   connectionSchema,
@@ -8,6 +8,23 @@ import {
 } from '../packages/contracts/inference.ts';
 import { setup } from './helpers.ts';
 import { ensureStarterModels } from '../apps/server/bundled-models.ts';
+
+test('adapter classification corrects legacy API harness labels without replacing connection settings', async t => {
+  const app = await setup(t, []);
+  const legacy = connectionSchema.parse({ id: 'legacy', name: 'Synthetic provider',
+    adapterId: 'core.pi', deployment: 'harness', config: { endpoint: 'https://example.invalid/v1', apiKeyRef: 'fixture-key' } });
+  app.store.put('connections', legacy.id, legacy);
+  const projected = app.router.inference.connections().find(connection => connection.id === legacy.id)!;
+  assert.equal(projected.deployment, 'cloud');
+  assert.deepEqual(projected.config, legacy.config);
+  assert.deepEqual(app.store.document('connections', legacy.id), legacy);
+  const saved = await app.router.inference.saveConnection(legacy);
+  assert.equal(saved.deployment, 'cloud');
+  assert.equal(saved.config.apiKeyRef, 'fixture-key');
+  assert.equal(connectionDeployment({ ...legacy, config: { endpoint: 'http://127.0.0.1:8000/v1' } }, { family: 'api' }), 'local');
+  assert.equal(connectionDeployment({ ...legacy, deployment: 'remote' }, { family: 'api' }), 'remote');
+  assert.equal(connectionDeployment({ ...legacy, deployment: 'cloud' }, { family: 'harness' }), 'harness');
+});
 test('new and legacy model services do not leak empty connections into unrelated model pages', () => {
   assert.equal(
     modelDisplayName({ name: 'Local model', model: 'C:\\models\\weights.gguf' }),

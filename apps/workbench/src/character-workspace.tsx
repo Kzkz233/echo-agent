@@ -194,7 +194,7 @@ export function DelegationView({
     [reasoning, setReasoning] = useState('inherit'),
     [instructions, setInstructions] = useState('');
   const [extraRoots, setExtraRoots] = useState<{ path: string; write: boolean }[]>([]);
-  const [timeoutMinutes, setTimeoutMinutes] = useState(20);
+  const [timeoutMinutes, setTimeoutMinutes] = useState(0);
   const [contextOptions, setContextOptions] = useState<any>({});
   const [attempts, setAttempts] = useState<any[]>([]);
   useEffect(() => {
@@ -214,7 +214,7 @@ export function DelegationView({
       setReasoning(policy.defaultReasoning ?? 'inherit');
       setWorkspace(policy.workspaces[0]?.path ?? '');
       setTools((policy.toolPermissions ?? []).filter((p: string) => p.endsWith('.read')));
-      setTimeoutMinutes(Math.min(20, policy.timeoutMinutes));
+      setTimeoutMinutes(policy.timeoutMinutes ?? 0);
     });
     const handler = (e: any) => {
       if (
@@ -299,11 +299,12 @@ export function DelegationView({
                 <span>{t('本次执行时限（分钟）')}</span>
                 <input
                   type="number"
-                  min={1}
-                  max={configuration?.timeoutMinutes ?? 120}
+                  min={configuration?.timeoutMinutes ? 1 : 0}
+                  max={configuration?.timeoutMinutes || undefined}
                   value={timeoutMinutes}
                   onChange={(e) => setTimeoutMinutes(Number(e.target.value))}
                 />
+                {!configuration?.timeoutMinutes && <small>{t('0 表示不限时。')}</small>}
               </label>
               <label className="inline-toggle">
                 <input

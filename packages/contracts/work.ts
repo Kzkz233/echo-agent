@@ -6,6 +6,10 @@ const optionalOutput = z.preprocess(
   value => value === '' || value === null ? undefined : value,
   z.number().int().min(64).max(131072).optional(),
 );
+/** Zero disables the total deadline; request/inactivity timeouts are independent. */
+export const executionTimeoutMinutes = z.number().int().min(0)
+  .refine(value => Number.isSafeInteger(value * 60000), 'Execution duration is outside numeric precision')
+  .describe('Total execution limit in minutes. 0 means unlimited. Omit to inherit the role setting.');
 /** Shared by delegated work and automation-owned agent sessions. */
 export const executionRequest = z.object({
   profileId: id.optional(),
@@ -15,7 +19,7 @@ export const executionRequest = z.object({
   write: z.boolean().optional(),
   fullAccess: z.boolean().optional(),
   terminal: z.boolean().optional(),
-  timeoutMinutes: z.number().int().min(1).max(120).optional(),
+  timeoutMinutes: executionTimeoutMinutes.optional(),
   prompt: z.string().max(12000).optional(),
   toolPermissions: z.array(id).max(200).optional(),
   compaction: contextCompaction.optional(),

@@ -6,6 +6,7 @@ import type { ContextCompaction } from '../contracts/compaction.ts';
 import type { WorkAuthority, WorkOrigin } from '../contracts/work.ts';
 import type { Router } from './router.ts';
 import { conversationCompaction } from './compaction.ts';
+import { Clock } from './clock.ts';
 
 export type WorkSession = {
   id: string;
@@ -107,23 +108,33 @@ export class WorkSessions {
     id: string; profileId: string; requestId: string; text: string; reasoning?: Reasoning;
     authority?: Omit<WorkAuthority, 'active'>; timeoutMs?: number;
   }, signal: AbortSignal): Promise<Run> {
-    return this.execute(input.id, signal, async (row, life) => {
-      invariant(row.execution !== 'inference', 'work_execution', '此子任务由来源自动化任务执行。');
-      const store = this.router.store;
-      if (input.authority) store.put('work-authorities', row.conversationId, { ...input.authority, id: row.conversationId, active: true });
-      try {
-        await this.router.bind(row.conversationId, input.profileId, life);
-        const parent = store.conversation(row.parentConversationId);
-        const inheritedReasoning = store.binding(row.parentConversationId)?.profileId === input.profileId ? parent?.reasoning : undefined;
-        return await this.router.send({ conversationId: row.conversationId, requestId: input.requestId,
-          source: 'delegation', text: input.text,
-          reasoning: !input.reasoning || input.reasoning === 'inherit' ? inheritedReasoning ?? input.reasoning : input.reasoning,
-          messageOrigin: { sender: 'system', task: row.origin.name } },
-          input.timeoutMs ? AbortSignal.any([life, AbortSignal.timeout(input.timeoutMs)]) : life);
-      } finally {
-        if (input.authority) store.put('work-authorities', row.conversationId, { ...input.authority, id: row.conversationId, active: false });
-      }
-    });
+    invariant(input.timeoutMs === undefined || Number.isSafeInteger(input.timeoutMs) && input.timeoutMs >= 0,
+      'work_timeout', '执行时限必须为非负整数。');
+    const deadline = new AbortController();
+    const clock = input.timeoutMs ? new Clock() : undefined;
+    // Clock segments long waits so the native timer cannot overflow into an immediate abort.
+    if (clock) clock.at('deadline', Date.now() + input.timeoutMs!,
+      () => deadline.abort(new DOMException('Task execution deadline exceeded', 'TimeoutError')));
+    try {
+      return await this.execute(input.id, clock ? AbortSignal.any([signal, deadline.signal]) : signal, async (row, life) => {
+        invariant(row.execution !== 'inference', 'work_execution', '此子任务由来源自动化任务执行。');
+        const store = this.router.store;
+        if (input.authority) store.put('work-authorities', row.conversationId, { ...input.authority, id: row.conversationId, active: true });
+        try {
+          await this.router.bind(row.conversationId, input.profileId, life);
+          const parent = store.conversation(row.parentConversationId);
+          const inheritedReasoning = store.binding(row.parentConversationId)?.profileId === input.profileId ? parent?.reasoning : undefined;
+          return await this.router.send({ conversationId: row.conversationId, requestId: input.requestId,
+            source: 'delegation', text: input.text,
+            reasoning: !input.reasoning || input.reasoning === 'inherit' ? inheritedReasoning ?? input.reasoning : input.reasoning,
+            messageOrigin: { sender: 'system', task: row.origin.name } }, life);
+        } finally {
+          if (input.authority) store.put('work-authorities', row.conversationId, { ...input.authority, id: row.conversationId, active: false });
+        }
+      });
+    } finally {
+      await clock?.close();
+    }
   }
   /** API-backed task steps share the work lifecycle and history, without starting another agent. */
   async infer(input: {

@@ -462,9 +462,6 @@ export class Delegations {
     }
   }
   private async execute(task: DelegatedTask, followup: string | undefined, signal: AbortSignal) {
-    const deadline = new AbortController();
-    const timer = setTimeout(() => deadline.abort(), task.template.timeoutMinutes * 60000);
-    const life = AbortSignal.any([signal, deadline.signal]);
     task = {
       ...task,
       state: 'running',
@@ -515,7 +512,7 @@ export class Delegations {
           reasoning: task.template.reasoning,
           timeoutMs: task.template.timeoutMinutes * 60000,
         },
-        life,
+        signal,
       );
       // The worker may have saved a checkpoint while its run was in progress.
       task = { ...this.store.document<DelegatedTask>('delegated-tasks', task.id)!, runId: run.id };
@@ -526,13 +523,11 @@ export class Delegations {
         state:
           this.store.binding(task.workerConversationId)?.state === 'unknown'
             ? 'unknown'
-            : life.aborted
+            : signal.aborted
               ? 'cancelled'
               : 'failed',
         error: String(error).slice(0, 1000),
       });
-    } finally {
-      clearTimeout(timer);
     }
   }
   private async settle(task: DelegatedTask, run: Run) {

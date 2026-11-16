@@ -3,8 +3,42 @@ import assert from 'node:assert/strict';
 import { setup, conversation, FakeBackend, until } from './helpers.ts';
 import { profileSchema } from '../packages/contracts/index.ts';
 import { readModelListing, readReasoningSupport } from '../packages/backends/model-metadata.ts';
-import { thinking } from '../packages/backends/api.ts';
+import { thinking, ApiBackend } from '../packages/backends/api.ts';
 import { modelProtocol } from '../packages/backends/protocol.ts';
+
+test('a catalog refresh failure retains known capabilities only for the same connection identity', async t => {
+  const app = await setup(t, []), caller = { kind: 'ui' as const, permissions: new Set(['*']) };
+  let fail = false;
+  app.router.backends.set('api', Object.assign(new FakeBackend(), { listModels: async () => {
+    if (fail) throw new Error('Synthetic catalog outage');
+    return readModelListing([{ id: 'synthetic', supported_reasoning_efforts: ['low', 'high'] }]);
+  } }));
+  const known = await app.registry.call('profiles.reasoning', { profileId: 'test' }, caller);
+  assert.deepEqual(known.reasoning?.levels, ['low', 'high']);
+  fail = true;
+  const cached = await app.registry.call('profiles.reasoning', { profileId: 'test', refresh: true }, caller);
+  assert.equal(cached.cached, true);
+  assert.match(cached.issue, /Synthetic catalog outage/);
+  assert.deepEqual(cached.reasoning?.levels, ['low', 'high']);
+  const connection = app.router.inference.connections().find(row => row.id === 'test')!;
+  await app.router.inference.saveConnection({ ...connection, config: { ...connection.config, endpoint: 'http://127.0.0.1:2/v1' } });
+  const changed = await app.registry.call('profiles.reasoning', { profileId: 'test', refresh: true }, caller);
+  assert.equal(changed.status, 'unavailable');
+  assert.equal(changed.reasoning, null);
+  assert.equal(changed.cached, false);
+});
+
+test('catalog transport errors identify the network failure without disclosing endpoint or credentials', async () => {
+  const backend = new ApiBackend(async () => 'fixture-secret', async () => {
+    throw new TypeError('fetch failed at private endpoint', { cause: { code: 'ECONNRESET', address: 'private endpoint' } });
+  });
+  await assert.rejects(backend.listModels(profileSchema.parse({ id: 'fixture', name: 'Fixture', kind: 'api',
+    endpoint: 'https://example.invalid/v1' })), error => {
+    assert.match((error as Error).message, /ECONNRESET/);
+    assert.doesNotMatch((error as Error).message, /private|fixture-secret|example.invalid/);
+    return true;
+  });
+});
 
 test('reasoning discovery uses explicit capabilities and preserves unknown model catalogs', () => {
   assert.equal(readReasoningSupport({ id: 'deepseek-reasoner', reasoning: true }), undefined);

@@ -71,6 +71,7 @@ export const adapterSchema = z.object({
   modelSchema: z.record(z.string(), z.unknown()),
   connectionFields: z.array(field),
   modelFields: z.array(field),
+  mutableModelOptions: z.array(z.string().min(1)).optional(),
   generation: z.array(z.enum(['text', 'image'])),
   embedding: z.array(modality),
   embeddingProvider: id.optional(),

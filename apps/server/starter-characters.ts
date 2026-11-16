@@ -362,7 +362,7 @@ export function registerStarterCharacters(app: Application) {
                 toolPermissions,
                 approvals: 'ask',
                 terminal: false,
-                timeoutMinutes: 20,
+                timeoutMinutes: previous?.configurations.delegation?.timeoutMinutes ?? 0,
               },
               avatar: {
                 ...previous?.configurations.avatar,

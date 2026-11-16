@@ -2616,6 +2616,9 @@ FFmpeg 可执行文件	FFmpeg executable
 目标目录	Destination folder
 工作会话	Work session
 执行时限（分钟）	Execution timeout (minutes)
+0 表示不限时。	0 means no time limit.
+刷新失败，暂用上次读取的支持项。	Refresh failed. Using the last retrieved capabilities.
+正在读取思考支持项…	Reading reasoning capabilities…
 
 解析进度	Parsing progress
 
@@ -2689,3 +2692,13 @@ GitHub 更新已暂存	GitHub update staged
 新任务已暂停准入，等待正在执行的工作结束。	New work is paused while active work reaches a safe stopping point.
 取消重启	Cancel restart
 界面字号	Interface font size
+默认思考强度	Default reasoning effort
+自动适配只读取接口声明的能力；上游未提供时，请按接口文档选择参数格式。角色与任务可覆盖默认强度。	Automatic mode uses declared capabilities. If unavailable, choose a parameter format from the API documentation. Roles and tasks can override the default effort.
+正式回答与上下文压缩均沿用此上限；会话或任务的输出配置优先。	Replies and context summaries use this output limit. Conversation or task overrides take precedence.
+未声明思考能力；可在模型的生成参数中选择兼容格式并声明支持级别。	Reasoning capabilities are not declared. Set the parameter format and supported levels in the model generation settings.
+窗口操作	Window controls
+最小化窗口	Minimize window
+还原窗口	Restore window
+最大化窗口	Maximize window
+关闭窗口	Close window
+窗口操作失败	Window action failed

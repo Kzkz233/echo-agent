@@ -14,6 +14,8 @@ Echo separates three records.
 
 Configure reusable services in **Settings → Model Services**. Worker connections belong to their Codex or DeepSeek Harness extension. A service can expose several models while sharing credentials. Credentials remain protected references and are not copied into character packages.
 
+Connection classification comes from the registered adapter. Legacy API connections marked as external workers are displayed as API services; their endpoints and credential references remain unchanged.
+
 Main conversations run through Pi. Selecting a language model changes its model binding. Codex and DSH are optional worker executors with separate native sessions and isolated application-owned homes. A local OpenAI-compatible endpoint uses an API adapter. An Echo-managed local runtime additionally owns model loading and process shutdown.
 
 Character tasks inherit the main model unless an explicit compatible model is selected. Shared tasks, including embedding and knowledge query services, use application settings. Eligibility is the intersection of task requirements, declared model capabilities and adapter support. Removing a provider makes its selections unavailable without redirecting work to another service.
@@ -28,11 +30,15 @@ The input character budget and the model's total token capacity are separate set
 
 Generation settings can be saved while an existing run awaits reconciliation and apply to the next request. Changing the model identity or connection remains blocked until its outstanding execution is resolved.
 
+Adapters declare mutable request options through `mutableModelOptions`. Built-in API adapters include context capacity and output parameter format. Extensions keep model identity and artifact options protected unless they explicitly declare an option mutable.
+
 Automatic reasoning discovery reads explicit provider metadata or a documented adapter. A model listing that contains only IDs does not declare reasoning support. Explicit effort settings still use the selected protocol's native parameters; missing metadata does not silently disable them. Select a parameter format and supported levels from the provider's documentation for custom APIs. Roles and tasks can override the model's default effort. Draft forms and execution use the same declarations.
+
+If a metadata refresh fails, the settings page retains previously retrieved capabilities for the same connection and reports the failure. An endpoint change invalidates that cache. Manual declarations remain available without a successful directory request.
 
 Search expansion, language reranking and context summaries inherit the selected model's reasoning setting unless their task or conversation supplies an override. Delegated approval uses the main conversation's model and reasoning through the shared inference path; its existing authorization checks still apply.
 
-Agent execution uses inactivity timers to detect missing progress. A worker's total execution limit belongs to its task lifecycle and cancellation signal; backends do not impose another fixed thirty-minute ceiling. Pending human decisions pause the inactivity timer. Individual API requests retain the model's request timeout.
+Agent execution uses inactivity timers to detect missing progress. New delegated work, prompt automations and Review tasks have no total execution deadline by default. An explicit task deadline is enforced by the shared work-session lifecycle; backends do not impose another fixed ceiling. Set the duration to `0` for unlimited execution. Existing saved durations remain in effect, and a finite role limit cannot be bypassed by requesting `0`. There is no fixed two-hour configuration maximum. Pending human decisions pause the inactivity timer. Individual API requests retain the model's request timeout.
 
 ## Extension contracts
 

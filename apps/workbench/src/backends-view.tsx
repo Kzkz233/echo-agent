@@ -184,6 +184,7 @@ function BackendServices({
     [catalog, setCatalog] = useState<Record<string, ModelListing[]>>({}),
     [catalogIssue, setCatalogIssue] = useState(''),
     [catalogLoading, setCatalogLoading] = useState(false),
+    [modelFeedback, setModelFeedback] = useState<{ message: string; failed: boolean }>(),
     [runtime, setRuntime] = useState<any>();
   useEffect(() => {
     if (!auth?.loginId || auth.account) return;
@@ -217,18 +218,15 @@ function BackendServices({
     confirm = useConfirm();
   const connectionChanged =
     Boolean(secret) ||
-    !sameData(
-      connection,
-      connections.find((c) => c.id === connection.id) ?? connectionBase.current,
-    );
+    !sameData(connection, connectionBase.current);
+  const modelChanged = !sameData(model, modelBase.current);
   const canTestGeneration =
     purpose === 'generation' &&
     data.inference.models.some(
       (model: ModelProfile) => model.connectionId === connection.id && model.generation.enabled,
     );
   useUnsavedChanges(
-    connectionChanged ||
-      !sameData(model, models.find((m) => m.id === model.id) ?? modelBase.current),
+    tab === 'models' ? modelChanged : connectionChanged,
     '模型服务',
   );
   const pickConnection = (v: Connection) =>
@@ -238,11 +236,14 @@ function BackendServices({
       setSecret('');
       setAuth(undefined);
       setConnectionCheck(undefined);
+      setModelFeedback(undefined);
       setTab('connections');
     });
   const pickModel = (v: ModelProfile) =>
     requestNavigation(() => {
       setTemplate('');
+      setSecret('');
+      setModelFeedback(undefined);
       modelBase.current = v;
       setModel(v);
       const parent = connections.find((connection) => connection.id === v.connectionId);
@@ -1144,13 +1145,28 @@ function BackendServices({
                           <Button
                             onClick={() =>
                               act(
-                                async () => setModel(await rpc('profiles.save', model)),
+                                async () => {
+                                  setModelFeedback(undefined);
+                                  try {
+                                    const saved = await rpc<ModelProfile>('profiles.save', model);
+                                    modelBase.current = saved;
+                                    setModel(current => sameData(current, model) ? saved : current);
+                                    setModelFeedback({ message: t('模型已保存'), failed: false });
+                                  } catch (error) {
+                                    setModelFeedback({ message: (error as Error).message, failed: true });
+                                    throw error;
+                                  }
+                                },
                                 t('模型已保存'),
                               )
                             }
                           >
                             {t('保存模型')}
                           </Button>
+                          {modelFeedback && (modelFeedback.failed || !modelChanged) && (
+                            <p className={modelFeedback.failed ? 'warning' : 'muted'}
+                              role={modelFeedback.failed ? 'alert' : 'status'}>{modelFeedback.message}</p>
+                          )}
                           {models.some((m) => m.id === model.id) && (
                             <Button
                               secondary

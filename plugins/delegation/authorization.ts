@@ -81,9 +81,9 @@ export async function authorizeExecution(
     'worker_tool_grant',
     '子任务请求的工具权限超出角色授权。',
   );
-  const timeoutMinutes = request.timeoutMinutes ?? Math.min(20, policy.timeoutMinutes);
+  const timeoutMinutes = request.timeoutMinutes ?? policy.timeoutMinutes;
   invariant(
-    timeoutMinutes <= policy.timeoutMinutes,
+    policy.timeoutMinutes === 0 || timeoutMinutes > 0 && timeoutMinutes <= policy.timeoutMinutes,
     'worker_timeout_grant',
     '子任务时限超过角色授权上限。',
   );

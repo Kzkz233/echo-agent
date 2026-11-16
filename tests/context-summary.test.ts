@@ -73,9 +73,12 @@ test('generation settings can be saved for the next run while execution identity
     reasoningStyle: 'effort',
     reasoningLevels: ['low', 'high'],
     reasoning: 'high',
+    options: { contextWindowTokens: 512000, maxTokensField: 'max_completion_tokens' },
   });
   assert.equal(saved.maxOutputTokens, 128000);
   assert.equal(saved.reasoning, 'high');
+  assert.equal(saved.options.contextWindowTokens, 512000);
+  assert.equal(saved.options.maxTokensField, 'max_completion_tokens');
   assert.equal(app.store.run('pending')?.state, 'unknown');
   await assert.rejects(app.router.inference.saveModel({ ...saved, model: 'different' }), {
     code: 'backend_busy',

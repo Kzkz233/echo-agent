@@ -103,9 +103,10 @@ export function WorkExecutionSettings({ personaId, initialPolicy, mainProfileId,
       disabled={value.fullAccess === true || policy?.approvals === 'deny'}
       onChange={event => onChange({ ...value, write: event.target.checked })} />{t('允许修改文件')}</label>
     <label className="field"><span>{t('执行时限（分钟）')}</span>
-      <input type="number" min={1} max={policy?.timeoutMinutes ?? 20}
-        value={value.timeoutMinutes ?? Math.min(20, policy?.timeoutMinutes ?? 20)}
-        onChange={event => onChange({ ...value, timeoutMinutes: Number(event.target.value) })} />
+      <input type="number" min={policy?.timeoutMinutes ? 1 : 0} max={policy?.timeoutMinutes || undefined}
+        value={value.timeoutMinutes ?? policy?.timeoutMinutes ?? 0}
+        onChange={event => onChange({ ...value, timeoutMinutes: event.target.value === '' ? undefined : Number(event.target.value) })} />
+      {!policy?.timeoutMinutes && <small>{t('0 表示不限时。')}</small>}
     </label>
     <details><summary>{t('高级执行设置')}</summary>
       {policy?.allowFullAccess && <label className="inline-toggle"><input type="checkbox" checked={value.fullAccess ?? false}

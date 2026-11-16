@@ -937,12 +937,13 @@ export class Application {
             status: reasoning ? 'known' : selected ? 'unknown' : 'not-listed',
           };
         } catch (error) {
-          const reasoning = effectiveReasoning(actual);
+          const reasoning = this.router.inference.cachedReasoning(actual);
           return {
             model: profile.model,
             reasoning: reasoning ?? null,
             status: reasoning ? 'known' : 'unavailable',
             issue: (error as Error).message,
+            cached: !!reasoning && reasoning.source !== 'manual' && reasoning.source !== 'catalog',
           };
         }
       },

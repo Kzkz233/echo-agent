@@ -47,18 +47,21 @@ export function ReasoningSelect({
 }) {
   const [result, setResult] = useState<{
     key: string;
+    revision: number;
     support?: ReasoningSupport;
     issue?: string;
     status?: string;
+    cached?: boolean;
   }>();
   const [revision, refresh] = useState(0);
   const key = JSON.stringify([profileId, connectionId, model, taskId, personaId, style, reasoningLevels]);
   const current = result?.key === key ? result : undefined;
+  const loading = !supplied && !!(profileId || (connectionId && model) || taskId) && current?.revision !== revision;
   const support = supplied ?? current?.support;
   useEffect(() => {
     let active = true;
     if (supplied || !(profileId || (connectionId && model) || taskId)) return;
-    void rpc<{ reasoning: ReasoningSupport | null; status?: string; issue?: string }>(
+    void rpc<{ reasoning: ReasoningSupport | null; status?: string; issue?: string; cached?: boolean }>(
       'profiles.reasoning',
       {
         profileId,
@@ -75,13 +78,15 @@ export function ReasoningSelect({
         if (active)
           setResult({
             key,
+            revision,
             support: data.reasoning ?? undefined,
             status: data.status,
             issue: data.issue,
+            cached: data.cached,
           });
       })
       .catch((error) => {
-        if (active) setResult({ key, issue: error.message });
+        if (active) setResult({ key, revision, issue: error.message });
       });
     return () => {
       active = false;
@@ -181,14 +186,18 @@ export function ReasoningSelect({
           </small>
         )
       )}
+      {support && current?.issue && (
+        <small className="warning">{t(current.cached ? '刷新失败，暂用上次读取的支持项。' : '读取模型支持项失败')}
+          {' · ' + current.issue}</small>
+      )}
       {!supplied && (profileId || connectionId || taskId) && (
         <button
           type="button"
           className="text-button"
-          disabled={disabled}
+          disabled={disabled || loading}
           onClick={() => refresh((n) => n + 1)}
         >
-          {t('刷新思考支持项')}
+          {t(loading ? '正在读取思考支持项…' : '刷新思考支持项')}
         </button>
       )}
     </label>
