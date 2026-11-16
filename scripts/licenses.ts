@@ -3,6 +3,7 @@ import { join, resolve, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { configureNetwork } from '../packages/kernel/network.ts';
+import { readUpstreamText } from './upstream-text.ts';
 configureNetwork();
 const root = resolve(import.meta.dirname, '..'),
   output = join(root, 'dist/runtime/licenses');
@@ -208,9 +209,7 @@ for (const [file, url] of Object.entries({
   'ONNX_THIRD_PARTY_NOTICES.txt':
     'https://raw.githubusercontent.com/microsoft/onnxruntime/main/ThirdPartyNotices.txt',
 })) {
-  const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
-  if (!response.ok) throw Error(`Required license text unavailable: ${url}`);
-  await writeFile(join(supplemental, file), await response.text());
+  await writeFile(join(supplemental, file), await readUpstreamText(url));
 }
 await cp(
   join(root, 'dist/runtime/node_modules/@img/sharp-win32-x64/versions.json'),
