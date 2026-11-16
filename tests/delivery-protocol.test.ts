@@ -7,6 +7,7 @@ import { ApiBackend } from '../packages/backends/api.ts';
 import { generationProtocol, observationSilence, profileSchema } from '../packages/contracts/index.ts';
 import { responsesInputPayload } from '../packages/backends/protocol.ts';
 import { setup } from './helpers.ts';
+import { listenBrowserHttp } from '../packages/kernel/http-listener.ts';
 
 const event = (value: any) => (value.type ? 'event: ' + value.type + '\n' : '') + 'data: ' + JSON.stringify(value) + '\n\n';
 function answer(protocol: string, name?: string, args: unknown = {}, text = 'Synthetic internal text') {
@@ -35,6 +36,35 @@ function answer(protocol: string, name?: string, args: unknown = {}, text = 'Syn
     { type: 'message_stop' },
   ].map(event).join('');
 }
+function toolBatch(protocol: string, calls: { name: string; args: unknown }[]) {
+  if (protocol === 'openai-completions') return event({ choices: [{ index: 0,
+    delta: { role: 'assistant', tool_calls: calls.map((call, index) => ({ index,
+      id: 'call_batch_' + index, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.args) } })) },
+    finish_reason: 'tool_calls' }] }) + 'data: [DONE]\n\n';
+  if (protocol === 'openai-responses') {
+    const items = calls.map((call, index) => ({ type: 'function_call', id: 'fc_batch_' + index,
+      call_id: 'call_batch_' + index, name: call.name, arguments: JSON.stringify(call.args) }));
+    return items.map((item, output_index) =>
+      event({ type: 'response.output_item.added', output_index, item: { ...item, arguments: '' } }) +
+      event({ type: 'response.output_item.done', output_index, item })).join('') +
+      event({ type: 'response.completed', response: { id: 'resp_batch', status: 'completed', output: items,
+        usage: { input_tokens: 100, output_tokens: 20, total_tokens: 120 } } });
+  }
+  return [
+    { type: 'message_start', message: { id: 'msg_batch', type: 'message', role: 'assistant',
+      model: 'fixture', content: [], usage: { input_tokens: 100, output_tokens: 0 } } },
+    ...calls.flatMap((call, index) => [
+      { type: 'content_block_start', index, content_block: { type: 'tool_use', id: 'call_batch_' + index,
+        name: call.name, input: {} } },
+      { type: 'content_block_delta', index, delta: { type: 'input_json_delta', partial_json: JSON.stringify(call.args) } },
+      { type: 'content_block_stop', index },
+    ]),
+    { type: 'message_delta', delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 20 } },
+    { type: 'message_stop' },
+  ].map(event).join('');
+}
+const finalReply = (targetId: string) => ({ name: 'echo_respond',
+  args: { targetId, phase: 'final', messages: ['Synthetic final for ' + targetId] } });
 async function fixture(t: TestContext, protocol: string, next: (body: any, step: number) => string) {
   const app = await setup(t, []), requests: any[] = [];
   let serverError: unknown;
@@ -46,7 +76,7 @@ async function fixture(t: TestContext, protocol: string, next: (body: any, step:
       res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.end(output);
     } catch (error) { serverError = error; res.writeHead(400); res.end('{"error":{"message":"Fixture rejected request"}}'); }
   });
-  await new Promise<void>(done => server.listen(0, '127.0.0.1', done));
+  await listenBrowserHttp(server);
   t.after(() => new Promise<void>(done => { server.closeAllConnections(); server.close(() => done()); }));
   t.after(() => { if (serverError) throw serverError; });
   const profile = profileSchema.parse({ id: 'fixture', kind: 'pi', name: 'Synthetic model', model: 'fixture',
@@ -55,6 +85,75 @@ async function fixture(t: TestContext, protocol: string, next: (body: any, step:
 }
 
 for (const protocol of generationProtocol.options) {
+  test(protocol + ' ends once all same-turn channel replies and mixed plugin work are durably recorded', async t => {
+    let readCompleted = false;
+    const transcript: any[] = [], submissions: string[] = [];
+    const f = await fixture(t, protocol, (_body, step) => {
+      assert.equal(step, 1, 'Completed channel replies must not start another model request');
+      return toolBatch(protocol, [finalReply('core.chat'), finalReply('avatar.bubble'),
+        { name: 'fixture_read', args: {} }]);
+    });
+    f.app.registry.register({ name: 'fixture.read', owner: 'core', description: 'Synthetic plugin read',
+      permission: 'fixture.read', mcp: true, input: z.object({}), output: z.string(),
+      run: async () => { await new Promise(resolve => setTimeout(resolve, 10)); readCompleted = true; return 'Read completed'; } });
+    const pi = new PiBackend(f.app.registry, async () => 'fixture-key', () => new Set(['fixture.read']));
+    await pi.generate({ profile: f.profile, requestId: 'batched-finals', signal: AbortSignal.timeout(6000),
+      messages: [{ role: 'user', text: 'Complete both replies and plugin work' }],
+      replyTargets: ['core.chat', 'avatar.bubble'], respond: input => {
+        submissions.push(input.targetId); return { accepted: true };
+      }, onTranscript: message => { transcript.push(message); return 'fixture-' + transcript.length; } });
+    assert.equal(f.requests.length, 1);
+    assert(readCompleted, 'Completion waits for the entire tool batch');
+    assert.deepEqual(submissions, ['core.chat', 'avatar.bubble']);
+    const calls = transcript.filter(message => message.role === 'assistant')
+      .flatMap(message => message.content.filter((part: any) => part.type === 'toolCall').map((part: any) => part.id));
+    const results = transcript.filter(message => message.role === 'toolResult');
+    assert.equal(results.length, 3);
+    assert(results.every(result => !result.isError));
+    assert.deepEqual(results.map(result => result.toolCallId).sort(), calls.sort());
+  });
+
+  test(protocol + ' keeps running for a remaining target after batched progress and final replies', async t => {
+    const submissions: any[] = [];
+    const f = await fixture(t, protocol, (body, step) => {
+      assert(step <= 2);
+      if (step === 1) return toolBatch(protocol, [finalReply('core.chat'), { name: 'echo_respond',
+        args: { targetId: 'avatar.bubble', phase: 'progress', messages: ['Still working'] } }]);
+      assert(JSON.stringify(body.input ?? body.messages).includes('Still working'));
+      return answer(protocol, 'echo_respond', finalReply('avatar.bubble').args);
+    });
+    const pi = new PiBackend(f.app.registry, async () => 'fixture-key');
+    await pi.generate({ profile: f.profile, requestId: 'remaining-target', signal: AbortSignal.timeout(6000),
+      messages: [{ role: 'user', text: 'Finish each selected target' }], replyTargets: ['core.chat', 'avatar.bubble'],
+      respond: input => { submissions.push([input.targetId, input.phase]); return { accepted: true }; } });
+    assert.equal(f.requests.length, 2);
+    assert.deepEqual(submissions, [['core.chat', 'final'], ['avatar.bubble', 'progress'], ['avatar.bubble', 'final']]);
+  });
+
+  test(protocol + ' does not hide a mixed plugin failure when all channel replies are complete', async t => {
+    let attempts = 0;
+    const transcript: any[] = [], submissions: string[] = [];
+    const f = await fixture(t, protocol, (body, step) => {
+      assert(step <= 2);
+      if (step === 1) return toolBatch(protocol, [finalReply('core.chat'), finalReply('avatar.bubble'),
+        { name: 'fixture_read', args: {} }]);
+      assert(JSON.stringify(body.input ?? body.messages).includes('Synthetic read failed'));
+      return answer(protocol, 'fixture_read');
+    });
+    f.app.registry.register({ name: 'fixture.read', owner: 'core', description: 'Synthetic plugin read',
+      permission: 'fixture.read', mcp: true, input: z.object({}), output: z.string(),
+      run: () => { if (++attempts === 1) throw new Error('Synthetic read failed'); return 'Read recovered'; } });
+    const pi = new PiBackend(f.app.registry, async () => 'fixture-key', () => new Set(['fixture.read']));
+    await pi.generate({ profile: f.profile, requestId: 'failed-mixed-work', signal: AbortSignal.timeout(6000),
+      messages: [{ role: 'user', text: 'Complete work and both replies' }], replyTargets: ['core.chat', 'avatar.bubble'],
+      respond: input => { submissions.push(input.targetId); return { accepted: true }; },
+      onTranscript: message => { transcript.push(message); return 'fixture-' + transcript.length; } });
+    assert.equal(f.requests.length, 2);
+    assert.equal(attempts, 2);
+    assert.deepEqual(submissions, ['core.chat', 'avatar.bubble']);
+    assert.equal(transcript.filter(message => message.role === 'toolResult' && message.isError).length, 1);
+  });
+
   test(protocol + ' replays verified deliveries as past tool calls without sending them again', async t => {
     const f = await fixture(t, protocol, body => {
       const input = body.input ?? body.messages;

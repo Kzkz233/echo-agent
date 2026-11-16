@@ -42,6 +42,8 @@ Search expansion, language reranking and context summaries inherit the selected 
 
 Agent execution uses inactivity timers to detect missing progress. New delegated work, prompt automations and Review tasks have no total execution deadline by default. An explicit task deadline is enforced by the shared work-session lifecycle; backends do not impose another fixed ceiling. Set the duration to `0` for unlimited execution. Existing saved durations remain in effect, and a finite role limit cannot be bypassed by requesting `0`. There is no fixed two-hour configuration maximum. Pending human decisions pause the inactivity timer. Individual API requests retain the model's request timeout.
 
+Channel replies finish a Pi run at the completed-turn boundary, after every tool result in that turn has been recorded. All authorized targets must have a final reply, or the turn must explicitly choose silence. Progress replies and unfinished targets keep the normal tool loop active. Tool failures in the same batch remain available for handling before completion; submitting several final replies together does not require another model request.
+
 ## Extension contracts
 
 | Contract | Responsibility |

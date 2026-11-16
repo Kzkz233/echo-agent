@@ -190,7 +190,6 @@ export class PiBackend implements Backend {
           if (input.phase === 'final') finalTargets.add(input.targetId);
           return {
             content: [{ type: 'text', text: JSON.stringify(receipt) }],
-            terminate: input.phase === 'final' && Boolean(request.replyTargets?.every((id) => finalTargets.has(id))),
           };
         },
       });
@@ -204,7 +203,7 @@ export class PiBackend implements Backend {
           if (replyStarted) throw new EchoError('reply_started', '已经开始回复，须完成剩余目标，不能再选择静默。');
           request.signal.throwIfAborted();
           silenced = true;
-          return { content: [{ type: 'text', text: '{"silent":true}' }], terminate: true };
+          return { content: [{ type: 'text', text: '{"silent":true}' }] };
         },
       });
     const native = this.dataRoot
@@ -283,6 +282,14 @@ export class PiBackend implements Backend {
     let lastInput = 0, totalInput = 0, cachedInput = 0, cacheReported = false, cacheComplete = true;
     let compactedDuringExecution = false;
     const agent = new Agent({
+      finishTurn: ({ message, toolResults }) => {
+        // Reply completion belongs to the whole turn, after every tool result
+        // is recorded. Pi's per-tool terminate flags require unanimous results;
+        // an earlier channel cannot know whether a later call completes them all.
+        if (!hasDelivery || ['error', 'aborted', 'length'].includes(message.stopReason) ||
+          toolResults.some(result => result.isError)) return;
+        if (silenced || request.replyTargets!.every(id => finalTargets.has(id))) return { action: 'end' };
+      },
       ...(request.compaction && request.toolPolicy !== 'none' ? {
         transformContext: agentCompactor({ profile: request.profile, policy: request.compaction,
           summarize: async (text, signal) => {
