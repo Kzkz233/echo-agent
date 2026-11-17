@@ -6,6 +6,30 @@ import { readModelListing, readReasoningSupport } from '../packages/backends/mod
 import { thinking, ApiBackend } from '../packages/backends/api.ts';
 import { modelProtocol } from '../packages/backends/protocol.ts';
 import { defaultOutputTokens } from '../packages/contracts/generation-limits.ts';
+import { createInitialSystemMessage, normalizeContext } from '@earendil-works/pi-ai';
+
+test('official Responses explicitly sends non-strict function schemas while compatible endpoints retain their wire format', async () => {
+  const parameters = { type: 'object' as const, properties: { note: { type: 'string' } }, required: [] };
+  const tools = [{ name: 'fixture_note', description: 'Optional note', parameters }];
+  for (const official of [true, false]) {
+    const { model, streams } = await modelProtocol(profileSchema.parse({
+      id: 'fixture', name: 'Fixture', kind: 'pi', model: 'synthetic',
+      endpoint: official ? 'https://api.openai.com/v1' : 'https://provider.invalid/v1',
+      protocol: 'openai-responses',
+    }));
+    let wire: any;
+    const stream = streams.streamSimple(model, normalizeContext({ messages: [
+      createInitialSystemMessage('Fixture', tools)!,
+      { role: 'user', content: 'Test', timestamp: 0 },
+    ] }), { apiKey: 'fixture', maxRetries: 0, fetch: async (_url, init) => {
+      wire = JSON.parse(String(init?.body));
+      return new Response('data: {"type":"response.completed","response":{"status":"completed","output":[]}}\n\n',
+        { headers: { 'Content-Type': 'text/event-stream' } });
+    } });
+    assert.equal((await stream.result()).stopReason, 'stop');
+    assert.deepEqual(wire.tools, [{ type: 'function', ...tools[0], ...(official ? { strict: false } : {}) }]);
+  }
+});
 
 test('automatic output uses declared model capacity, preserves manual settings and invalidates changed connections', async t => {
   const app = await setup(t, []);

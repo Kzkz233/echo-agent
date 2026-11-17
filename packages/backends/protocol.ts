@@ -122,6 +122,9 @@ export async function modelProtocol(profile: Profile, override?: string) {
       ? {
           compat: {
             supportsMidConvoSystemMessages: true,
+            // Official Responses normalizes omitted strictness to a constrained
+            // schema. Let Pi send strict:false for ordinary plugin functions.
+            supportsStrictMode: new URL(profile.endpoint).origin === 'https://api.openai.com',
             // DeepSeek treats developer messages as user input, not system rules.
             // Preserve the authority of persona and channel instructions in thinking mode.
             ...(style === 'deepseek' ? { supportsDeveloperRole: false } : {}),
