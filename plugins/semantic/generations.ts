@@ -7,7 +7,7 @@ import {
 } from '../../packages/contracts/ingestion.ts';
 import { ingestionHash } from '../../packages/kernel/artifact-identity.ts';
 import { invariant } from '../../packages/contracts/index.ts';
-import { openPortableIndex, documentKey } from './portable-index.ts';
+import { openPortableIndex, documentKey, passageAt } from './portable-index.ts';
 import { workerTask } from '../../packages/kernel/worker-task.ts';
 import type { PluginContext } from '../../packages/kernel/registry.ts';
 import type { SearchRecord } from '../../packages/kernel/retrieval.ts';
@@ -412,6 +412,7 @@ export class IndexGenerations {
         for (const node of graph.nodes) {
           if (
             !['text', 'image', 'audio', 'video'].includes(node.kind) ||
+            (node.kind === 'text' && !node.text.trim()) ||
             !model.embedding.inputs.includes(node.kind as any)
           )
             continue;
@@ -548,13 +549,14 @@ export class IndexGenerations {
         'index_model_changed',
         '当前索引模型配置已变化，请迁移索引',
       );
-      const candidates = new Map(
-        group
-          .filter(
-            (r) => heads.get(documentKey(r)) === bindings[documentKey(r)].versions[r.documentId!],
-          )
-          .map((r) => [documentKey(r), r]),
-      );
+      const candidates = new Map<string, SearchRecord[]>();
+      for (const record of group) {
+        const key = documentKey(record);
+        if (heads.get(key) !== bindings[key].versions[record.documentId!]) continue;
+        const passages = candidates.get(key) ?? [];
+        passages.push(record);
+        candidates.set(key, passages);
+      }
       if (!candidates.size) continue;
       const [vector] = await this.semantic.embeddingsService.encode(
         binding.modelId,
@@ -570,7 +572,7 @@ export class IndexGenerations {
           path: this.semantic.portableIndexPath,
           space: binding.space,
           vector,
-          entries: [...candidates.values()].map((r) => ({
+          entries: [...candidates.values()].map(([r]) => ({
             vaultId: r.vaultId,
             documentId: r.documentId,
             bodyHash: r.bodyHash,
@@ -579,7 +581,11 @@ export class IndexGenerations {
         signal,
       );
       for (const hit of hits.filter((h) => h.score >= this.semantic.config().threshold)) {
-        const record = candidates.get(hit.key)!;
+        const passages = candidates.get(hit.key)!;
+        const offset = hit.node?.offset ?? hit.node?.parent?.offset ?? 0;
+        // The document's last lexical chunk is not the structural match. Use
+        // the source position while retaining the authorized chunk's identity.
+        const record = passageAt(passages, offset);
         result.push({
           id: record.id,
           version: record.version,

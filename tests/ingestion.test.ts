@@ -270,3 +270,66 @@ test('portable structural evidence opens the saved passage without re-embedding 
   assert.equal(read.offset, content.indexOf('The matching paragraph'));
   assert.match(read.content, /^The matching paragraph/);
 });
+
+test('structural search ignores old blank vectors and opens the matched passage instead of the document tail', async (t) => {
+  const app = await setup(t);
+  await app.plugins.enable('semantic');
+  const vault = await app.files.register({ id: 'fixture', name: 'Fixture', path: join(app.runtime, 'Fixture') });
+  const content = '\n\n## First\nneedle-early ' + 'earlier '.repeat(240) +
+    '\n## Later\nneedle-later ' + 'later '.repeat(300);
+  await app.knowledge.save(vault.id, 'Synthetic manual', content, { id: 'manual' });
+  const profile = app.store.document<any>('profiles', 'test');
+  app.store.put('profiles', profile.id, { ...profile, embedding: { ...profile.embedding, dimensions: 3 } });
+  let documentCalls = 0;
+  app.embeddings.encode = async (_model, inputs, kind) => inputs.map(input => {
+    const text = (input.content[0] as { text: string }).text;
+    if (kind === 'query') return text === 'early query' ? [1, 0, 0] : [0, 1, 0];
+    documentCalls++;
+    if (text.includes('needle-early')) return [0.8, 0, 0.6];
+    if (text.includes('needle-later')) return [0, 0.8, 0.6];
+    return [0, 0, 1];
+  });
+  const graph = await app.knowledge.pipeline.graph(vault.id, 'manual');
+  const plan = await app.semantic.generations!.plan({ vaultIds: [vault.id] });
+  await app.semantic.generations!.start(plan.id, 'passage-fixture');
+  await until(() => app.store.document<any>('knowledge-migrations', 'passage-fixture')?.state === 'completed');
+  const binding = Object.values(app.semantic.generations!.bindings())[0];
+  const db = openPortableIndex(app.semantic.portableIndexPath);
+  const rows = db.prepare('SELECT text FROM vectors WHERE space=?').all(binding.space) as { text: string }[];
+  assert(rows.length > 1);
+  assert(rows.every(row => row.text.trim()), 'New indexing must not embed whitespace-only nodes');
+  // A saved generation from an older release can retain the blank vector.
+  // Its score deliberately beats the valid passage; search must still ignore it.
+  db.prepare('INSERT INTO vectors VALUES(?,?,?,?,?,?,?,?,?)').run(binding.space, vault.id, 'manual',
+    'old-empty-node', 'text', 'document', '\n\n', Buffer.from(new Float32Array([1, 0, 0]).buffer),
+    JSON.stringify({ offset: 0, graphPolicy: graph.policyHash }));
+  db.close();
+  const beforeSearch = documentCalls;
+  for (const mode of ['generation', 'portable']) {
+    if (mode === 'portable') {
+      await app.registry.call('semantic.migration.rollback', { id: 'passage-fixture' }, internal);
+      const db = openPortableIndex(app.semantic.portableIndexPath);
+      db.prepare('INSERT INTO space_aliases VALUES(?,?)').run((app.semantic as any).fingerprint('knowledge'), binding.space);
+      db.close();
+    }
+    for (const [query, heading, needle] of [
+      ['early query', '## First', 'needle-early'],
+      ['late query', '## Later', 'needle-later'],
+    ]) {
+      const hits = await app.knowledge.search(query, new AbortController().signal, 3, {
+        vaultId: vault.id, strategy: 'semantic',
+      });
+      assert.equal(hits.length, 1);
+      const hit = hits[0], position = content.indexOf(heading);
+      assert.match(hit.text, new RegExp(needle));
+      assert.equal(hit.offset, Math.floor(position / 1000) * 1000);
+      assert.equal(hit.node!.offset, position);
+      const opened = await app.registry.call('knowledge.read', {
+        id: hit.id, nodeId: hit.node!.id, graphPolicy: hit.node!.graphPolicy, limit: 100,
+      }, internal);
+      assert.equal(opened.offset, position);
+      assert.match(opened.content, new RegExp(needle));
+    }
+  }
+  assert.equal(documentCalls, beforeSearch, 'Existing index search must not rebuild document vectors');
+});

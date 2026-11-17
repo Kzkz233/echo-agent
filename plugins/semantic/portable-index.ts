@@ -16,6 +16,12 @@ export function openPortableIndex(path: string) {
 }
 export const documentKey = (r: Pick<SearchRecord, 'vaultId' | 'documentId'>) =>
   JSON.stringify([r.vaultId, r.documentId]);
+/** Keep a structural match attached to an authorized source passage. */
+export function passageAt(records: SearchRecord[], offset = 0) {
+  return records.reduce((best, next) =>
+    (next.offset ?? 0) <= offset && (next.offset ?? 0) > (best.offset ?? 0)
+      ? next : best, records[0]);
+}
 export function resolvePortableSpace(db: DatabaseSync, logical: string) {
   const exists = db.prepare("SELECT 1 FROM sqlite_master WHERE name='space_aliases'").get();
   return exists

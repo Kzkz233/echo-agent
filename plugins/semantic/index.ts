@@ -6,7 +6,7 @@ import { defineManifest } from '../../packages/kernel/registry.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { workerTask } from '../../packages/kernel/worker-task.ts';
-import { portableCoverage, portableNodeCount, documentKey } from './portable-index.ts';
+import { portableCoverage, portableNodeCount, documentKey, passageAt } from './portable-index.ts';
 import { resolvePortableSpace } from './portable-index.ts';
 import { DatabaseSync } from 'node:sqlite';
 import { existsSync } from 'node:fs';
@@ -246,9 +246,14 @@ export class SemanticSearch {
         scope === 'knowledge'
           ? portableCoverage(this.portableIndexPath, fingerprint, records)
           : new Set<string>();
-      const migrated = new Map(
-        records.filter((r) => covered.has(documentKey(r))).map((r) => [documentKey(r), r]),
-      );
+      const migrated = new Map<string, SearchRecord[]>();
+      for (const record of records) {
+        const document = documentKey(record);
+        if (!covered.has(document)) continue;
+        const passages = migrated.get(document) ?? [];
+        passages.push(record);
+        migrated.set(document, passages);
+      }
       records = records.filter((r) => !covered.has(documentKey(r)));
       const missing = records.filter((r) => !this.store.document('vectors', key(r)));
       // Whole-library indexing is an explicit task; a search never starts an
@@ -288,7 +293,7 @@ export class SemanticSearch {
             {
               path: this.portableIndexPath,
               space: fingerprint,
-              entries: [...migrated.values()].map((r) => ({
+              entries: [...migrated.values()].map(([r]) => ({
                 vaultId: r.vaultId,
                 documentId: r.documentId,
                 bodyHash: r.bodyHash,
@@ -311,7 +316,7 @@ export class SemanticSearch {
         ...imported
           .filter((r) => r.score >= config.threshold)
           .map((r) => {
-            const target = migrated.get(r.key)!;
+            const target = passageAt(migrated.get(r.key)!, r.node?.offset ?? r.node?.parent?.offset);
             return {
               id: target.id,
               version: target.version,

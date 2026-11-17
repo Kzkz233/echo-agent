@@ -98,6 +98,10 @@ files are removed after each operation. ASR loads only when transcription is nee
 Search hits carry their evidence node and parent, with page/time coordinates when
 available. `knowledge.read` opens the matching passage. `knowledge.evidence@1` lets
 optional indexes resolve existing structural evidence without rechunking old vectors.
+Text evidence keeps its source offset through the retrieval capability and maps to
+the corresponding authorized passage. Whitespace-only text nodes are excluded from
+new indexing and ignored when searching older generations; existing indexes need
+no rebuild for this correction.
 
 ## Pipeline migration
 

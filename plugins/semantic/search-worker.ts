@@ -22,6 +22,9 @@ try {
       db.prepare(`SELECT v.* FROM vectors v JOIN documents d ON d.space=v.space AND d.vault_id=v.vault_id AND d.document_id=v.document_id
       JOIN scope s ON s.vault_id=d.vault_id AND s.document_id=d.document_id AND s.body_hash=d.body_hash WHERE v.space=?`);
     for (const row of rows.iterate(space) as Iterable<any>) {
+      // Older generations can contain separators embedded with only the title.
+      // They carry no passage evidence, even when their cosine score is high.
+      if (row.modality === 'text' && !row.text.trim()) continue;
       const b = row.embedding as Uint8Array;
       if (b.byteLength !== dimension * 4) throw Error('迁移索引存在损坏向量');
       const data =
@@ -46,7 +49,7 @@ try {
             id: row.node_id,
             modality: row.modality,
             ...(row.parent_id ? { parentId: row.parent_id } : {}),
-            ...(() => { const m = JSON.parse(row.metadata); return Object.fromEntries(Object.entries({ start: m.start, end: m.end, page: m.page, sourceHash: m.sourceHash, parent: m.parent, graphPolicy: m.graphPolicy }).filter(([, value]) => value !== undefined)); })(),
+            ...(() => { const m = JSON.parse(row.metadata); return Object.fromEntries(Object.entries({ offset: m.offset, start: m.start, end: m.end, page: m.page, sourceHash: m.sourceHash, parent: m.parent, graphPolicy: m.graphPolicy }).filter(([, value]) => value !== undefined)); })(),
           },
         });
     }
