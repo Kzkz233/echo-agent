@@ -99,6 +99,23 @@ test('compression inherits model reasoning unless a conversation explicitly over
   assert.equal(captured[1].reasoning, 'off');
 });
 
+test('summary gives quiet model work ten minutes without changing saved limits or shortening a longer timeout', async () => {
+  for (const timeoutMs of [1000, 120000, 600000, 1200000]) {
+    const profile = profileSchema.parse({ id: 'fixture', name: 'Synthetic', kind: 'pi', timeoutMs,
+      reasoning: 'high', maxOutputTokens: 128000 });
+    const signal = new AbortController().signal;
+    await summarizeContext({ profile, signal, prompt: 'Summarize', text: 'Synthetic history', maxChars: 8000,
+      generate: async request => {
+        assert.equal(request.profile.timeoutMs, Math.max(timeoutMs, 600000));
+        assert.equal(request.profile.maxOutputTokens, profile.maxOutputTokens);
+        assert.equal(request.profile.reasoning, profile.reasoning);
+        assert.equal(request.signal, signal);
+        return { text: 'Summary' };
+      } });
+    assert.equal(profile.timeoutMs, timeoutMs);
+  }
+});
+
 test('failed history compression stops the run without silently dropping unsummarized history', async t => {
   const app = await setup(t, []), backend = new FakeBackend();
   app.router.useConversationRuntime(app.api, { kind: 'pi', generate: request => backend.generate(request) });

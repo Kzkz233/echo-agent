@@ -22,7 +22,10 @@ export async function summarizeContext(input: {
   const { profile, signal, maxChars } = input;
   try {
     const result = await input.generate({
-      profile,
+      // Large history prefills and reasoning may be quiet for longer than an
+      // ordinary reply. Extend only this transient request; saved model settings
+      // and an explicit caller deadline remain authoritative.
+      profile: { ...profile, timeoutMs: Math.max(profile.timeoutMs, 10 * 60000) },
       messages: [
         {
           role: 'system',
