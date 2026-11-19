@@ -170,7 +170,7 @@ export class Router {
               '发给渠道的内容必须用 echo_respond 提交。普通正文只属于执行过程。messages 的每项是一条独立消息，普通换行留在同一项内。progress 是可选的中途说明，final 是正式交付。',
               '每个目标每阶段只能提交一次。开场白后还有正文时，开场使用 progress；final 的 messages 必须一次包含该目标的全部正文与分段，不可先用 final 发开场再追加另一条 final。',
               '一旦开始回复，必须为下列全部目标分别提交 final，共用同一次工作的结果。目标已由用户或任务配置选定，不按入站渠道自行删减。工具回执会列出尚未完成的目标。',
-              ...(replyStyles.some((style) => style.id === 'core.chat') ? ['聊天中的闲聊省略 title；想分条说时，把每条分别写进 messages。'] : []),
+              ...(replyStyles.some((style) => style.id === 'core.chat') ? ['聊天中的闲聊省略 title；想分条说时，把每条分别写进 messages。交付文件时在 attachmentIds 使用本会话的附件编号。'] : []),
               ...replyStyles.map(({ id, label, text }) => `${id}（${label}）${text ? '：' + text : ''}`),
             ].filter(Boolean).join('\n') }] };
           }
@@ -478,6 +478,15 @@ export class Router {
         text: r.input?.text ?? r.text,
         runId: r.runId,
         error: r.error,
+        ...(r.kind === 'input' && r.input && (r.input?.source ?? 'human') === 'human' && !r.input?.origin &&
+          !r.input?.workSession && !r.input?.delivery && !r.input?.bubble && !this.store.run(r.input.requestId) ? {
+            dialoguePending: {
+              id: r.input.requestId, conversationId, role: 'user', source: 'human', text: r.input.text,
+              createdAt: r.createdAt, seq: 0, meta: { requestId: r.input.requestId,
+                attachments: this.attachments.metadata(r.input.attachmentIds ?? [], conversationId),
+                ...(r.state === 'failed' ? { inputError: r.error } : {}) },
+            } satisfies Message,
+          } : {}),
       }));
   }
   cancelInput(requestId: string, conversationId: string) {
@@ -524,8 +533,9 @@ export class Router {
       'steer_unsupported',
       '此后端当前支持排队下一条，不支持运行中补充。',
     );
-    const ids = input.attachmentIds ?? [],
-      attachments = this.attachments.metadata(ids, input.conversationId);
+    const ids = input.attachmentIds ?? [];
+    if (ids.length) await this.attachments.prepareInputFiles(ids, input.conversationId);
+    const attachments = this.attachments.metadata(ids, input.conversationId);
     const content = await this.attachments.content(ids, input.conversationId);
     invariant(
       !content.images?.length || profile.vision,
@@ -751,7 +761,7 @@ export class Router {
           const target = (m.meta.delivery as DeliveryPlan | undefined)?.targets[0];
           const reply = m.role === 'assistant' && target && ['progress', 'final'].includes(String(m.meta.replyPhase))
             ? replySubmission.safeParse({ targetId: target.id, phase: m.meta.replyPhase,
-                ...(m.meta.replyTitle ? { title: m.meta.replyTitle } : {}), messages: m.meta.replyParts ?? [m.text] })
+                ...(m.meta.replyTitle ? { title: m.meta.replyTitle } : {}), ...(m.meta.replyAttachmentIds ? { attachmentIds: m.meta.replyAttachmentIds } : {}), messages: m.meta.replyParts ?? [m.text] })
             : undefined;
           return {
             id: m.id,
@@ -1069,6 +1079,7 @@ export class Router {
     const profile = { ...this.profile(binding.profileId),
         ...(outputLimit ? { maxOutputTokens: outputLimit, automaticOutputTokens: false } : {}) },
       backend = this.executionBackend(profile, conversation.id);
+    if (source === 'human' && input.attachmentIds?.length) await this.attachments.prepareInputFiles(input.attachmentIds, conversation.id);
     const attachments = this.attachments.metadata(input.attachmentIds ?? [], conversation.id);
     invariant(
       profile.vision || !attachments.some((item) => item.kind === 'image'),
@@ -1244,6 +1255,7 @@ export class Router {
           {
             ...(delivery ? { delivery } : {}),
             ...(input.workSession ? { workSession: true } : {}),
+            requestId: input.requestId,
             ...(input.origin ? { origin: input.origin } : {}),
             ...(input.triggerKind ? { triggerKind: input.triggerKind } : {}),
             ...(attachments.length ? { attachments } : {}),
@@ -1254,6 +1266,7 @@ export class Router {
         return { current, turn };
       });
       this.events.emit('run.started', { run });
+      if (!input.recordedInputId) this.events.emit('message.posted', { conversationId: conversation.id, messageId: current.id });
       this.execution.open(run.id, conversation.id);
       const history = effective;
       const historyInput = await this.input(history);
@@ -1309,10 +1322,12 @@ export class Router {
         const reply = replySubmission.parse(value);
         const target = targets.find(({ id }) => id === reply.targetId);
         invariant(delivery && target, 'reply_target', '该目标不在本轮授权范围内。');
+        invariant(!reply.attachmentIds || target.supportsFiles, 'reply_files', '此渠道不支持文件附件。');
+        const files = this.attachments.metadata(reply.attachmentIds ?? [], conversation.id);
         const key = reply.targetId + ':' + reply.phase;
         const old = submitted.get(key);
         if (old) {
-          invariant(old.meta.replyTitle === reply.title && JSON.stringify(old.meta.submittedParts) === JSON.stringify(reply.messages), 'reply_duplicate', '该目标已提交同阶段回复。');
+          invariant(old.meta.replyTitle === reply.title && JSON.stringify(old.meta.replyAttachmentIds) === JSON.stringify(reply.attachmentIds) && JSON.stringify(old.meta.submittedParts) === JSON.stringify(reply.messages), 'reply_duplicate', '该目标已提交同阶段回复。');
           return replyReceipt();
         }
         invariant(!submitted.has(reply.targetId + ':final'), 'reply_complete', '该目标已提交最终答复。');
@@ -1322,6 +1337,7 @@ export class Router {
           replyPhase: reply.phase,
           ...(reply.title ? { replyTitle: reply.title } : {}),
           submittedParts: reply.messages,
+          ...(files.length ? { replyAttachmentIds: reply.attachmentIds, deliveredFiles: files } : {}),
         }));
         submitted.set(key, message);
         this.events.emit('message.posted', { conversationId: conversation.id });

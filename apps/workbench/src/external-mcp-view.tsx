@@ -27,13 +27,16 @@ const fromServer = (server?: Server) => ({
 
 export function ExternalMcpView({
   servers,
+  initialId,
   act,
 }: {
   servers: Server[];
+  initialId?: string;
   act: <T>(fn: () => Promise<T>, message?: string) => Promise<T | undefined>;
 }) {
   const confirm = useConfirm();
-  const [selected, setSelected] = useState<string | undefined>(servers[0]?.id);
+  const [selected, setSelected] = useState<string | undefined>(() =>
+    servers.find((entry) => entry.id === initialId)?.id ?? servers[0]?.id);
   const server = servers.find((row) => row.id === selected);
   const [draft, setDraft] = useState(() => fromServer(server));
   const [trusted, setTrusted] = useState(false);
@@ -305,7 +308,7 @@ export function ExternalMcpView({
               {t(
                 draft.kind === 'deepseek'
                   ? '读取工具列表不验证 API Key，也不发起搜索。'
-                  : '请在角色的应用工具权限中授权。外部服务器的工具可能执行写入操作。',
+                  : '在「角色功能」的「插件工具授权」中选择可用工具。外部工具可能执行写入操作。',
               )}
             </p>
             {server.tools.map((tool) => (

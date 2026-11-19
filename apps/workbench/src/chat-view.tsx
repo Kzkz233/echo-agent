@@ -18,7 +18,7 @@ import { rpc } from './client.ts';
 import { Button, EmptyState, Icon, useConfirm } from './ui.tsx';
 import { ConversationInteractions } from './host-interactions.tsx';
 import { ReasoningSelect } from './reasoning-select.tsx';
-import { AttachmentControls, ReplyImageView, useChatAttachments } from './chat-attachments.tsx';
+import { AttachmentControls, MessageAttachments, ReplyImageView, useChatAttachments } from './chat-attachments.tsx';
 import { contextCompaction } from '../../../packages/contracts/compaction.ts';
 import type { DeliveryPlan } from '../../../packages/contracts/delivery.ts';
 import { ConversationStatus } from './conversation-status.tsx';
@@ -49,16 +49,14 @@ function DialogueMessages({ messages, name, persona, failedRuns, partLimits, tim
         {!user && <CharacterPortrait className="dialogue-avatar" persona={persona} />}
         {parts.slice(0, limit).map((part, partIndex) => <div className="dialogue-bubble" key={partIndex}>
           {partIndex === 0 && <>
-            {((message.meta.attachments as { id: string; name: string }[]) ?? []).map((item) => (
-              <span className="attachment-chip" key={item.id}>{item.name}</span>
-            ))}
+            <MessageAttachments message={message} />
             {title && <strong className="dialogue-title">{title}</strong>}
           </>}
           <Suspense fallback={<span>{part}</span>}><Markdown text={part} /></Suspense>
           {message.role === 'assistant' && partIndex === parts.length - 1 && <MessageImage raw={message.meta.image} />}
         </div>)}
-        {user && message.runId && failedRuns[message.runId] && <small className="dialogue-error" role="status">
-          {t('执行失败')} · {failedRuns[message.runId]}
+        {user && (typeof message.meta.inputError === 'string' || message.runId && failedRuns[message.runId]) && <small className="dialogue-error" role="status">
+          {t('执行失败')} · {String(message.meta.inputError ?? failedRuns[message.runId!])}
         </small>}
       </article>
     </Fragment>;
@@ -90,20 +88,21 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
   const [selected, select] = useState(
       () => fixedConversationId ?? sessionStorage.getItem('echo.chat') ?? '',
     ),
-    [messages, setMessages] = useState<Message[]>([]),
+    [{ messages, older }, setHistory] = useState<{ messages: Message[]; older: boolean }>({ messages: [], older: false }),
     [loadedConversation, setLoadedConversation] = useState<string>(),
     [stream, setStream] = useState(''),
     [drafts, setDrafts] = useState<Record<string, string>>(() => cached('echo.drafts', {})),
     [query, setQuery] = useState(''),
     [loading, setLoading] = useState(false),
+    [readError, setReadError] = useState(''),
     [busy, setBusy] = useState(false),
     [unresolved, setUnresolved] = useState(false),
     [activeRun, setActiveRun] = useState<string>(),
     [lastRun, setLastRun] = useState<Run>(),
     [failedRuns, setFailedRuns] = useState<Record<string, string>>({}),
     [inputs, setInputs] = useState<any[]>([]),
+    [outbox, setOutbox] = useState<Message[]>([]),
     [sendMode, setSendMode] = useState('queue'),
-    [older, setOlder] = useState(false),
     [loadingOlder, setLoadingOlder] = useState(false),
     [newMessages, setNewMessages] = useState(false),
     [references, setReferences] = useState<any[]>(),
@@ -115,6 +114,9 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
     stick = useRef(true),
     submitting = useRef(false),
     creating = useRef(false);
+  const pageKey = selected + '/' + (dialogue ? 'dialogue' : 'session');
+  const activePage = useRef(pageKey);
+  activePage.current = pageKey;
   const inspectDialog = useRef<HTMLDialogElement>(null);
   const scroller = useRef<HTMLDivElement>(null),
     messageContent = useRef<HTMLDivElement>(null),
@@ -129,14 +131,19 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
   const managed =
     ['main', 'worker', 'group-member'].includes(conversation?.kind ?? '') ||
     data.characters?.some((role: any) => role.mainConversationId === selected);
-  const visibleMessages = useMemo(() => fullSession ? messages : messages.filter((message) =>
-    localChat(message.meta.delivery as DeliveryPlan | undefined) &&
-    (!dialogue || (!message.meta.workSession &&
-      (message.role === 'assistant' || message.role === 'user' || message.meta.presentationOnly === true))),
+  const visibleMessages = useMemo(() => fullSession || dialogue ? messages : messages.filter((message) =>
+    localChat(message.meta.delivery as DeliveryPlan | undefined),
   ), [messages, fullSession, dialogue]);
   const { partLimits, reveals, revealAll, reset: resetPacing } = useDialoguePacing(
     dialogue ? selected : undefined, selected === loadedConversation, visibleMessages,
   );
+  const pending = new Map<string, Message>();
+  if (dialogue) {
+    for (const message of outbox) if (message.conversationId === selected) pending.set(message.id, message);
+    for (const { dialoguePending } of inputs) if (dialoguePending?.conversationId === selected) pending.set(dialoguePending.id, dialoguePending);
+    for (const message of visibleMessages) if (typeof message.meta.requestId === 'string') pending.delete(message.meta.requestId);
+  }
+  const dialogueMessages = [...visibleMessages, ...Array.from(pending.values()).sort((a, b) => a.createdAt.localeCompare(b.createdAt))];
   const traceMessages = new Map<string, string>();
   for (const message of visibleMessages) {
     if (message.role === 'assistant' && message.runId) traceMessages.set(message.runId, message.id);
@@ -187,34 +194,45 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
   const load = useCallback(async () => {
     if (!selected) return;
     const version = ++request.current;
-    const [response, runs] = await Promise.all([
-      rpc('conversations.messages', { id: selected, limit: 100 }),
-      rpc('runs.list', { conversationId: selected }),
-    ]);
-    if (current.current !== selected || request.current !== version) return;
-    setMessages((previous) => {
-      const first = response.messages[0]?.seq ?? 0;
-      const prefix = previous.filter((message) => message.seq < first);
-      const combined = [...prefix, ...response.messages];
-      setOlder(combined.length > 0 && combined[0].seq > 1);
-      return combined;
-    });
-    for (const run of runs as Run[]) if (!streamsInChat(run)) hiddenRuns.current.add(run.id);
-    setBusy(response.busy || runs.some((run: any) => run.state === 'running'));
-    setActiveRun(runs.find((run: any) => run.state === 'running')?.id);
-    setLastRun((runs as Run[]).find((run) => run.meta.generationMetrics || run.state === 'succeeded'));
-    setFailedRuns(Object.fromEntries(
-      (runs as Run[])
-        .filter((run) => run.state === 'failed' && run.error)
-        .map((run) => [run.id, run.error!]),
-    ));
-    setInputs(response.inputs ?? []);
-    setUnresolved(runs.some((run: any) => run.state === 'unknown'));
-    setLoadedConversation(selected);
-    setLoading(false);
-  }, [selected]);
+    try {
+      const [response, runs] = await Promise.all([
+        rpc('conversations.messages', { id: selected, limit: 100, view: dialogue ? 'dialogue' : 'session' }),
+        rpc('runs.list', { conversationId: selected }),
+      ]);
+      if (activePage.current !== pageKey || request.current !== version) return;
+      setReadError('');
+      setHistory(previous => {
+        const first = response.messages[0]?.seq;
+        if (!previous.messages.some(message => message.seq === first))
+          return { messages: response.messages, older: response.hasOlder };
+        const prefix = previous.messages.filter(message => message.seq < first);
+        return { messages: [...prefix, ...response.messages], older: prefix.length ? previous.older : response.hasOlder };
+      });
+      for (const run of runs as Run[]) if (!streamsInChat(run)) hiddenRuns.current.add(run.id);
+      setBusy(response.busy || runs.some((run: any) => run.state === 'running'));
+      setActiveRun(runs.find((run: any) => run.state === 'running')?.id);
+      setLastRun((runs as Run[]).find((run) => run.meta.generationMetrics || run.state === 'succeeded'));
+      setFailedRuns(Object.fromEntries(
+        (runs as Run[])
+          .filter((run) => run.state === 'failed' && run.error)
+          .map((run) => [run.id, run.error!]),
+      ));
+      setInputs(response.inputs ?? []);
+      const acknowledged = new Set([...(response.inputs ?? []).map((item: any) => item.requestId),
+        ...response.messages.map((message: Message) => message.meta.requestId)]);
+      setOutbox(previous => previous.filter(message => message.conversationId !== selected || !acknowledged.has(message.id)));
+      setUnresolved(runs.some((run: any) => run.state === 'unknown'));
+      setLoadedConversation(selected);
+    } catch (error) {
+      if (activePage.current === pageKey && request.current === version) setReadError(String(error));
+    } finally {
+      if (activePage.current === pageKey && request.current === version) setLoading(false);
+    }
+  }, [selected, dialogue, pageKey]);
   useEffect(() => {
-    setMessages([]);
+    setHistory({ messages: [], older: false });
+    setReadError('');
+    setLoadingOlder(false);
     setLoadedConversation(undefined);
     setStream('');
     setReferences(undefined);
@@ -265,7 +283,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
       scroller.current.scrollTop = scroller.current.scrollHeight;
       setNewMessages(false);
     }
-  }, [messages, stream, busy, reveals, selected, loadedConversation, surface]);
+  }, [messages, outbox, inputs, stream, busy, reveals, selected, loadedConversation, surface]);
   useEffect(() => {
     const el = scroller.current, content = messageContent.current;
     if (!el || !content) return;
@@ -370,7 +388,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
       });
       if (selected === c.id) {
         select('');
-        setMessages([]);
+        setHistory({ messages: [], older: false });
         setStream('');
       }
     }
@@ -388,7 +406,13 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
     )
       return;
     const value = text,
-      target = selected;
+      target = selected,
+      requestId = crypto.randomUUID(),
+      submittedText = value.trim() ? value : t('请查看附件。');
+    if (dialogue) setOutbox(previous => [...previous, {
+      id: requestId, conversationId: target, role: 'user', source: 'human', seq: 0,
+      createdAt: new Date().toISOString(), text: submittedText, meta: { requestId, attachments: attachments.items },
+    }]);
     submitting.current = true;
     if (dialogue) revealAll();
     setText('', target);
@@ -399,8 +423,8 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
         steering ? 'conversations.steer' : 'conversations.send',
         {
           conversationId: target,
-          text: value || t('请查看附件。'),
-          requestId: crypto.randomUUID(),
+          text: submittedText,
+          requestId,
           attachmentIds: attachments.items.map((item) => item.id),
           ...(fullSession ? { workSession: true } : {}),
           ...(steering ? { runId: activeRun } : {}),
@@ -418,7 +442,8 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
     }, '');
     submitting.current = false;
     if (!result) {
-      setText(value, target);
+      setOutbox(previous => previous.filter(message => message.id !== requestId));
+      setDrafts(old => ({ ...old, [target]: [value, old[target]].filter(Boolean).join('\n') }));
       if (current.current === target) setBusy(false);
     } else attachments.clear(target);
     if (current.current === target) await load().catch(() => {});
@@ -777,19 +802,22 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                         const response = await rpc('conversations.messages', {
                           id: target,
                           before: messages[0].seq,
+                          view: dialogue ? 'dialogue' : 'session',
                           limit: 100,
                         });
-                        if (current.current === target) {
-                          setMessages((current) => [...response.messages, ...current]);
-                          setOlder(
-                            response.messages.length === 100 && response.messages[0]?.seq > 1,
-                          );
+                        if (activePage.current === pageKey) {
+                          setReadError('');
+                          setHistory(current => current.messages[0]?.seq === messages[0].seq
+                            ? { messages: [...response.messages, ...current.messages], older: response.hasOlder }
+                            : current);
                           requestAnimationFrame(() => {
                             el.scrollTop = top + el.scrollHeight - height;
                           });
                         }
+                      } catch (error) {
+                        if (activePage.current === pageKey) setReadError(String(error));
                       } finally {
-                        setLoadingOlder(false);
+                        if (activePage.current === pageKey) setLoadingOlder(false);
                       }
                     }}
                   >
@@ -797,13 +825,14 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                   </Button>
                 </div>
               )}
+              {readError && <div role="alert">{readError} <Button secondary onClick={load}>{t('重试')}</Button></div>}
               {loading ? (
                 <div className="chat-loading">
                   <span className="spinner" />
                   {t('正在读取对话')}
                 </div>
               ) : (
-                visibleMessages.length === 0 && (
+                !readError && (dialogue ? dialogueMessages : visibleMessages).length === 0 && (
                   <EmptyState
                     title={inferenceSession ? t('等待任务执行') : t('和 {name} 聊聊吧', { name: persona?.name ?? 'Echo' })}
                     icon="chat"
@@ -812,7 +841,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                   </EmptyState>
                 )
               )}
-              {dialogue ? <DialogueMessages messages={visibleMessages} name={persona?.name ?? 'Echo'} persona={persona} failedRuns={failedRuns} partLimits={partLimits} timezone={timezone} now={now} /> : visibleMessages.map((message) =>
+              {dialogue ? <DialogueMessages messages={dialogueMessages} name={persona?.name ?? 'Echo'} persona={persona} failedRuns={failedRuns} partLimits={partLimits} timezone={timezone} now={now} /> : visibleMessages.map((message) =>
                 message.role === 'system' || message.role === 'tool' ? (
                   <details
                     className={
@@ -873,11 +902,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                         )}
                       </div>
                       <div className="message-body">
-                        {((message.meta.attachments as any[]) ?? []).map((item) => (
-                          <span className="attachment-chip" key={item.id}>
-                            {item.name}
-                          </span>
-                        ))}
+                        <MessageAttachments message={message} />
                         {!dialogue && message.role === 'assistant' &&
                           message.runId &&
                           traceMessages.get(message.runId) === message.id &&

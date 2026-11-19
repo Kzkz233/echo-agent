@@ -12,10 +12,10 @@ import { availableSpace } from '../packages/kernel/update-transaction.ts';
 
 const root = resolve(import.meta.dirname, '..');
 const publicPlugins = new Set([
-  'agenda', 'approvals', 'assets', 'asr', 'avatar', 'backup', 'care', 'channels', 'chatstick', 'delegation',
+  'agenda', 'approvals', 'assets', 'asr', 'avatar', 'backup', 'browser-use', 'care', 'channels', 'chatstick', 'computer-use', 'delegation',
   'documents', 'embeddings', 'files', 'groups', 'knowledge', 'local-models', 'mail', 'mail-actions',
   'mail-triggers', 'memory', 'notifications', 'observation', 'persona', 'qq', 'reflections',
-  'review', 'scheduler', 'semantic', 'worker-codex', 'worker-dsh',
+  'review', 'scheduler', 'semantic', 'worker-codex', 'worker-dsh', 'zotero',
 ]);
 const policySchema = z.object({
   publicCheckout: z.string().refine(isAbsolute),

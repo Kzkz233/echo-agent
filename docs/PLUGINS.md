@@ -10,10 +10,16 @@ configuration. See [Characters](CHARACTERS.md).
 
 Fields owned by a character contribution are shown in the character editor and omitted
 from the plugin's global settings view. Shared parser/runtime settings and shared model
-routes remain global and are shown with their owning module. Operation permissions in a
-plugin manifest gate application calls; selecting a character feature does not grant or
-revoke the application's MCP permission list. Strict per-character MCP access needs a
-character-bound tool identity and is not implied by a role checkbox.
+routes remain global and are shown with their owning module. The character editor groups
+model-facing operations from the permission catalog by owner. The main conversation and
+delegated tasks have independent grants for each permission. Several operations sharing a
+permission appear as one grant, including when multiple plugins contribute those operations.
+
+A global manifest setting can declare a `toolSetupHint`, such as “Choose an allowed website”.
+The editor shows this hint while the setting is empty and links to the owning plugin.
+Bundled plugins can supply a synchronous `config.toolSettingReady(key, value)` to check usable
+values against the same rules as the tool. The status describes saved configuration. Each
+operation still enforces its scope and the caller's permissions at execution time.
 
 Every first-party feature has `plugins/<id>/echo-plugin.json` with API version 1, an English name and package label `@echo/<id>`. These labels are conventions, not npm publication. Bundled and local-process plugins use the same manifest validation. Local extensions cannot gain first-party identity by claiming that prefix.
 
@@ -118,7 +124,7 @@ The bundled contract audit checks every declared setting/enum, static UI RPC met
 
 MCP is an authenticated loopback `/mcp` facade over the same operations. The frontend controls exported permissions; defaults are read only. Tools use their ordinary names with dots converted to underscores, without a PW prefix. A plugin does not need its own HTTP/MCP service. Same-process work uses typed async function calls, not internal HTTP ports.
 
-Under **Extensions → External MCP**, add a Streamable HTTP URL or a trusted local stdio command. Save the connection, discover its tools, then grant individual tools in the character's app tool permissions. HTTP bearer tokens and stdio environment variables are kept in Echo's credential store. Third-party tools use the role's change-capable tool mode because their behavior is defined by the external server. The public loopback MCP endpoint does not re-export these tools.
+Under **Extensions → External MCP**, add a Streamable HTTP URL or a trusted local stdio command. Save the connection, discover its tools, then grant individual tools under **Character features > Plugin tool access**. HTTP bearer tokens and stdio environment variables are kept in Echo's credential store. Third-party tools use the role's change-capable tool mode because their behavior is defined by the external server. The public loopback MCP endpoint does not re-export these tools.
 
 The included **DeepSeek Web Search** template starts without a key. Enter your own DeepSeek API key to make its Search and Fetch tools available to authorized characters. Search returns links and excerpts. Fetch reads a selected public page. Discovery verifies the local tool catalog without making a billed request or validating the key with DeepSeek.
 

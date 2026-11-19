@@ -12,7 +12,7 @@ import { Clock } from '../../packages/kernel/clock.ts';
 import type { Deliveries } from '../../packages/kernel/delivery.ts';
 import { selectedReasoning } from '../../packages/backends/model-metadata.ts';
 import { realpath, stat, readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { within, projectRoot } from '../../packages/backends/project-root.ts';
 import { dirname } from 'node:path';
 import { z } from 'zod';
@@ -49,6 +49,7 @@ import {
 const taskInput = z.object({
   requestId: id,
   execution: executionRequest.optional(),
+  attachmentIds: z.array(id).max(4).optional(),
   goal: z.string().trim().min(1).max(16000),
   acceptance: z.string().trim().min(1).max(6000),
   context: z.string().max(24000).default(''),
@@ -74,11 +75,13 @@ export type DelegatedTask = {
   acceptanceStatus: 'pending' | 'accepted' | 'needs-work';
   review?: { text: string; at: string; attempt: number };
   report?: { summary: string; artifacts: string[]; verification: string; unresolved: string };
+  attachmentIds?: string[];
   evidence?: {
     path: string;
     state: 'verified' | 'missing' | 'outside';
     bytes?: number;
     sha256?: string;
+    attachmentId?: string;
   }[];
   createdAt: string;
   updatedAt: string;
@@ -323,6 +326,7 @@ export class Delegations {
           value.execution ?? null,
           value.lifetime,
           value.contextMode,
+          ...(value.attachmentIds?.length ? [value.attachmentIds] : []),
         ]),
       )
       .digest('hex');
@@ -352,6 +356,7 @@ export class Delegations {
       'worker_capacity',
       '此角色的工作执行位已占用，请先处理当前任务。',
     );
+    this.router.attachments.metadata(value.attachmentIds ?? [], origin.id);
     await this.checkWriteConflict(template);
     life.throwIfAborted();
     const taskId = randomUUID(),
@@ -369,6 +374,7 @@ export class Delegations {
       goal: value.goal,
       acceptance: value.acceptance,
       context: value.context,
+      ...(value.attachmentIds?.length ? { attachmentIds: value.attachmentIds } : {}),
       lifetime: value.lifetime,
       contextMode: value.contextMode,
       lifecycle: 'active',
@@ -509,6 +515,7 @@ export class Delegations {
           profileId: task.profileId,
           requestId: task.id + '.attempt.' + task.attempt,
           text,
+          ...(task.attachmentIds?.length ? { attachmentIds: await this.router.attachments.shareInputs(task.attachmentIds, task.conversationId, task.workerConversationId, task.template.write) } : {}),
           reasoning: task.template.reasoning,
           timeoutMs: task.template.timeoutMinutes * 60000,
         },
@@ -550,14 +557,18 @@ export class Delegations {
             continue;
           }
           const info = await stat(actual);
+          const bytes = info.isFile() && info.size <= 8 * 1024 * 1024 ? await readFile(actual) : undefined;
+          const attachment = bytes?.length ? await this.router.attachments.add(task.conversationId,
+            basename(actual), 'application/octet-stream', bytes.toString('base64'), { original: true }) : undefined;
           next.evidence.push({
             path,
+            ...(attachment ? { attachmentId: attachment.id } : {}),
             state: info.isFile() ? 'verified' : 'missing',
             bytes: info.size,
-            ...(info.isFile() && info.size <= 8 * 1024 * 1024
+            ...(bytes
               ? {
                   sha256: createHash('sha256')
-                    .update(await readFile(actual))
+                    .update(bytes)
                     .digest('hex'),
                 }
               : {}),
@@ -674,6 +685,7 @@ export class Delegations {
         }
         await this.router.taskResults.submit({ id: requestId, conversationId,
           text: outbox.input.text, source: 'handoff', task: '子任务结果',
+          context: { tasks:batch.map(t => ({type:'delegation',id:t.id})) },
           report: config.reportOnCompletion, reportPrompt: config.reportOnCompletion ? config.reportPrompt : undefined,
           delivery: outbox.input.delivery }, this.ctx?.signal);
         for (const task of batch)

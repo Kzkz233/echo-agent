@@ -1,3 +1,4 @@
+import { contributeMaintenance } from '../../packages/kernel/maintenance.ts';
 import { channelTextMode, deliveryPoint, replySubmission } from '../../packages/contracts/delivery.ts';
 import manifest from './echo-plugin.json' with { type: 'json' };
 import { createHash, randomUUID } from 'node:crypto';
@@ -11,7 +12,8 @@ import { Router } from '../../packages/kernel/router.ts';
 import { Events } from '../../packages/kernel/events.ts';
 import type { Deliveries } from '../../packages/kernel/delivery.ts';
 import { operations } from '../shared.ts';
-import { isAdditionalSignal, type TriggerActions } from '../../packages/kernel/trigger-actions.ts';
+import { hasScopedSignalKey } from '../../packages/contracts/legacy-signals.ts';
+import { type TriggerActions } from '../../packages/kernel/trigger-actions.ts';
 const bindingSchema = z.object({
   id: id.optional(),
   adapter: z.string().min(1),
@@ -41,6 +43,7 @@ const deliveryResult = z.object({
 });
 export class Channels {
   private ctx?: PluginContext;
+  private paused = false;
   private work = new Set<Promise<unknown>>();
   constructor(
     readonly store: Store,
@@ -49,6 +52,9 @@ export class Channels {
     readonly triggerActions: TriggerActions,
     readonly deliveries: Deliveries,
   ) {}
+  get sending() {
+    return !!this.store.db.prepare("SELECT 1 FROM documents WHERE namespace='channel-outbound' AND json_extract(data,'$.state')='sending' LIMIT 1").get();
+  }
   private track(work: Promise<unknown>) {
     this.work.add(work);
     void work.catch(() => {}).finally(() => this.work.delete(work));
@@ -132,7 +138,7 @@ export class Channels {
   private async deliverPending(key: string) {
     const ctx = this.ctx;
     const row = this.store.document<any>('channel-outbound', key);
-    if (!ctx || row?.state !== 'pending') return row;
+    if (!ctx || this.paused || this.deliveries.dispatchPaused || row?.state !== 'pending') return row;
     const binding = this.store.document<Binding>('channel-bindings', row.bindingId);
     const message = this.store.message(row.messageId);
     const run = message?.runId ? this.store.run(message.runId) : undefined;
@@ -189,13 +195,13 @@ export class Channels {
     if (!run) {
       if (message.source !== 'notification') return false;
       const kind = message.meta.triggerKind;
-      return isAdditionalSignal(kind)
+      return hasScopedSignalKey(kind)
         ? (binding.automaticTriggerKinds ?? []).includes(kind)
         : binding.automaticSources.includes('notification');
     }
     const origin = run.meta.origin as { bindingId: string } | undefined;
     if (origin) return binding.id === origin.bindingId;
-    if (run.source === 'trigger' && isAdditionalSignal(run.meta.triggerKind))
+    if (run.source === 'trigger' && hasScopedSignalKey(run.meta.triggerKind))
       return (binding.automaticTriggerKinds ?? []).includes(run.meta.triggerKind);
     return binding.automaticSources.includes(run.source as any);
   }
@@ -226,6 +232,11 @@ export class Channels {
           })),
       activate: (ctx) => {
         this.ctx = ctx;
+        this.paused = false;
+        contributeMaintenance(ctx.capabilities,'channels.outbound','通道发送',{
+          prepare:() => { this.paused = true; }, blockers:() => this.sending ? ['消息仍在投递'] : [],
+          resume:() => { this.paused = false; this.flush(); },
+        });
         ctx.dispose(this.events.subscribe(event => {
           if (event.type !== 'character.activity.changed' || event.data.enabled) return;
           for (const row of this.store.documents<any>('channel-outbound')) {
@@ -294,14 +305,13 @@ export class Channels {
         op(
           'list',
           'Bindings, discovered peers and delivery receipts',
-          z.object({}),
+          z.object({ before: id.optional(), limit: z.number().int().min(1).max(200).default(200) }),
           'channels.read',
-          () => ({
+          (v) => ({
             bindings: this.bindings(),
             peers: this.store.documents('channel-peers'),
             deliveries: this.store
-              .documents<any>('channel-outbound')
-              .slice(-200)
+              .documentHistory<any>('channel-outbound', 'createdAt', v.limit, v.before, true)
               .map(({ payload, receipt, ...row }) => ({
                 ...row,
                 receiptAvailable: receipt !== undefined,
@@ -309,7 +319,7 @@ export class Channels {
             adapters: ctx.capabilities.list('channels.send@1'),
             triggerSources: this.triggerActions
               .sources()
-              .filter((source) => isAdditionalSignal(source.id)),
+              .filter((source) => hasScopedSignalKey(source.id)),
           }),
         );
         op(
@@ -319,7 +329,7 @@ export class Channels {
           'channels.write',
           (v) => {
             invariant(
-              v.automaticTriggerKinds.every(isAdditionalSignal),
+              v.automaticTriggerKinds.every(hasScopedSignalKey),
               'channel_source',
               '内建来源的投递范围由专用选项管理。',
             );
@@ -426,7 +436,8 @@ export class Channels {
         );
         ctx.dispose(
           this.events.subscribe((e) => {
-            if (e.type === 'run.completed' || e.type === 'message.posted') this.flush();
+            if (e.type === 'run.completed' || e.type === 'message.posted' ||
+                (e.type === 'system.maintenance' && e.data.paused === false)) this.flush();
           }),
         );
         ctx.capabilities.subscribe(() => this.flush());

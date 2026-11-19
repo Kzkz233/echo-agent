@@ -1648,9 +1648,18 @@ function Backends() {
 }
 function ExtensionSettings() {
   const { data, act } = useApp();
-  const [section, setSection] = useState<'plugins' | 'mcp'>('plugins');
+  const selectedServer = () => {
+    const target = sessionStorage.getItem('echo.plugin') ?? '';
+    return target.startsWith('external-mcp:') ? target.slice('external-mcp:'.length) : undefined;
+  };
+  const [serverId, setServerId] = useState(selectedServer);
+  const [section, setSection] = useState<'plugins' | 'mcp'>(() => serverId ? 'mcp' : 'plugins');
   useEffect(() => {
-    const selectPlugin = () => setSection('plugins');
+    const selectPlugin = () => {
+      const id = selectedServer();
+      setServerId(id);
+      setSection(id ? 'mcp' : 'plugins');
+    };
     window.addEventListener('echo:selection', selectPlugin);
     return () => window.removeEventListener('echo:selection', selectPlugin);
   }, []);
@@ -1680,7 +1689,7 @@ function ExtensionSettings() {
       {section === 'plugins' ? (
         <Plugins />
       ) : (
-        <ExternalMcpView servers={data.externalMcpServers ?? []} act={act} />
+        <ExternalMcpView key={serverId} initialId={serverId} servers={data.externalMcpServers ?? []} act={act} />
       )}
     </>
   );
@@ -2040,7 +2049,9 @@ function observationState(
 }
 function Observation() {
   const { data } = useApp();
-  const tasks: ObservationConfig[] = data.observationTasks;
+  const [statuses, setStatuses] = useState<any[]>();
+  const [readError, setReadError] = useState('');
+  const tasks: ObservationConfig[] = (statuses ?? []).map((entry) => entry.config);
   const [selectedId, setSelectedId] = useState(() => {
     const pending = sessionStorage.getItem('echo.automation.open');
     const target = pending ? JSON.parse(pending) : undefined;
@@ -2055,12 +2066,15 @@ function Observation() {
     if (pending && JSON.parse(pending).type === 'observation.tasks')
       sessionStorage.removeItem('echo.automation.open');
   }, []);
-  const [statuses, setStatuses] = useState<any[]>([]);
   const revision = useRef(0);
   const load = async () => {
     const ticket = ++revision.current;
-    const result = await rpc<any>('observation.status');
-    if (ticket === revision.current) setStatuses(result.tasks);
+    try {
+      const result = await rpc<any>('observation.status');
+      if (ticket === revision.current) { setStatuses(result.tasks); setReadError(''); }
+    } catch (error) {
+      if (ticket === revision.current) setReadError(String(error));
+    }
   };
   useEffect(() => {
     const refresh = () => void load().catch(() => {});
@@ -2077,8 +2091,8 @@ function Observation() {
       window.removeEventListener('echo-event', fn);
     };
   }, []);
-  const status = statuses.find((entry) => entry.id === value?.id)?.status;
-  const recent = statuses.find((entry) => entry.id === value?.id)?.recent ?? [];
+  const status = statuses?.find((entry) => entry.id === value?.id)?.status;
+  const recent = statuses?.find((entry) => entry.id === value?.id)?.recent ?? [];
   const select = (task: ObservationConfig) => {
     sessionStorage.setItem('echo.observation.task', task.id);
     setSelectedId(task.id);
@@ -2091,7 +2105,7 @@ function Observation() {
       </div>
       <div className="observation-task-list" aria-label={t('观察任务')}>
         {tasks.map((task) => {
-          const current = statuses.find((entry) => entry.id === task.id)?.status;
+          const current = statuses?.find((entry) => entry.id === task.id)?.status;
           return (
             <button
               key={task.id}
@@ -2111,8 +2125,9 @@ function Observation() {
           );
         })}
       </div>
+      {readError && <div role="alert">{readError} <Button secondary onClick={load}>{t('重试')}</Button></div>}
       {!value ? (
-        <Empty>{t('还没有观察任务。')}</Empty>
+        !readError && <Empty>{t(statuses ? '还没有观察任务。' : '正在打开…')}</Empty>
       ) : (
         <>
           <div className="observation-status-view">

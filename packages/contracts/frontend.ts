@@ -3,6 +3,7 @@ const operation = z.string().regex(/^[a-z][A-Za-z0-9_.-]{1,199}$/);
 export const frontendField = z.object({
   key: z.string().regex(/^[a-zA-Z][A-Za-z0-9_.-]{0,79}$/),
   label: z.string().min(1).max(200),
+  readOnly:z.boolean().optional(),
   type: z.enum(['text', 'textarea', 'number', 'boolean', 'select']),
   options: z
     .array(z.object({ value: z.string(), label: z.string() }))
@@ -25,6 +26,7 @@ export const frontendPageSchema = z.object({
       type: z.literal('form'),
       load: operation,
       save: operation.optional(),
+      submitLabel:z.string().min(1).max(80).optional(),
       fields: z.array(frontendField).max(100),
       personaField: z.string().max(80).optional(),
     }),

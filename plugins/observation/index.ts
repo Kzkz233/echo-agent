@@ -7,7 +7,7 @@ import { inferenceTasks } from '../../packages/contracts/inference.ts';
 import packageManifest from './echo-plugin.json' with { type: 'json' };
 import { defineManifest } from '../../packages/kernel/registry.ts';
 import { randomUUID, createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, unlink } from 'node:fs/promises';
+import { mkdir, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { appendFileSync, existsSync } from 'node:fs';
 import { z } from 'zod';
@@ -29,7 +29,7 @@ import { Events } from '../../packages/kernel/events.ts';
 import { Files } from '../files/index.ts';
 import type { Plugin } from '../../packages/kernel/registry.ts';
 import { localDay, localTimestamp, configuredTimezone } from '../../packages/kernel/time.ts';
-import { MaterialSources, materialWatermarkKey } from '../../packages/kernel/materials.ts';
+import { MaterialSources } from '../../packages/kernel/materials.ts';
 import { defineSourceReaders, contributeSourceReader, sourceReaderPoint, sourceReaderSchema } from './source-readers.ts';
 
 const LEGACY_DEFAULT_OCCLUSION_RULE_IDS = new Set([
@@ -1038,7 +1038,7 @@ export class Observations {
       JSON.stringify(observation) + '\n',
     );
     this.store.put('observations', observation.id, observation);
-    // Runtime's indexed recent window is bounded; daily verbatim text remains until archive succeeds.
+    // Runtime's indexed recent window is bounded; daily verbatim text is retained independently of the archive.
     const recent = this.store
       .documents<Observation>('observations')
       .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
@@ -1082,7 +1082,6 @@ export class Observations {
       groups.set(key, group);
     }
     const results = [];
-    const verified = new Map<string, Set<string>>();
     for (const [key, currentRows] of groups) {
       const receipt = this.store.receipt('archive-' + key);
       const merged = new Map<string, Observation>();
@@ -1119,7 +1118,6 @@ export class Observations {
       );
       const text = rows.map((o) => JSON.stringify(o)).join('\n') + '\n';
       const hash = createHash('sha256').update(text).digest('hex');
-      verified.set(key, new Set(rows.map((row) => row.id)));
       if (receipt?.hash === hash && receipt.state === 'completed') continue;
       const [personaId, date] = key.split('/');
       const saved = await this.files.entries.save(
@@ -1135,32 +1133,6 @@ export class Observations {
       );
       this.store.saveReceipt('archive-' + key, { state: 'completed', hash, documentId: saved.id });
       results.push(saved);
-    }
-    // Remove only old raw files whose every record was verified in the durable archive.
-    const directory = join(this.runtime, 'observations');
-    const cutoff = localDay(new Date(Date.now() - 7 * 86400000), timezone);
-    for (const file of await readdir(directory).catch(() => [] as string[])) {
-      if (!/^\d{4}-\d\d-\d\d\.jsonl$/.test(file)) continue;
-      const rows = (await readFile(join(directory, file), 'utf8'))
-        .split('\n')
-        .filter(Boolean)
-        .map((line) => JSON.parse(line) as Observation);
-      if (
-        rows.length &&
-        rows.every((row) => {
-          const date = localDay(new Date(row.timestamp), timezone);
-          const source = 'observation.source';
-          const reviewed = this.store.get<{ timestamp: string; id: string }>(
-            materialWatermarkKey(source, row.personaId, row.taskId ?? 'default'),
-            this.store.get(materialWatermarkKey(source, row.personaId), { timestamp: '', id: '' }),
-          );
-          const consumed =
-            row.timestamp < reviewed.timestamp ||
-            (row.timestamp === reviewed.timestamp && row.id <= reviewed.id);
-          return date < cutoff && consumed && verified.get(`${row.personaId}/${date}`)?.has(row.id);
-        })
-      )
-        await unlink(join(directory, file));
     }
     return results;
   }
@@ -1215,7 +1187,7 @@ export class Observations {
           for (const task of this.tasks.values()) task.stop();
           this.syncSampler();
         });
-        contributeSignal(ctx, 'observation.interesting', '实时观察线索', 'conversation');
+        contributeSignal(ctx, 'observation.interesting', '实时观察线索', 'conversation', { messageSource:'observation' });
         contributeAutomation({ capabilities }, 'observation.tasks', '实时观察', {
           save: (id, settings) =>
             this.configure(observationConfigSchema.parse({ ...settings, id })),
@@ -1311,7 +1283,8 @@ export class Observations {
                 max: 86400,
               },
             ],
-            items: this.configurations().map((config) => {
+          }),
+          items: () => this.configurations().map((config) => {
               const state = this.status(config.id);
               const role = this.store.document<{ name: string }>('personas', config.personaId);
               return {
@@ -1332,7 +1305,6 @@ export class Observations {
                 lastAt: state.lastSuccess || undefined,
               };
             }),
-          }),
         });
         contributeInferenceTask(
           { capabilities },
@@ -1442,6 +1414,7 @@ export class Observations {
                 .slice(-50),
               tasks: configurations.map((config) => ({
                 id: config.id,
+                ...(caller.kind === 'ui' ? { config } : {}),
                 status: this.status(config.id),
                 recent: recent
                   .filter(

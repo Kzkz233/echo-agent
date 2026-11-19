@@ -5,6 +5,29 @@ import { t } from './i18n.ts';
 import type { Attachment } from '../../../packages/contracts/execution.ts';
 import type { ReplyImage } from '../../../packages/contracts/index.ts';
 
+export function MessageAttachments({ message }: { message: { conversationId: string; meta: Record<string, unknown> } }) {
+  const [error, setError] = useState('');
+  const files = (message.meta.deliveredFiles ?? message.meta.attachments ?? []) as Pick<Attachment, 'id' | 'name'>[];
+  const desktop = '__TAURI_INTERNALS__' in window;
+  async function openFile(id: string) {
+    setError('');
+    const params = { conversationId: message.conversationId, attachmentId: id };
+    try {
+      if (desktop) { await rpc('conversations.revealAttachment', params); return; }
+      const file = await rpc('conversations.downloadAttachment', params);
+      const bytes = Uint8Array.from(atob(file.data), char => char.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch (issue) { setError(String(issue)); }
+  }
+  return <>{files.map(file => <button type="button" className="attachment-chip" key={file.id}
+    title={desktop ? t('在文件夹中显示') : t('下载附件')} onClick={() => void openFile(file.id)}>{file.name}</button>)}
+    {error && <small role="alert">{error}</small>}</>;
+}
 export function ReplyImageView({ image }: { image: ReplyImage }) {
   const [url, setUrl] = useState('');
   useEffect(() => {

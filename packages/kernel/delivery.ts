@@ -82,6 +82,7 @@ export class Deliveries {
               revision: '1',
               portable: true,
               supportsImages: true,
+              supportsFiles: true,
               style: 'chat',
               legacySources: ['*'],
             },
@@ -115,6 +116,7 @@ export class Deliveries {
               presentationOnly: true,
               outputId: e.id,
               outputSource: e.plan.source,
+              ...(e.attachmentIds?.length ? { deliveredFiles: this.router.attachments.metadata(e.attachmentIds, e.conversationId) } : {}),
               delivery: e.plan,
             },
           );
@@ -245,6 +247,7 @@ export class Deliveries {
         text: message.text,
         title: message.meta.replyTitle as OutputEnvelope['title'],
         parts: message.meta.replyParts as OutputEnvelope['parts'],
+        ...(message.meta.replyAttachmentIds ? { attachmentIds: message.meta.replyAttachmentIds as string[] } : {}),
         plan,
       },
       true,
@@ -347,8 +350,16 @@ export class Deliveries {
         .all(...conditions.map(([, value]) => value!)) as { data: string }[]
     ).map((row) => JSON.parse(row.data) as OutputEnvelope);
   }
-  private flush() {
-    if (this.life.signal.aborted) return;
+  private paused = false;
+  get busy() { return this.running.size > 0; }
+  get dispatchPaused() { return this.paused; }
+  pauseForUpdate() { this.paused = true; }
+  resumeAfterUpdateFailure() {
+    this.paused = false;
+    this.flush();
+  }
+  flush() {
+    if (this.paused || this.life.signal.aborted) return;
     for (const row of this.states(['pending'])
       .filter((row) => !this.running.has(row.id))
       .slice(0, Math.max(0, 16 - this.running.size)))
@@ -357,6 +368,7 @@ export class Deliveries {
   private deliver(id: string, outer = this.life.signal): Promise<unknown> {
     const active = this.running.get(id);
     if (active) return active;
+    if (this.paused) return Promise.resolve();
     const row = this.store.document<Receipt>('output-deliveries', id);
     const output = row && this.store.document<OutputEnvelope>('outputs', row.outputId);
     if (row?.state !== 'pending' || !output) return Promise.resolve(row);

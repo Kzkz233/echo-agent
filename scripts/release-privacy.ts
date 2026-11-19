@@ -97,7 +97,9 @@ export async function auditReleaseTree(
         continue;
       }
       if (
-        /(?:^|\/)\.env(?:[./]|$)|\.(?:db3?|sqlite3?(?:-wal|-shm)?|enl[xw]?|jsonl|ndjson|key|pem|pfx)$/i.test(name) ||
+        /(?:^|\/)\.env(?:[./]|$)|\.(?:db3?|sqlite3?(?:-wal|-shm|-journal)?|enl[xw]?|jsonl|ndjson|dpapi|key|pem|pfx)$/i.test(name) ||
+        /(?:^|\/)(?:zotero\.sqlite(?:[.-].*)?|\.zotero-ft-(?:cache|info)|rclone\.conf(?:\.old)?|logins\.json)$/i.test(name) ||
+        /(?:^|\/)zotero\/(?:storage|profiles)(?:\/|$)/i.test(name) ||
         (firstParty &&
           /(?:^|\/)(?:credentials|vaults?|libraries|observations|avatar-assets|private|harnesses|backups|exports|test-results|connection\.json|instance\.lock)(?:\/|$)/i.test(name))
       ) {

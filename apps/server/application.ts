@@ -1,3 +1,5 @@
+import { Maintenance, contributeMaintenance } from '../../packages/kernel/maintenance.ts';
+import { recordedTasks, taskHistory } from '../../packages/kernel/task-history.ts';
 import { Deliveries } from '../../packages/kernel/delivery.ts';
 import { characterActive, characterEnabled } from '../../packages/kernel/characters.ts';
 import { registerStarterCharacters } from './starter-characters.ts';
@@ -7,7 +9,6 @@ import {
   modelServicesComponent,
 } from '../../packages/kernel/core-components.ts';
 import { configuredTimezone } from '../../packages/kernel/time.ts';
-import { roleAvatar } from '../../plugins/avatar/profiles.ts';
 import { MailTriggers } from '../../plugins/mail-triggers/index.ts';
 import { chatStickPlugin } from '../../plugins/chatstick/index.ts';
 import { defineCharacterFeatures, managedConversation } from '../../packages/kernel/characters.ts';
@@ -66,6 +67,9 @@ import { Reflections } from '../../plugins/reflections/index.ts';
 import { Documents } from '../../plugins/documents/index.ts';
 import { SpeechRecognition } from '../../plugins/asr/index.ts';
 import { Mailbox } from '../../plugins/mail/index.ts';
+import { zoteroPlugin } from '../../plugins/zotero/index.ts';
+import { browserPlugin } from '../../plugins/browser-use/index.ts';
+import { computerPlugin } from '../../plugins/computer-use/index.ts';
 import { Backups } from '../../plugins/backup/index.ts';
 import { Notifications } from '../../plugins/notifications/index.ts';
 import { Approvals } from '../../plugins/approvals/index.ts';
@@ -151,17 +155,8 @@ export class Application {
     this.store = new Store(join(runtime, 'echo.sqlite'));
     this.updates = new Updates(project, runtime);
     this.router = new Router(this.store, this.events, this.capabilities);
-    this.updates.register(this.registry, () => {
-      invariant(!this.clock.active && !this.store.documents<any>('channel-outbound').some(row => row.state === 'sending'),
-        'update_busy', '后台任务或消息投递仍在执行，请完成后再更新。');
-      this.registry.beginUpdate();
-      this.router.pauseForUpdate();
-      this.clock.pause();
-    }, () => {
-      this.registry.resumeAfterUpdateFailure();
-      this.router.resumeAfterUpdateFailure();
-      this.clock.resume();
-    }, () => { void this.lifecycle.resumeSaved(); });
+    this.updates.register(this.registry, () => this.lifecycle.freeze(),
+      () => this.lifecycle.restore(), () => { void this.lifecycle.resumeSaved(); });
     this.secrets = new Secrets(join(runtime, 'credentials'));
     this.api = new ApiBackend((ref) => this.secrets.get(ref));
     this.router.backends.set('api', this.api);
@@ -254,7 +249,14 @@ export class Application {
     );
     this.automation = new Automation(core);
     this.jobs = new Jobs(core);
-    this.lifecycle = new Lifecycle(this);
+    const maintenance = new Maintenance(core);
+    contributeMaintenance(core,'core.execution','会话与定时执行',{
+      prepare:() => { this.router.pauseAdmission(); this.clock.pause(); },
+      blockers:() => this.router.idle && !this.clock.active ? [] : ['后台执行尚未到达安全点'],
+      seal:() => this.router.pauseForUpdate(),
+      resume:() => { this.router.resumeAfterUpdateFailure(); this.clock.resume(); },
+    });
+    this.lifecycle = new Lifecycle({store:this.store,events:this.events,registry:this.registry,jobs:this.jobs,updates:this.updates}, maintenance);
     this.lifecycle.register();
     this.cli = new CliCatalog(core, this.registry);
     this.badges = new Badges(core, this.store);
@@ -286,6 +288,10 @@ export class Application {
           createdAt: run.createdAt, ...(run.error ? { error: run.error } : {}), controls: run.state === 'running' ? ['cancel'] : [] };
       }) }; });
     this.deliveries = new Deliveries(this.store, this.router, this.events, core);
+    contributeMaintenance(core,'core.output','渠道投递',{
+      prepare:() => this.deliveries.pauseForUpdate(), blockers:() => this.deliveries.busy ? ['消息仍在投递'] : [],
+      resume:() => this.deliveries.resumeAfterUpdateFailure(),
+    });
     this.triggerActions = new TriggerActions(core, this.router, this.automation, this.deliveries);
     this.retrieval.define(core);
     defineAutomation(core);
@@ -298,7 +304,7 @@ export class Application {
     this.assets = new Assets(this.store, this.files, this.events);
     this.care = new Care(this.store, this.router, this.events, this.clock, this.triggerActions);
     this.mail = new Mailbox(this.store, this.secrets, this.materials, this.events);
-    this.backups = new Backups(this.store, project);
+    this.backups = new Backups(this.store, project,()=>[...this.plugins.plugins.values()].map(({manifest})=>({owner:manifest.id,paths:manifest.storagePaths??[]})));
     this.notifications = new Notifications(this.store, this.events, this.router);
     this.approvals = new Approvals(this.store, this.events);
     this.channels = new Channels(this.store, this.router, this.events, this.triggerActions, this.deliveries);
@@ -368,6 +374,9 @@ export class Application {
       this.mail.plugin(),
       this.mailTriggers.plugin(),
       this.backups.plugin(),
+      zoteroPlugin(this.store,this.secrets,this.files,this.knowledge),
+      browserPlugin(this.store,this.router.attachments),
+      computerPlugin(this.store,nativePath,runtime),
       this.approvals.plugin(),
       this.qq.plugin(),
       new MailActions(this.store, this.mail, this.approvals).plugin(),
@@ -522,10 +531,11 @@ export class Application {
             await app.automation.mutate(type.id,{action:'save',id:item.id,settings:{...settings,outputTargets:plan.targets.map(t=>t.id)}},new AbortController().signal);
           }
         }
-        app.store.set('outputs.taskMigration.v1',true);
+        if (!catalog.unavailable.length) app.store.set('outputs.taskMigration.v1',true);
       }
       await app.router.inference.refresh();
       app.router.resumeSubmissions();
+      app.deliveries.flush();
       return app;
     } catch (error) {
       await app.close().catch(() => {});
@@ -574,25 +584,40 @@ export class Application {
         providers: this.capabilities.list(),
         listeners: this.events.listeners,
         scheduledAlarms: this.clock.pending,
-        observation: this.observations.status(),
+        observation: this.plugins.active.has('observation') ? this.observations.status() : undefined,
         memoryIssue: this.store.get('semantic.lastIssue', null),
         activeRuns: this.store.unresolved().filter((r) => r.state === 'running').length,
       }),
       true,
     );
-    op(
-      'automation.catalog',
-      '读取已注册的自动化任务类型和任务',
-      z.object({}),
-      'automation.read',
-      async (_v, _c, signal) => {
-        const catalog = await this.automation.catalog(signal);
-        return { ...catalog, types: catalog.types.map(type => ({...type, items: type.items.map(item => {
-          const personaId = item.personaId || item.settings?.personaId as string | undefined || this.store.conversation(String(item.settings?.conversationId ?? ''))?.personaId;
-          return personaId && !characterActive(this.store, personaId) ? {...item, state: 'paused', nextAt: undefined, suspendedByCharacter: true} : item;
-        })})), sources: this.triggerActions.sources() };
-      },
-    );
+    for (const [name, view] of [['automation.catalog', undefined], ['automation.types','definition'], ['automation.instances','instances']] as const) {
+      op(name, '读取自动化任务', z.object({ type:id.optional() }), 'automation.read', async (value, _caller, signal) => {
+        const catalog = await this.automation.catalog(signal, view, value.type);
+        if (view === 'definition') return { ...catalog, sources:this.triggerActions.sources() };
+        const types = catalog.types.map(type => {
+          const items = type.items.map(item => {
+            const personaId = item.personaId || item.settings?.personaId as string | undefined || this.store.conversation(String(item.settings?.conversationId ?? ''))?.personaId;
+            return personaId && !characterActive(this.store, personaId) ? {...item, state:'paused', nextAt:undefined, suspendedByCharacter:true} : item;
+          });
+          return view === 'instances' ? { id:type.id, items } : { ...type, items };
+        });
+        return { ...catalog, types, ...(view ? {} : { sources:this.triggerActions.sources() }) };
+      });
+    }
+    op('automation.recordedTasks','读取角色的历史任务',z.object({personaId:id}),'automation.read',(v,caller) => {
+      invariant(!caller.personaId || caller.personaId === v.personaId,'task_owner','只能读取当前角色的任务。');
+      return recordedTasks(this.store,v.personaId);
+    });
+    op('automation.history', '读取任务结果及其主会话和投递记录', z.object({ type:id, id, personaId:id.optional() }), 'automation.read',
+      (v,caller) => {
+        invariant(!caller.personaId || !v.personaId || caller.personaId === v.personaId, 'task_owner','只能读取当前角色的任务。');
+        const personaId = caller.personaId ?? v.personaId;
+        const results = taskHistory(this.store,this.deliveries,v.type,v.id,personaId);
+        const linked = new Set(results.flatMap(r => r.outputs.map(o => o.id)));
+        const otherOutputs = this.deliveries.recent({ personaId,taskType:v.type,taskId:v.id }).filter(o => !linked.has(o.id))
+          .map(o => ({ ...o, deliveries:this.deliveries.rows(o.id) }));
+        return { results,otherOutputs };
+      });
     op('work.list', '读取角色的全部工作会话', z.object({ personaId: id.optional() }), 'delegation.read',
       (value, caller) => {
         invariant(!caller.personaId || !value.personaId || caller.personaId === value.personaId, 'work_owner', '只能读取当前角色的工作会话。');
@@ -743,6 +768,15 @@ export class Application {
     });
     op('system.bootstrap', '读取工作台配置', z.object({}), 'system.read', async () => {
       await this.router.inference.refresh();
+      const plugins = this.plugins.list();
+      const pluginSettings = Object.fromEntries(plugins.map((plugin) => {
+        const saved = this.store.get<Record<string, unknown>>(plugin.id + '.config', {});
+        const schema = this.plugins.plugins.get(plugin.id)?.config?.schema;
+        const effective = schema?.safeParse(saved);
+        if (effective?.success) return [plugin.id, effective.data as Record<string, unknown>];
+        const defaults = schema?.safeParse({});
+        return [plugin.id, { ...(defaults?.success ? defaults.data as object : {}), ...saved }];
+      })) as Record<string, Record<string, unknown>>;
       return {
         version,
         clock: { timezone: configuredTimezone(this.store) },
@@ -771,45 +805,30 @@ export class Application {
               : undefined,
           };
         }),
-        plugins: this.plugins.list(),
+        plugins: plugins.map((plugin) => {
+          const required = plugin.settings.filter((field) => field.toolSetupHint);
+          if (!required.length) return plugin;
+          const validate = this.plugins.plugins.get(plugin.id)?.config?.toolSettingReady;
+          const missing = required.filter(({ key }) => {
+            const value = pluginSettings[plugin.id][key];
+            if (validate) return !validate(key, value);
+            if (typeof value === 'string') return !value.trim();
+            if (Array.isArray(value)) return !value.length;
+            return value == null || value === false;
+          }).map((field) => field.toolSetupHint!);
+          return { ...plugin, toolSetup: { missing: [...new Set(missing)] } };
+        }),
         extensionPoints: this.capabilities.points(),
         providers: this.capabilities.list(),
-        pluginSettings: Object.fromEntries(
-          this.plugins
-            .list()
-            .map((p) => {
-              const saved=this.store.get<Record<string,unknown>>(p.id+'.config',{});
-              const schema=this.plugins.plugins.get(p.id)?.config?.schema;
-              const effective=schema?.safeParse(saved),defaults=schema?.safeParse({});
-              // Project effective defaults without rewriting persisted settings.
-              return [p.id,effective?.success?effective.data:{...(defaults?.success?defaults.data as object:{}),...saved}];
-            }),
-        ),
+        pluginSettings,
         personas: this.store.documents('personas'),
         characters: this.store.documents('characters'),
         characterActivities: Object.fromEntries(this.store.documents<any>('personas').map(p => [p.id, this.store.get('character.activity.' + p.id, { enabled: true, revision: 0 })])),
         groups: this.store.documents('groups'),
-        delegatedTasks: this.store
-          .documents<any>('delegated-tasks')
-          .slice(-50)
-          .map(({ context, result, checkpoint, ...task }) => task),
         pendingInteractions: this.store
           .conversations()
           .flatMap((c) => this.router.interactions.list(c.id)),
-        memoryConfig: this.memories.config(),
-        ragConfig: this.semantic.config(),
-        observationTasks: this.observations.configurations(),
-        avatarProfiles: Object.fromEntries(
-          this.store
-            .documents<{ id: string }>('personas')
-            .map(({ id }) => [id, roleAvatar(this.store, id)]),
-        ),
-        avatarConfig: this.store.get('avatar.config', {
-          enabled: false,
-          scale: 1,
-          bubbleSeconds: 25,
-        }),
-        vaults: this.knowledge.vaults(),
+        vaults: this.files.roots(),
         workSessions: this.router.workSessions.list(),
         mailAccounts: this.store.documents<{ id: string; name: string }>('mail-accounts')
           .map(({ id, name }) => ({ id, name })),
@@ -836,7 +855,7 @@ export class Application {
             entries.set(operation.permission, entry);
           }
           const externalTools = new Map(this.externalMcp.list().flatMap((server) => server.tools.map((tool) => [tool.permission, {
-            external: { server: server.name, tool: tool.title, available: entries.has(tool.permission) },
+            external: { serverId: server.id, server: server.name, tool: tool.title, available: entries.has(tool.permission) },
           }] as const)));
           return [...[...entries].map(([permission, entry]) => ({
             permission,
@@ -1404,15 +1423,16 @@ export class Application {
         after: z.number().int().min(0).default(0),
         before: z.number().int().min(1).optional(),
         latest: z.boolean().default(true),
+        view: z.enum(['session', 'dialogue']).default('session'),
         limit: z.number().int().min(1).max(1000).default(200),
       }),
       'conversation.read',
       (v) => ({
         busy: this.router.isBusy(v.id),
-        messages:
-          v.latest && !v.after
-            ? this.store.historyPage(v.id, v.limit, v.before)
-            : this.store.messages(v.id, v.after, v.limit),
+        ...this.store.conversationPage(v.id, v.limit, {
+          dialogue: v.view === 'dialogue',
+          ...(v.latest && !v.after ? { before: v.before } : { after: v.after }),
+        }),
         binding: this.store.binding(v.id),
         inputs: this.router.inputs(v.id),
       }),
@@ -1491,18 +1511,34 @@ export class Application {
     );
     op(
       'conversations.attach',
-      '为会话添加图片或文本附件',
+      '为会话添加文件或图片',
       attachmentInput,
       'conversation.write',
       (v) => this.router.attachments.add(v.conversationId, v.name, v.mediaType, v.data),
     );
     op(
       'conversations.attachProjectFile',
-      '引用当前项目中的文本文件',
+      '引用当前项目中的文件',
       z.object({ conversationId: id, path: z.string().min(1).max(4096) }),
       'conversation.write',
       (v) => this.router.attachments.projectFile(v.conversationId, v.path),
     );
+    op('conversations.downloadAttachment', '读取已附在当前会话的文件',
+      z.object({ conversationId: id, attachmentId: id }), 'conversation.read',
+      (v, caller) => {
+        invariant(caller.kind === 'ui', 'permission_actor', '请在会话中打开附件。');
+        return this.router.attachments.download(v.conversationId, v.attachmentId);
+      });
+    op('conversations.revealAttachment', '在文件夹中显示会话附件',
+      z.object({ conversationId: id, attachmentId: id }), 'conversation.read', (v, caller) => {
+        invariant(caller.kind === 'ui', 'permission_actor', '请在会话中打开附件。');
+        return this.router.attachments.reveal(v.conversationId, v.attachmentId);
+      });
+    op('conversations.publishFile', '将当前项目中的文件保存为可通过 echo_respond 的 attachmentIds 交付的快照',
+      z.object({ path: z.string().min(1).max(4096) }), 'files.read', (v, caller) => {
+        invariant(caller.conversationId, 'missing_conversation', '此操作需要会话身份。');
+        return this.router.attachments.projectFile(caller.conversationId, v.path, true);
+      }, true);
     op('runs.items', '读取运行过程', z.object({ runId: id }), 'conversation.read', (v) =>
       this.router.execution.list(v.runId),
     );

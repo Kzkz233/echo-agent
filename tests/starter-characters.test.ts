@@ -1,3 +1,5 @@
+import { editedCharacter, taskKey } from '../plugins/persona/character-edits.ts';
+import { characterDraft } from '../plugins/persona/character-contracts.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -238,7 +240,10 @@ test('v2 example refresh upgrades untouched text while preserving local prompts,
       tasks: [],
     },
   };
-  await call('persona.character.commit', { draft, requestId: 'legacy' });
+  const base = characterDraft.parse(current);
+  const oldCareTask = base.tasks.find(t => t.id === 'example-hina-care')!;
+  await call('persona.character.patch',{id:base.persona.id,requestId:'legacy',
+    changes:editedCharacter(base,characterDraft.parse(draft),new Set([taskKey(oldCareTask)]))});
   await call('characters.setActive', {
     personaId: 'example-hina',
     enabled: false,

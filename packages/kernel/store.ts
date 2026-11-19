@@ -17,6 +17,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES conversations(id), seq INTEGER NOT NULL, data TEXT NOT NULL, UNIQUE(conversation_id,seq));
       CREATE INDEX IF NOT EXISTS messages_conversation ON messages(conversation_id,seq);
       CREATE INDEX IF NOT EXISTS messages_run ON messages(json_extract(data,'$.runId'));
+      CREATE INDEX IF NOT EXISTS messages_task_results ON messages(conversation_id,seq) WHERE json_extract(data,'$.meta.taskResultId') IS NOT NULL;
       CREATE INDEX IF NOT EXISTS messages_human_time ON messages(conversation_id,json_extract(data,'$.createdAt')) WHERE json_extract(data,'$.source')='human' AND json_extract(data,'$.role')='user';
       CREATE TABLE IF NOT EXISTS bindings (conversation_id TEXT PRIMARY KEY REFERENCES conversations(id), data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, request_id TEXT UNIQUE NOT NULL, conversation_id TEXT NOT NULL REFERENCES conversations(id), data TEXT NOT NULL);
@@ -97,6 +98,20 @@ export class Store {
         data: string;
       }[]
     ).map((r) => JSON.parse(r.data));
+  }
+  /** Newest first. The cursor is an existing record in this namespace. */
+  documentHistory<T>(ns: string, field: string, limit: number, before?: string, messageTime = false): T[] {
+    const joined = messageTime
+      ? " LEFT JOIN messages m ON m.id=json_extract(d.data,'$.messageId')"
+      : '';
+    const at = "COALESCE(json_extract(d.data,?)" +
+      (messageTime ? ",json_extract(m.data,'$.createdAt')" : '') + ",'')";
+    const sql = 'WITH history AS (SELECT d.id,d.data,' + at + ' AS at FROM documents d' + joined +
+      ' WHERE d.namespace=?) SELECT data FROM history' +
+      (before ? ' WHERE (at,id)<(SELECT at,id FROM history WHERE id=?)' : '') +
+      ' ORDER BY at DESC,id DESC LIMIT ?';
+    return this.db.prepare(sql).all('$.' + field, ns, ...(before ? [before] : []), limit)
+      .map(row => JSON.parse(String(row.data)));
   }
   put(ns: string, id: string, value: unknown) {
     this.db
@@ -224,18 +239,28 @@ export class Store {
       .reverse()
       .map((row) => JSON.parse(row.data));
   }
+  conversationPage(id: string, limit: number, options: { before?: number; after?: number; dialogue?: boolean } = {}) {
+    const { before, after, dialogue } = options;
+    const visible = dialogue ? ` AND (json_extract(data,'$.meta.workSession') IS NULL OR json_extract(data,'$.meta.workSession') IN (0,''))
+      AND (json_extract(data,'$.role') IN ('user','assistant') OR json_type(data,'$.meta.presentationOnly')='true')
+      AND (json_extract(data,'$.meta.delivery.targets') IS NULL OR EXISTS
+        (SELECT 1 FROM json_each(messages.data,'$.meta.delivery.targets') AS target
+         WHERE json_extract(target.value,'$.id')='core.chat'))` : '';
+    const conditions = ' FROM messages WHERE conversation_id=?' + visible;
+    const forward = after !== undefined;
+    const cutoff = forward ? ' AND seq>?' : before !== undefined ? ' AND seq<?' : '';
+    const bounds = forward ? [after] : before !== undefined ? [before] : [];
+    const rows = this.db.prepare('SELECT seq,data' + conditions + cutoff +
+      (forward ? ' ORDER BY seq ASC' : ' ORDER BY seq DESC') + ' LIMIT ?')
+      .all(id, ...bounds, limit + 1) as { seq: number; data: string }[];
+    const more = rows.length > limit;
+    if (more) rows.pop();
+    if (!forward) rows.reverse();
+    const hasOlder = forward ? !!(rows.length && this.db.prepare('SELECT 1' + conditions + ' AND seq<? LIMIT 1').get(id, rows[0].seq)) : more;
+    return { messages: rows.map(row => JSON.parse(row.data) as Message), hasOlder };
+  }
   historyPage(id: string, limit: number, before?: number): Message[] {
-    const rows =
-      before === undefined
-        ? this.db
-            .prepare('SELECT data FROM messages WHERE conversation_id=? ORDER BY seq DESC LIMIT ?')
-            .all(id, limit)
-        : this.db
-            .prepare(
-              'SELECT data FROM messages WHERE conversation_id=? AND seq<? ORDER BY seq DESC LIMIT ?',
-            )
-            .all(id, before, limit);
-    return (rows as { data: string }[]).reverse().map((row) => JSON.parse(row.data));
+    return this.conversationPage(id, limit, { before }).messages;
   }
   message(id: string): Message | undefined {
     const r = this.db.prepare('SELECT data FROM messages WHERE id=?').get(id) as any;

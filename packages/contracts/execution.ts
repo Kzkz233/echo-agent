@@ -45,7 +45,7 @@ export const attachmentInput = z.object({
   conversationId: z.string().min(1).max(160),
   name: z.string().min(1).max(160),
   mediaType: z.string().max(100),
-  data: z.string().min(1).max(11000000),
+  data: z.string().min(1).max(4 * Math.ceil(8 * 1024 * 1024 / 3)),
 });
 export type Attachment = {
   id: string;
@@ -53,6 +53,7 @@ export type Attachment = {
   name: string;
   mediaType: string;
   bytes: number;
-  kind: 'image' | 'text';
+  kind: 'image' | 'text' | 'file';
+  projectPath?: string;
   createdAt: string;
 };

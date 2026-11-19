@@ -358,13 +358,14 @@ function UtilityPage({ page, data, act, personaId, setPage, embedded = false }: 
                   {t('Verify')}{' '}
                 </Button>
                 {text('target', t('New empty data directory'))}
+                <label><input type="checkbox" checked={Boolean(form.migrate)} onChange={e=>set('migrate',e.target.checked)} /> {t('迁移到另一台设备，保留任务设置和已安装扩展')}</label>
                 <Button
                   disabled={busy}
                   onClick={async () => {
                     if (
                       await confirmAction({
                         title: t('恢复到新目录？'),
-                        description: t(
+                        description: form.migrate ? t('首次启动迁入库前，请先停止旧设备的自动化。迁入的扩展需手动启用，凭据需重新配置。') : t(
                           '只会写入指定的新空目录，不覆盖现有数据。恢复后自动功能保持关闭。',
                         ),
                         confirmLabel: t('开始恢复'),
@@ -375,6 +376,7 @@ function UtilityPage({ page, data, act, personaId, setPage, embedded = false }: 
                           directory: form.directory,
                           target: form.target,
                           confirmed: true,
+                          migrate:Boolean(form.migrate),
                         });
                         setMessage('Restored: ' + r.directory + ' · use ECHO_DATA_DIR to open it.');
                       });

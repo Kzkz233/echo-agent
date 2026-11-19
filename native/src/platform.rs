@@ -1199,7 +1199,9 @@ fn signature(image: &RgbImage) -> Vec<u8> {
     }
     result
 }
+mod desktop_controls;
 pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
+    if method.starts_with("desktop.") { return desktop_controls::handle(method,params); }
     let rules: Vec<Rule> =
         serde_json::from_value(params.get("allowlist").cloned().unwrap_or(json!([])))
             .map_err(|_| "白名单格式无效")?;

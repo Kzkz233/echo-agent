@@ -1,3 +1,4 @@
+import { editedCharacter, mergeCharacter, taskKey } from '../../../plugins/persona/character-edits.ts';
 import { modelDisplayName } from '../../../packages/contracts/model-services.ts';
 import { AvatarBehavior } from './avatar-behavior.tsx';
 import { PortraitEditor } from './character-portrait.tsx';
@@ -10,6 +11,7 @@ import { rpc } from './client.ts';
 import { t } from './i18n.ts';
 import { Button, PathInput, useConfirm, useUnsavedChanges, sameData, requestNavigation } from './ui.tsx';
 import { TaskField } from './automation-view.tsx';
+import { RolePluginTools, grantAction } from './role-plugin-tools.tsx';
 import { EchoToolSettings, PermissionSettings, SubtaskApprovalSettings } from './host-interactions.tsx';
 import { ReasoningSelect } from './reasoning-select.tsx';
 import { ModelChoice } from './model-choice.tsx';
@@ -90,6 +92,8 @@ export function CharacterWizard({
     return () => { active = false; window.removeEventListener('echo-event', listener); };
   }, [personaId, editorSection]);
   const confirm = useConfirm();
+  const editBase = useRef<CharacterDraft>(undefined);
+  const removals = useRef(new Set<string>());
   const baseline = useRef<unknown>(undefined);
   const requestId = useRef(crypto.randomUUID());
   useUnsavedChanges(Boolean(draft && !sameData(draft, baseline.current)), '角色配置');
@@ -138,6 +142,8 @@ export function CharacterWizard({
             : 0,
         );
         baseline.current = next;
+        editBase.current = saved ? next : undefined;
+        removals.current.clear();
       }
     })().catch((error) => setIssue(error.message));
     return () => {
@@ -230,7 +236,7 @@ export function CharacterWizard({
     const rows = f.resource === 'vault' ? data.vaults
       : f.resource === 'mailAccount' ? data.mailAccounts ?? []
       : f.resource === 'executor' ? data.profiles.filter((p:any)=>p.id!==draft.profileId&&modelEligible(p,{executor:true}))
-      : f.resource === 'permission' ? data.mcpPermissionCatalog.filter((p:any)=>draft.toolPermissions.includes(p.permission)).map((p:any)=>({id:p.permission,name:p.external ? `${t(p.external.server)} · ${p.external.tool}` : p.owners.map((id:string)=>t(data.plugins.find((plugin:any)=>plugin.id===id)?.name??'共享模块')).join(' · ')+' · '+t(p.permission.endsWith('.read')?'读取':p.permission.endsWith('.write')?'修改':'调用')})) : [];
+      : f.resource === 'permission' ? data.mcpPermissionCatalog.filter((p:any)=>draft.toolPermissions.includes(p.permission)).map((p:any)=>({id:p.permission,name:p.external ? `${t(p.external.server)} · ${p.external.tool}` : p.owners.map((id:string)=>t(data.plugins.find((plugin:any)=>plugin.id===id)?.name??'共享模块')).join(' · ')+' · '+grantAction(p.permission)})) : [];
     const update = (next: unknown) =>
       rowUpdate ? rowUpdate(next) : changeConfig(featureId, f.key, next);
     if (featureId === 'delegation' && f.key === 'allowedProfileIds')
@@ -421,55 +427,7 @@ export function CharacterWizard({
         </div>
         <small>{t('保留比例按有效上下文上限计算，完整聊天记录保留。')}</small>
       </fieldset>
-      <details className="setup-capability">
-        <summary>{t('应用工具权限')}</summary>
-        <EchoToolSettings permissions={draft.permissions} onSave={(permissions) => change({ permissions })} />
-        {canDelegate && <p className="muted">{t('子任务最多可获得勾选的工具。未指定工具时，仅授予其中的查询工具。')}</p>}
-        <div className="role-permission-list">
-          {(data.mcpPermissionCatalog ?? [])
-            .filter(
-              (row: any) => row.scope === 'character',
-            )
-            .map((row: any) => {
-              const selected = draft.toolPermissions.includes(row.permission);
-              const owners = row.owners
-                .map((id: string) => data.plugins.find((plugin: any) => plugin.id === id))
-                .filter(Boolean)
-                .map((plugin: any) => t(plugin.name));
-              return (
-                <div className="role-tool-grant" key={row.permission}>
-                  <strong title={row.permission}>{row.external ? <>{t(row.external.server)} · {row.external.tool}{!row.external.available && ` · ${t('待配置')}`}</> : <>{owners.join(' · ') || t('共享模块')} · {t(
-                    row.permission.endsWith('.read') ? '读取' : row.permission.endsWith('.write') ? '修改' : '调用',
-                  )}</>}</strong>
-                  <label className="inline-toggle">
-                  <input
-                    type="checkbox"
-                    checked={selected}
-                    onChange={(event) =>
-                      change({
-                        independentToolGrants: true,
-                        toolPermissions: event.target.checked
-                          ? [...new Set([...draft.toolPermissions, row.permission])]
-                          : draft.toolPermissions.filter((value) => value !== row.permission),
-                      })
-                    }
-                  />
-                    {t('主会话')}
-                  </label>
-                  {canDelegate && <label className="inline-toggle">
-                    <input type="checkbox" checked={(delegation?.toolPermissions as string[] | undefined)?.includes(row.permission) ?? false}
-                      onChange={(event) => {
-                        const current = (delegation?.toolPermissions as string[] | undefined) ?? [];
-                        changeConfig('delegation', 'toolPermissions', event.target.checked
-                          ? [...new Set([...current, row.permission])] : current.filter((permission) => permission !== row.permission));
-                      }} />
-                    {t('子任务')}
-                  </label>}
-                </div>
-              );
-            })}
-        </div>
-      </details>
+      <EchoToolSettings permissions={draft.permissions} onSave={(permissions) => change({ permissions })} />
       {model && (
         <details className="setup-capability">
           <summary>{t('工作目录与文件权限')}</summary>
@@ -542,6 +500,9 @@ export function CharacterWizard({
         <Button secondary onClick={() => openSettings('plugins')}>
           {t('管理插件')}
         </Button>
+        <Button secondary onClick={() => document.getElementById('role-plugin-tools')?.querySelector('input')?.focus()}>
+          {t('插件工具授权')}
+        </Button>
       </div>
       {packages && <p>{packages.draft.persona.name}</p>}
       <p className="muted role-feature-scope-note">
@@ -552,11 +513,19 @@ export function CharacterWizard({
           <span>{t('继续创建草稿')}</span>
           <select
             value=""
-            onChange={(e) => {
+            onChange={async (e) => {
               const saved = savedDrafts.find((row) => row.persona.id === e.target.value);
               if (saved) {
-                change(characterDraft.parse(saved));
-                baseline.current = saved;
+                try {
+                  const exists = data.characters.some((c: any) => c.id === saved.persona.id);
+                  const live = exists ? characterDraft.parse(await rpc('persona.character.read', { id:saved.persona.id })) : undefined;
+                  if (live && !saved.edits) { setIssue(t('旧草稿缺少编辑基线，请从角色资料重新编辑。')); return; }
+                  const next = live ? mergeCharacter(live, saved.edits) : characterDraft.parse(saved);
+                  editBase.current = live;
+                  removals.current = new Set((saved.edits?.tasks ?? []).flatMap((e: any) => e.action === 'remove' ? [taskKey(e.task)] : []));
+                  change(next);
+                  baseline.current = next;
+                } catch (err) { setIssue((err as Error).message); }
               }
             }}
           >
@@ -591,6 +560,12 @@ export function CharacterWizard({
             </label>
           ))}
       </div>
+      <RolePluginTools catalog={data.mcpPermissionCatalog ?? []} plugins={data.plugins}
+        main={draft.toolPermissions}
+        workers={canDelegate ? (delegation?.toolPermissions as string[] | undefined) ?? [] : undefined}
+        onMain={(toolPermissions) => change({ independentToolGrants: true, toolPermissions })}
+        onWorkers={(permissions) => changeConfig('delegation', 'toolPermissions', permissions)}
+        configure={(target) => openSettings('plugins', target)} />
     </>
   );
   const taskEditor = (
@@ -770,6 +745,7 @@ export function CharacterWizard({
           <Button
             secondary
             onClick={() => {
+              removals.current.add(taskKey(task));
               change({ tasks: draft.tasks.filter((_, i) => i !== taskIndex) });
               setTaskIndex(0);
             }}
@@ -1133,7 +1109,7 @@ export function CharacterWizard({
           secondary
           onClick={() =>
             act(async () => {
-              await rpc('persona.character.draft', draft);
+              await rpc('persona.character.draft', { ...draft, edits:editBase.current && editedCharacter(editBase.current,draft,removals.current) });
               baseline.current = draft;
             }, t('草稿已保存'))
           }
@@ -1153,10 +1129,10 @@ export function CharacterWizard({
             disabled={!draft.persona.name.trim()}
             onClick={() =>
               act(async () => {
-                const saved = await rpc('persona.character.commit', {
-                  draft,
-                  requestId: requestId.current,
-                });
+                const saved = editBase.current
+                  ? await rpc('persona.character.patch', { id:editBase.current.persona.id,
+                      changes:editedCharacter(editBase.current,draft,removals.current), requestId:requestId.current })
+                  : await rpc('persona.character.commit', { draft, createOnly:true, requestId:requestId.current });
                 baseline.current = draft;
                 onComplete(saved);
               }, t('角色配置已保存'))

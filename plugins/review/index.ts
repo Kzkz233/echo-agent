@@ -1350,7 +1350,7 @@ export class Reviews {
         await this.ctx.registry.call('automation.dispatch', {
           action: 'conversation', kind: outcome === 'failed' ? 'review.failed' : 'review.completed', requestId: key, conversationId,
           delivery: targetIds && job.delivery ? { ...job.delivery, targets: job.delivery.targets.filter(target => targetIds.includes(target.id)) } : job.delivery,
-          text: notice.text, messageSource: 'review', recordOnly: !(job.policy?.report ?? true),
+          text: notice.text, recordOnly: !(job.policy?.report ?? true),
           resultContext: { workSessionId: 'review-' + (job.policy ?? this.policy(job.personaId)).id, reviewable: false },
           reportPrompt: (job.policy?.report ?? true) ? job.policy?.reportPrompt : undefined,
           outputTargets: targetIds ?? (job.policy ?? this.policy(job.personaId)).outputTargets,
@@ -1496,8 +1496,8 @@ export class Reviews {
       activate: (ctx) => {
         contributeJobs(ctx, 'review.runs', '记忆整理', () => (this.store.db.prepare("SELECT id,json_extract(data,'$.state') state,json_extract(data,'$.personaId') personaId,json_extract(data,'$.key') requestId,json_extract(data,'$.policy.id') taskId,json_extract(data,'$.error') error FROM documents WHERE namespace='review-jobs'").all() as any[])
           .map(j => ({ id: j.id, state: j.state, personaId: j.personaId, requestId: j.requestId, ...(j.taskId ? { taskId: j.taskId } : {}), taskType: 'review.policies', ...(j.error ? { error: j.error } : {}), controls: [] })));
-        contributeSignal(ctx, 'review.completed', '记忆整理报告', 'either');
-        contributeSignal(ctx, 'review.failed', '记忆整理中断', 'either');
+        contributeSignal(ctx, 'review.completed', '记忆整理报告', 'either', { messageSource:'review', noticeSource:'review' });
+        contributeSignal(ctx, 'review.failed', '记忆整理中断', 'either', { messageSource:'review', noticeSource:'review' });
         contributeSignal(ctx, 'review.due', '记忆整理条件满足', 'task');
         const { registry, dispose, capabilities } = ctx;
         contributeInferenceTask(ctx, {
@@ -1840,6 +1840,16 @@ export class Reviews {
           }));
         const targets = () =>
           capabilities.list('review.targets@1').filter((p) => p.state === 'active');
+            const modes = (task?: ReviewTask) =>
+              Object.fromEntries(
+                [...this.sources.entries.values()].filter(s => s.streams).flatMap(source => {
+                  const streams = task?.sourceStreams?.[source.id];
+                  return [
+                    ['streamMode.' + source.id, streams ? 'selected' : 'all'],
+                    ['streams.' + source.id, streams ?? []],
+                  ];
+                }),
+              );
         contributeAutomation(ctx, 'review.policies', '记忆整理', {
           describe: async () => {
             const sources = [...this.sources.entries.values()];
@@ -1849,16 +1859,6 @@ export class Reviews {
                 .map(async (s) => ({ source: s, streams: await s.streams!() })),
             );
             const activeTargets = targets();
-            const modes = (task?: ReviewTask) =>
-              Object.fromEntries(
-                scoped.flatMap(({ source }) => {
-                  const streams = task?.sourceStreams?.[source.id];
-                  return [
-                    ['streamMode.' + source.id, streams ? 'selected' : 'all'],
-                    ['streams.' + source.id, streams ?? []],
-                  ];
-                }),
-              );
             return {
               defaults: {
                 ...reviewConfigSchema.parse({}),
@@ -2060,8 +2060,12 @@ export class Reviews {
                 { key: 'prompt', label: '通用整理指引', kind: 'textarea' },
                 { key: 'reportPrompt', label: '汇报要求', kind: 'textarea', when: { key: 'report', value: true } },
               ],
-              items: this.tasks().map((task) => {
-                const job = this.jobs().find((j) => this.belongs(j, task));
+            };
+          },
+          items: () => {
+            const jobs = this.jobs();
+            return this.tasks().map((task) => {
+                const job = jobs.find((j) => this.belongs(j, task));
                 return {
                   id: task.id,
                   name: task.name,
@@ -2099,8 +2103,7 @@ export class Reviews {
                     ),
                   },
                 };
-              }),
-            };
+              });
           },
           save: (id, settings, actor) => {
             if (actor) {

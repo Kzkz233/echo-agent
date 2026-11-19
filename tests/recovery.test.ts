@@ -227,7 +227,7 @@ test('disabling observation leaves ordinary Review active', async (t) => {
   assert.equal(app.materials.entries.has('observation.source'), false);
   assert.equal(app.observations.status().allowed, false);
 });
-test('archived old raw data is kept until Review consumed it and late additions preserve old archive', async (t) => {
+test('archived old raw data is kept after Review consumed it and late additions preserve old archive', async (t) => {
   const app = await setup(t);
   const timestamp = new Date(Date.now() - 12 * 86400000).toISOString();
   const row = {
@@ -246,7 +246,7 @@ test('archived old raw data is kept until Review consumed it and late additions 
   assert((await app.observations.allRaw()).some((o) => o.id === row.id));
   app.store.set('review.sourceWatermark.observation.source.companion', { timestamp, id: row.id });
   await app.observations.archiveBefore(today);
-  assert.equal((await app.observations.allRaw()).length, 0);
+  assert.deepEqual((await app.observations.allRaw()).map(o => o.id), [row.id]);
   const later = { ...row, id: 'old-two', summary: 'late raw text' };
   await app.observations.record(later);
   const changed = await app.observations.archiveBefore(today);

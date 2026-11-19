@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "reading",
+  "name": "阅读提醒",
+  "description": "Isolated reading reminder integration fixture",
+  "version": "1.0.0",
+  "permissions": ["automation.contribute", "automation.dispatch", "lifecycle.contribute"],
+  "command": "node",
+  "args": ["reading.mjs"]
+}

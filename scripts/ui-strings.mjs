@@ -48,6 +48,7 @@ export async function collectUIStrings() {
     strings.add(manifest.description);
     for (const field of manifest.settings ?? []) {
       strings.add(field.label);
+      if (field.toolSetupHint) strings.add(field.toolSetupHint);
       if (field.description) strings.add(field.description);
     }
   }

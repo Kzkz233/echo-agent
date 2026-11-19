@@ -318,6 +318,37 @@ test('attachments are scoped and hydrated without putting base64 in conversation
     png.toString('base64'),
   );
   assert.equal(image.kind, 'image');
+  assert.deepEqual(Buffer.from((await app.router.attachments.download(chat.id, image.id)).data, 'base64'), png);
+  const pdf = Buffer.from('%PDF-1.7\x00fixture');
+  const file = await app.router.attachments.add(chat.id, 'proof.pdf', 'application/pdf', pdf.toString('base64'));
+  assert.equal(file.kind, 'file');
+  assert(!(await app.router.attachments.content([file.id], chat.id)).text.includes(pdf.toString('base64')));
+  await assert.rejects(app.router.attachments.download(other.id, file.id), /不属于/);
+});
+
+test('a worker receives only explicitly shared attachments inside its scoped project', async t => {
+  const app = await setup(t);
+  const parent = conversation(app, { permissions: { projectDirectory: await temporary(t) } });
+  const project = await temporary(t);
+  const worker = conversation(app, { permissions: { projectDirectory: project } });
+  const files = app.router.attachments;
+  const bytes = Buffer.from('%PDF-1.7 fixture');
+  const attachment = await files.add(parent.id, 'proof.pdf', 'application/pdf', bytes.toString('base64'));
+  await files.prepareInputFiles([attachment.id], parent.id);
+  await assert.rejects(files.shareInputs([attachment.id], worker.id, parent.id, true), /不属于/);
+  await assert.rejects(files.shareInputs([attachment.id], parent.id, worker.id, false), /子任务可读/);
+  const [copy] = await files.shareInputs([attachment.id], parent.id, worker.id, true);
+  assert.notEqual(copy, attachment.id);
+  const [record] = files.metadata([copy], worker.id);
+  assert(record.projectPath?.startsWith(join(project, 'echo-input-')));
+  assert.deepEqual(await readFile(record.projectPath!), bytes);
+  await writeFile(record.projectPath!, 'worker edits');
+  await files.shareInputs([attachment.id], parent.id, worker.id, true);
+  const [retried] = files.metadata([copy], worker.id);
+  assert.notEqual(retried.projectPath, record.projectPath);
+  assert.deepEqual(await readFile(retried.projectPath!), bytes);
+  assert.equal(await readFile(record.projectPath!, 'utf8'), 'worker edits');
+  assert.deepEqual(Buffer.from((await files.download(worker.id, copy)).data, 'base64'), bytes);
 });
 
 test('workers return one event-driven handoff and only the parent can accept verified deliverables', async (t) => {
@@ -378,6 +409,10 @@ test('workers return one event-driven handoff and only the parent can accept ver
   assert.equal(completed.acceptanceStatus, 'pending');
   assert.equal(completed.evidence[0].state, 'verified');
   assert(completed.evidence[0].sha256);
+  const delivered = completed.evidence[0].attachmentId;
+  assert(delivered);
+  await writeFile(join(project, 'deliverable.md'), 'Updated after delivery');
+  assert.equal(Buffer.from((await app.router.attachments.download(role.mainConversationId, delivered)).data, 'base64').toString(), 'A verified file');
   await assert.rejects(
     call('delegation.review', {
       conversationId: task.workerConversationId,

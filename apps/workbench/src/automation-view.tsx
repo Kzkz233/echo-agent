@@ -1,5 +1,7 @@
+import { useTaskCatalog } from './use-task-catalog.ts';
+import { TaskHistory } from './task-history.tsx';
 import { OutputTargetsField, OutputHistory } from './output-targets.tsx';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   AutomationField,
   AutomationItem,
@@ -20,11 +22,6 @@ import {
   useUnsavedChanges,
 } from './ui.tsx';
 
-type Catalog = {
-  types: AutomationType[];
-  unavailable: string[];
-  sources?: { id: string; label: string }[];
-};
 type Draft = { type: string; id: string; settings: Record<string, unknown> };
 type Activity = { type: string; id: string };
 const stateLabels: Record<AutomationItem['state'], string> = {
@@ -304,8 +301,7 @@ export function AutomationView({
   focusId?: string;
   detailOnly?: boolean;
 }) {
-  const [catalog, setCatalog] = useState<Catalog>({ types: [], unavailable: [] });
-  const [issue, setIssue] = useState('');
+  const { catalog,load,error:catalogError } = useTaskCatalog(only);
   const [draft, setDraft] = useState<Draft>();
   const [activity, setActivity] = useState<Activity>();
   const [creating, setCreating] = useState(false);
@@ -313,41 +309,7 @@ export function AutomationView({
   useEffect(() => {
     if (focusId && only) setActivity({ type: only, id: focusId });
   }, [focusId, only]);
-  const ticket = useRef(0);
   const confirm = useConfirm();
-  const load = useCallback(async () => {
-    const rev = ++ticket.current;
-    try {
-      const value = await rpc<Catalog>('automation.catalog');
-      if (rev === ticket.current) {
-        setCatalog(value);
-        setIssue('');
-      }
-      return value;
-    } catch (error) {
-      if (rev === ticket.current) setIssue((error as Error).message);
-    }
-  }, []);
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    void load();
-    const refresh = (event: Event) => {
-      if (
-        !/^(automation\.|review\.updated|observation\.(tasks\.changed|completed)|scheduler\.updated|plugins\.changed|conversation\.)/.test(
-          (event as CustomEvent).detail.type,
-        )
-      )
-        return;
-      clearTimeout(timer);
-      timer = setTimeout(() => void load(), 120);
-    };
-    window.addEventListener('echo-event', refresh);
-    return () => {
-      ticket.current++;
-      clearTimeout(timer);
-      window.removeEventListener('echo-event', refresh);
-    };
-  }, [load]);
   const type = catalog.types.find((entry) => entry.id === draft?.type);
   const saved = type?.items.find((item) => item.id === draft?.id);
   const activityType = catalog.types.find((entry) => entry.id === activity?.type);
@@ -370,10 +332,6 @@ export function AutomationView({
     });
   };
   const showActivity = (entry: AutomationType, item: AutomationItem) => {
-    if (entry.statusPage) {
-      openTask(entry.statusPage, entry.id, item.id, 'status');
-      return;
-    }
     return requestNavigation(() => {
       setDraft(undefined);
       setCreating(false);
@@ -425,6 +383,7 @@ export function AutomationView({
   const creatable = types.filter((entry) => entry.scope !== 'character');
   return (
     <div className="automation-workspace">
+      {catalogError && <p role="alert">{catalogError}</p>}
       {!detailOnly && (
         <div className="page-title page-title-actions">
           <h1>{t(only ? (types[0]?.name ?? '自动化任务') : '自动化任务')}</h1>
@@ -451,7 +410,6 @@ export function AutomationView({
           </div>
         </div>
       )}
-      {issue && <p className="warning">{issue}</p>}
       {activityType && activityItem && (
         <section className="card automation-status">
           <div className="row between">
@@ -470,7 +428,7 @@ export function AutomationView({
               {t(activityItem.suspendedByCharacter ? '角色已停用' : stateLabels[activityItem.state])}
             </span>
           </div>
-          <OutputHistory {...{act}} personaId={activityItem.personaId??activityItem.settings?.personaId} taskType={activityType.id} taskId={activityItem.id}/>
+          <TaskHistory {...{act}} personaId={personaId ?? activityItem.personaId ?? activityItem.settings?.personaId as string | undefined} type={activityType.id} id={activityItem.id}/>
           <dl className="automation-status-grid">
             <div>
               <dt>{t('任务状态')}</dt>
@@ -494,6 +452,7 @@ export function AutomationView({
             </div>
           </dl>
           <div className="row wrap">
+            {activityType.statusPage && activityType.statusPage !== 'automation' && <Button secondary onClick={() => openTask(activityType.statusPage!,activityType.id,activityItem.id,'status')}>{t('运行详情')}</Button>}
             {activityType.canRun && (
               <Button
                 secondary

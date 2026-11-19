@@ -108,7 +108,7 @@ export class WorkSessions {
   async run(input: {
     id: string; profileId: string; requestId: string; text: string; reasoning?: Reasoning;
     authority?: Omit<WorkAuthority, 'active'>; timeoutMs?: number; taskModel?: TaskModelReceipt;
-    reasoningDefault?: 'model';
+    reasoningDefault?: 'model'; attachmentIds?: string[];
   }, signal: AbortSignal): Promise<Run> {
     invariant(input.timeoutMs === undefined || Number.isSafeInteger(input.timeoutMs) && input.timeoutMs >= 0,
       'work_timeout', '执行时限必须为非负整数。');
@@ -127,7 +127,7 @@ export class WorkSessions {
           const parent = store.conversation(row.parentConversationId);
           const inheritedReasoning = store.binding(row.parentConversationId)?.profileId === input.profileId ? parent?.reasoning : undefined;
           return await this.router.send({ conversationId: row.conversationId, requestId: input.requestId,
-            source: 'delegation', text: input.text,
+            source: 'delegation', text: input.text, attachmentIds: input.attachmentIds,
             reasoning: input.reasoningDefault === 'model' ? input.reasoning ?? 'inherit'
               : !input.reasoning || input.reasoning === 'inherit' ? inheritedReasoning ?? input.reasoning : input.reasoning,
             taskModel: input.taskModel,

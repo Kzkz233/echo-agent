@@ -1,3 +1,4 @@
+import { editedCharacter } from '../../plugins/persona/character-edits.ts';
 import { configuredTimezone } from '../../packages/kernel/time.ts';
 import { readFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -83,9 +84,10 @@ export function registerStarterCharacters(app: Application) {
         )) as any;
         const { draft, updated, preserved } = refreshStarterDraft(current, example, starterVersion);
         await app.registry.call(
-          'persona.character.commit',
+          'persona.character.patch',
           {
-            draft,
+            id:roleId,
+            changes:editedCharacter(characterDraft.parse(current), characterDraft.parse(draft),new Set()),
             requestId: value.requestId + '-refresh-' + example.id,
           },
           internal,

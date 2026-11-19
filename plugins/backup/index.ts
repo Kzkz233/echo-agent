@@ -19,6 +19,7 @@ export class Backups {
   constructor(
     readonly store: Store,
     readonly root: string,
+    readonly portableOwners:()=>import('./portable-assets.ts').OwnerPaths[]=()=>[],
   ) {}
   config() {
     return config.parse(this.store.get('backup.config', {}));
@@ -38,7 +39,7 @@ export class Backups {
         this.root,
         'backup-worker',
         'plugins/backup/backup-worker.ts',
-        { database: this.store.path, destination: temp },
+        { database: this.store.path, destination: temp, owners:this.portableOwners() },
         signal,
         600000,
       );
@@ -56,7 +57,7 @@ export class Backups {
         const info = await lstat(path);
         if (info.isDirectory() && !info.isSymbolicLink()) {
           const m = JSON.parse(await readFile(join(path, 'manifest.json'), 'utf8'));
-          if (m.format === 'echo-backup-v1') await rm(path, { recursive: true });
+          if (['echo-backup-v1','echo-backup-v2'].includes(m.format)) await rm(path, { recursive: true });
         }
       }
       return completed;
@@ -74,12 +75,12 @@ export class Backups {
       600000,
     );
   }
-  async restore(directory: string, target: string, signal: AbortSignal) {
+  async restore(directory: string, target: string, signal: AbortSignal, migrate = false) {
     return workerTask<any>(
       this.root,
       'restore-worker',
       'plugins/backup/restore-worker.ts',
-      { directory, target },
+      { directory, target, migrate },
       signal,
       600000,
     );
@@ -106,9 +107,9 @@ export class Backups {
         op(
           'restore',
           '恢复到新的空数据目录；自动功能保持关闭',
-          z.object({ directory: z.string(), target: z.string(), confirmed: z.literal(true) }),
+          z.object({ directory: z.string(), target: z.string(), confirmed: z.literal(true), migrate:z.boolean().default(false) }),
           'backup.write',
-          (v, s) => this.restore(v.directory, v.target, s),
+          (v, s) => this.restore(v.directory, v.target, s, v.migrate),
           false,
         );
         ctx.capabilities.provide('scheduler.handlers@1', 'backup.run', 'Echo 完整备份', (_v, s) =>

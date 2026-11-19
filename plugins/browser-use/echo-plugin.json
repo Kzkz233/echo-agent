@@ -1,0 +1,40 @@
+{
+  "apiVersion": 1,
+  "id": "browser-use",
+  "package": "@echo/browser-use",
+  "name": "Browser Use",
+  "version": "1.0.0",
+  "description": "在独立的浏览器会话中阅读和操作已授权的网站。",
+  "category": "System",
+  "dependencies": [],
+  "permissions": [
+    "browser-use.read",
+    "browser-use.interact"
+  ],
+  "characterPermissions": [
+    "browser-use.read",
+    "browser-use.interact"
+  ],
+  "settings": [
+    {
+      "key": "origins",
+      "toolSetupHint": "尚未配置允许的网站",
+      "label": "允许的网站，每行一个 HTTPS 来源",
+      "type": "textarea"
+    },
+    {
+      "key": "channel",
+      "label": "浏览器",
+      "type": "select",
+      "options": [
+        "msedge",
+        "chrome"
+      ],
+      "optionLabels": {
+        "msedge": "Microsoft Edge",
+        "chrome": "Google Chrome"
+      }
+    }
+  ],
+  "views": []
+}

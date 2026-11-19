@@ -742,7 +742,11 @@ export class MailTriggers {
                   when: { key: 'action', value: 'conversation' },
                 },
               ],
-              items: this.rules().map((rule) => {
+            };
+          },
+          items: async () => {
+            const source = await this.source();
+            return this.rules().map((rule) => {
                 const state = this.state(rule.id);
                 return {
                   id: rule.id,
@@ -758,8 +762,7 @@ export class MailTriggers {
                   settings: { ...rule, hasLegacyFilters: rule.useLegacyFilters },
                   persistedSettings: rule,
                 };
-              }),
-            };
+              });
           },
           save: (id, settings) => this.save(id, settings),
           remove: (id) => {

@@ -227,6 +227,8 @@ export type OperationRegistry = Pick<Registry, 'register' | 'list' | 'call'>;
 export type Field = {
   key: string;
   label: string;
+  /** Shown beside the plugin's tools when this setting has no usable value. */
+  toolSetupHint?: string;
   type: 'boolean' | 'number' | 'text' | 'textarea' | 'select' | 'path' | 'multi' | 'records';
   rowFields?: Field[];
   rowTitleKey?: string;
@@ -298,6 +300,7 @@ export const manifestSchema = z
         z.object({
           key: z.string().regex(/^[\w.-]{1,80}$/),
           label: z.string().min(1).max(200),
+          toolSetupHint: z.string().min(1).max(200).optional(),
           type: z.enum([
             'boolean',
             'number',
@@ -373,7 +376,7 @@ export type Plugin = {
   character?: CharacterFeature;
   distribution?: 'bundled' | 'local';
   manifest: Manifest;
-  config?: { schema: z.ZodType };
+  config?: { schema: z.ZodType; toolSettingReady?: (key: string, value: unknown) => boolean };
   // Read saved references even when this bundled plugin is inactive.
   references?: (conversationId: string) => ConversationReference[];
   activate: (context: PluginContext) => void | Promise<void>;

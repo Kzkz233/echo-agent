@@ -59,9 +59,9 @@ try {
   await page.locator('img.portrait-preview').waitFor();
   await page.getByRole('button', { name: '模型与权限', exact: true }).click();
   const options = await page.getByLabel('主会话模型', { exact: true }).locator('option').allTextContents();
-  assert(options.some((name) => name.includes('fixture-language')));
+  assert.equal(await page.getByLabel('主会话模型', { exact: true }).inputValue(), 'main');
+  assert(options.some((name) => name.includes('Main language')));
   assert(!options.some((name) => /Pi|fixture-worker|Embedded/.test(name)));
-  await page.getByText('应用工具权限', { exact: true }).click();
   const echoCalls = page.getByRole('combobox', { name: '主会话工具模式' });
   assert.equal(await echoCalls.inputValue(), 'read');
   assert.deepEqual(await echoCalls.locator('option').allTextContents(), ['禁用', '仅查询', '变更前确认', '直接调用']);
@@ -113,23 +113,28 @@ try {
   await page.getByRole('heading', { name: '添加通道绑定', exact: true }).waitFor();
   assert.equal(await page.getByLabel('目标会话', { exact: true }).isDisabled(), true);
   await page.getByRole('combobox', { name: '通道类型' }).selectOption('qq.bot');
-  const sendMode = page.getByRole('combobox', { name: '发送方式' });
-  assert.equal(await sendMode.inputValue(), 'auto');
+  const alsoBubble = page.getByRole('checkbox', { name: '同时显示桌宠气泡' });
+  assert.equal(await alsoBubble.isChecked(), false);
   await page.getByLabel('外部联系人（如 c2c:openid）', { exact: true }).fill('c2c:fixture-qq');
   await page.getByRole('button', { name: '保存绑定', exact: true }).click();
   const qqBinding = page.getByText('qq.bot · c2c:fixture-qq', { exact: true }).locator('..');
   await qqBinding.getByRole('button', { name: '编辑', exact: true }).click();
-  await sendMode.selectOption('combined');
+  await alsoBubble.check();
+  const savedBinding = page.waitForResponse(response => response.url().endsWith('/rpc') &&
+    response.request().postDataJSON()?.method === 'channels.bind');
   await page.getByRole('button', { name: '保存绑定', exact: true }).click();
-  await qqBinding.getByText(/合并发送/).waitFor();
-  assert.equal(app.channels.bindings().find((binding) => binding.peer === 'c2c:fixture-qq')?.textMode, 'combined');
+  await savedBinding;
+  assert.equal(app.channels.bindings().find((binding) => binding.peer === 'c2c:fixture-qq')?.alsoBubble, true);
   await page.screenshot({ path: join(project, 'test-results/product-role-channels.png') });
   await page.getByRole('button', { name: '工具与委派', exact: true }).click();
   const worker = page.locator('[data-role-feature="delegation"]');
   assert.equal(await worker.getByLabel('任务执行器', { exact: true }).count(), 0);
-  await worker.getByRole('checkbox', { name: 'DSH task', exact: true }).check();
+  await worker.locator('summary').filter({ hasText: 'DeepSeek Harness SDK' }).click();
+  await worker.getByRole('checkbox', { name: /DSH task/ }).check();
   await page.locator('[data-role-feature="mail"]').getByRole('checkbox', { name: 'Fixture inbox', exact: true }).check();
-  assert.equal(await worker.getByRole('checkbox', { name: 'Main language', exact: true }).count(), 0);
+  await worker.locator('summary').filter({ hasText: '内置执行器' }).click();
+  const inheritedMain = worker.getByRole('checkbox', { name: /主会话配置/ });
+  assert(await inheritedMain.isChecked() && await inheritedMain.isDisabled());
   await page.getByRole('button', { name: '自动化任务', exact: true }).last().click();
   const task = page.locator('.task-configuration');
   await task.getByLabel('视觉模型', { exact: true }).selectOption('main');
@@ -181,7 +186,7 @@ try {
   await page.screenshot({ path: join(project, 'test-results/tasks-current.png') });
   await page.getByRole('tab', { name: '子任务', exact: true }).click();
   await page.getByRole('tab', { name: '非活跃', exact: true }).click();
-  await page.getByText('暂无非活跃子任务', { exact:true }).waitFor();
+  await page.getByText('Watch fixture · 持续任务', { exact: true }).waitFor();
   await page.getByRole('tab', { name: '聊天', exact: true }).click();
 
   const popupPromise = page.waitForEvent('popup');

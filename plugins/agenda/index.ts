@@ -497,8 +497,8 @@ export class Agenda {
             return Boolean(range && range[0] <= v.to && range[1] >= v.from);
           });
         });
-        op('reminders', 'Read reminder history', z.object({}), 'agenda.read', () =>
-          this.store.documents('agenda-reminders').slice(-300),
+        op('reminders', 'Read reminder history', z.object({ before: id.optional(), limit: z.number().int().min(1).max(300).default(300) }), 'agenda.read', (v) =>
+          this.store.documentHistory('agenda-reminders', 'createdAt', v.limit, v.before),
         );
         op(
           'parse',

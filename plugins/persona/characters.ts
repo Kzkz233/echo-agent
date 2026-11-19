@@ -1,9 +1,11 @@
+import { characterEdits, mergeCharacter, taskKey } from './character-edits.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { dirname } from 'node:path';
 import { ensureCharacterWorkspace, projectRoot } from '../../packages/backends/project-root.ts';
 import { z } from 'zod';
 import { id, invariant, personaSchema, type Persona } from '../../packages/contracts/index.ts';
+import { Automation } from '../../packages/kernel/automation.ts';
 import { characterPoint } from '../../packages/kernel/characters.ts';
 import {
   characterDraft,
@@ -73,7 +75,7 @@ export class Characters {
       value,
     })) as any;
   }
-  async catalog() {
+  async catalog(definitionsOnly = false) {
     const providers = this.scope().capabilities.list(characterPoint);
     const features = await Promise.all(
       providers
@@ -84,22 +86,11 @@ export class Characters {
           ...(await this.feature(p.owner, 'describe')),
         })),
     );
-    const taskTypes = await Promise.all(
-      this.scope()
-        .capabilities.list('core.automation.types@1')
-        .filter((p) => p.state === 'active')
-        .map(async (p) => ({
-          id: p.id,
-          owner: p.owner,
-          name: p.label,
-          ...(
-            (await this.scope().capabilities.invoke('core.automation.types@1', p.id, {
-              action: 'catalog',
-            })) as any
-          ).catalog,
-        })),
-    );
-    const characterTasks = taskTypes.filter((type) => type.scope === 'character');
+    const catalog = await new Automation(this.scope().capabilities).catalog(this.scope().signal, definitionsOnly ? 'definition' : undefined);
+    // Editing an unavailable task must preserve the provider's existing configuration.
+    invariant(!catalog.unavailable.length, 'task_catalog_unavailable',
+      '暂时无法读取完整的任务配置：' + catalog.unavailable.join('、'));
+    const characterTasks = catalog.types.filter((type) => type.scope === 'character');
     const taskIds = new Set(characterTasks.map((type) => type.id));
     return {
       features: features.map((feature) => ({
@@ -135,11 +126,11 @@ export class Characters {
     return row;
   }
   async read(
-    personaId: string,
+    personaId: string, suppliedCatalog?: Awaited<ReturnType<Characters['catalog']>>,
   ): Promise<CharacterDraft & { mainConversationId: string; state: string; issue?: string; activity: { enabled: boolean; revision: number } }> {
     const persona = this.store.document<Persona>('personas', personaId);
     invariant(persona, 'persona_missing', '角色不存在。');
-    const catalog = await this.catalog();
+    const catalog = suppliedCatalog ?? await this.catalog();
     const role = this.record(
       personaId,
       catalog.features.map((f) => f.id),
@@ -200,30 +191,46 @@ export class Characters {
       issue: role.issue,
     };
   }
-  async saveDraft(raw: unknown) {
-    const draft = characterDraft.parse(raw);
-    this.store.put('character-drafts', draft.persona.id, draft);
-    return draft;
-  }
-  async commit(raw: unknown, requestId: string, signal: AbortSignal) {
-    const draft = characterDraft.parse(raw),
-      roleId = draft.persona.id;
-    draft.features = draft.features.filter(
-      (feature) => !applicationOnlyCharacterFeatures.has(feature),
-    );
-    for (const feature of applicationOnlyCharacterFeatures) delete draft.configurations[feature];
-    personaSchema.parse(draft.persona);
+  async commit(raw: unknown, requestId: string, signal: AbortSignal,
+    edit?: { id: string; changes: z.infer<typeof characterEdits> }, createOnly = false) {
+    const roleId = edit?.id ?? characterDraft.parse(raw).persona.id;
     const key = 'character-setup.' + requestId;
-    const hash = createHash('sha256').update(JSON.stringify(draft)).digest('hex');
+    const hash = createHash('sha256').update(JSON.stringify(edit ?? characterDraft.parse(raw))).digest('hex');
     const receipt = this.store.receipt(key);
     if (receipt) {
       invariant(receipt.hash === hash, 'idempotency_conflict', '此保存编号对应的配置已变化。');
-      if (receipt.state === 'completed') return this.read(roleId);
+      if (receipt.state === 'completed') return edit ? {persona:this.store.document<Persona>('personas',roleId)!} : this.read(roleId);
     }
     invariant(!this.pending.has(roleId), 'character_busy', '角色正在保存。');
     this.pending.add(roleId);
     try {
+      invariant(!createOnly || receipt || !this.store.document('personas',roleId), 'revision_conflict', '此角色已存在，请从角色编辑页打开。');
+      const removed = new Set(edit?.changes.tasks.flatMap(e => e.action === 'remove' ? [taskKey(e.task)] : []));
+      const changed = (name: string) => !edit || edit.changes.fields.some(f => f.path[0] === name);
+      const featureChanged = (name: string) => !edit || edit.changes.fields.some(f =>
+        f.path[0] === 'configurations' && (f.path.length === 1 || f.path[1] === name));
+      const touchesTasks = (task: { id: string; type: string }) => !edit || changed('features') ||
+        edit.changes.tasks.some(e => taskKey(e.action === 'edit' ? e : e.task) === taskKey(task));
+      if (edit && !edit.changes.tasks.length && edit.changes.fields.every(f => f.path[0] === 'persona')) {
+        const current = this.store.document<Persona>('personas',roleId);
+        invariant(current,'persona_missing','角色不存在。');
+        const draft = mergeCharacter(characterDraft.parse({ persona:current }),edit.changes);
+        const persona = personaSchema.parse(draft.persona);
+        if (!isDeepStrictEqual(persona,current)) {
+          await this.savePersona(persona);
+          const role = this.store.document<CharacterRecord>('characters',roleId);
+          if (role) this.store.put('characters',roleId,{...role,revision:role.revision+1});
+          this.events.emit('characters.updated',{personaId:roleId});
+        }
+        this.store.remove('character-drafts',roleId);
+        this.store.saveReceipt(key,{hash,state:'completed',roleId});
+        return {persona};
+      }
       const catalog = await this.catalog();
+      const draft = edit ? mergeCharacter(await this.read(roleId, catalog), edit.changes) : characterDraft.parse(raw);
+      draft.features = draft.features.filter(feature => !applicationOnlyCharacterFeatures.has(feature));
+      for (const feature of applicationOnlyCharacterFeatures) delete draft.configurations[feature];
+      personaSchema.parse(draft.persona);
       const previous = this.record(roleId, []);
       const declaredTasks = await this.router.inference.tasks();
       const characterTaskIds = new Set(
@@ -260,13 +267,14 @@ export class Characters {
         }
       }
       const changedTasks = draft.tasks.filter((task) => {
+        if (!touchesTasks(task)) return false;
         const type = catalog.taskTypes.find((type) => type.id === task.type),
           old = type?.items?.find((item: any) => item.id === task.id);
         const keys = ['name', 'enabled', ...(type?.fields ?? []).map((field: any) => field.key)];
         const project = (value: any) => Object.fromEntries(keys.map((key) => [key, value?.[key]]));
         return !old || !isDeepStrictEqual(project(task.settings), project(old.settings));
       });
-      if (previous.mainConversationId) {
+      if (previous.mainConversationId && (!edit || ['features','permissions','toolPermissions','independentToolGrants','profileId','compaction','reasoning','routes'].some(changed))) {
         invariant(
           !this.router.isBusy(previous.mainConversationId) &&
             !this.store.unresolved(previous.mainConversationId).length,
@@ -300,7 +308,7 @@ export class Characters {
           'feature_missing',
           '请先安装并启用角色能力：' + feature,
         );
-        normalized[feature] = (
+        if (featureChanged(feature) || changed('features') && !previous.features.includes(feature)) normalized[feature] = (
           await this.feature(feature, 'validate', roleId, draft.configurations[feature] ?? {})
         ).value;
         const dependencies = catalog.features.find((f) => f.id === feature)?.requires ?? [];
@@ -332,7 +340,7 @@ export class Characters {
           '观察需要支持图像的模型。',
         );
       }
-      if (draft.profileId) {
+      if (changed('profileId') && draft.profileId) {
         this.router.profile(draft.profileId);
         const model=this.router.inference.models().find(model=>model.id===draft.profileId);
         invariant(model&&this.router.inference.supports(model,{operation:'generate',inputs:['text']}),'route_capability','主会话需要可用的语言模型，外部宿主仅用于 Worker。');
@@ -362,6 +370,14 @@ export class Characters {
           '任务属于另一个角色。',
         );
       }
+      for (const command of edit?.changes.tasks ?? []) {
+        if (command.action !== 'remove') continue;
+        const type = catalog.taskTypes.find(t => t.id === command.task.type);
+        invariant(type?.canRemove,'automation_unsupported','此任务类型当前无法移除。');
+        const item = type.items.find(t => t.id === command.task.id);
+        invariant(!item || item.settings?.personaId === roleId || this.conversationPersona(item.settings?.conversationId) === roleId ||
+          previous.taskIds.some(t => taskKey(t) === taskKey(command.task)), 'task_owner','任务属于另一个角色。');
+      }
       const oldMain = this.store.binding(previous.mainConversationId)?.profileId;
       const nextMain = draft.profileId || oldMain;
       for (const task of draft.tasks) {
@@ -377,27 +393,18 @@ export class Characters {
       }
       const conversationId = previous.mainConversationId || 'main-' + roleId;
       const revision = receipt?.revision ?? previous.revision + 1;
+      const referencedTasks = draft.tasks.filter(t => touchesTasks(t));
+      const retained = previous.taskIds.filter(t => !removed.has(taskKey(t)) &&
+        !referencedTasks.some(other => taskKey(t) === taskKey(other)));
       const role: CharacterRecord = {
-        id: roleId,
-        revision,
-        features: draft.features,
-        toolPermissions: [...new Set(draft.toolPermissions)],
-        independentToolGrants: draft.independentToolGrants || previous.independentToolGrants,
-        mainConversationId: conversationId,
-        routes: draft.routes,
-        taskIds: [
-          ...draft.tasks.map((t) => ({
-            id: t.id,
-            type: t.type,
-            templateId: t.templateId,
-            enabledWhenAvailable: t.enabledWhenAvailable,
-          })),
-          ...previous.taskIds.filter(
-            (task) => !catalog.taskTypes.some((type) => type.id === task.type),
-          ),
-        ],
-        state: 'configuring',
-        package: draft.package,
+        ...previous, id:roleId, revision, mainConversationId:conversationId, state:'configuring',
+        ...(changed('features') && {features:draft.features}),
+        ...(changed('toolPermissions') && {toolPermissions:[...new Set(draft.toolPermissions)]}),
+        ...(changed('independentToolGrants') && {independentToolGrants:draft.independentToolGrants || previous.independentToolGrants}),
+        ...((changed('routes') || changed('features')) && {routes:draft.routes}),
+        ...(changed('package') && {package:draft.package}),
+        taskIds: [...retained,...referencedTasks.map(({id,type,templateId,enabledWhenAvailable}) =>
+          ({id,type,templateId,enabledWhenAvailable}))],
       };
       this.store.saveReceipt(key, {
         hash,
@@ -406,22 +413,22 @@ export class Characters {
         roleId,
         resolvedRoutes: draft.routes,
       });
-      await this.savePersona(draft.persona);
-      this.store.put('characters', roleId, role);
+      if (changed('persona')) await this.savePersona(draft.persona);
+      this.store.put('characters', roleId, edit ? {...role,taskIds:previous.taskIds} : role);
       // Suspend role-owned displays/tasks during every configuration transaction,
       // including edits whose extension configuration itself did not change.
       this.events.emit('characters.updated', { personaId: roleId });
       const existing = this.store.conversation(conversationId);
-      this.store.saveConversation({
+      if (!existing || ['permissions','compaction','reasoning'].some(changed)) this.store.saveConversation({
         id: conversationId,
         title: existing?.title ?? draft.persona.name,
         personaId: roleId,
         injection: true,
         ...existing,
         kind: 'main',
-        permissions: draft.permissions,
-        compaction: draft.compaction,
-        reasoning: draft.reasoning,
+        ...(changed('permissions') && { permissions: draft.permissions }),
+        ...(changed('compaction') && { compaction: draft.compaction }),
+        ...(changed('reasoning') && { reasoning: draft.reasoning }),
         createdAt: existing?.createdAt ?? new Date().toISOString(),
       });
       const ordered: string[] = [],
@@ -438,32 +445,42 @@ export class Characters {
         .forEach(visit);
       for (const feature of ordered)
         if (
-          !previous.features.includes(feature) ||
-          !isDeepStrictEqual(
+          changed('features') && !previous.features.includes(feature) ||
+          featureChanged(feature) && !isDeepStrictEqual(
             (await this.feature(feature, 'read', roleId)).value,
             normalized[feature],
           )
         )
           await this.feature(feature, 'save', roleId, normalized[feature]);
+      const currentItem = async (type:string, id:string) => {
+        const page = await new Automation(this.scope().capabilities).catalog(signal, 'instances',type);
+        invariant(!page.unavailable.length && page.types.length,'task_catalog_unavailable','任务提供方暂时不可用。');
+        return page.types[0].items.find(item => item.id === id);
+      };
       for (const task of changedTasks) {
-        await this.saveTask(task, roleId, conversationId, false);
-      }
-      // Turning off a capability also stops its existing role-owned tasks through their owner.
-      for (const type of catalog.taskTypes)
-        for (const item of type.items ?? []) {
-          if (!item.settings || draft.tasks.some((t) => t.id === item.id && t.type === type.id))
-            continue;
-          const owned =
-            item.settings.personaId === roleId ||
-            this.conversationPersona(item.settings.conversationId) === roleId ||
-            previous.taskIds.some((task) => task.type === type.id && task.id === item.id);
-          if (owned && type.canRemove)
-            await this.scope().capabilities.invoke('core.automation.types@1', type.id, {
-              action: 'remove',
-              id: item.id,
-            });
+        if (edit) {
+          const before = catalog.taskTypes.find(t => t.id === task.type)?.items.find(i => i.id === task.id);
+          const now = await currentItem(task.type,task.id);
+          invariant(isDeepStrictEqual(now?.persistedSettings ?? now?.settings,before?.persistedSettings ?? before?.settings),
+            'revision_conflict','任务配置已变化，请重新打开后保存。');
         }
-      if (draft.profileId) {
+        await this.saveTask(task, roleId, conversationId, edit ? Boolean(task.settings.enabled) : false);
+      }
+      for (const command of edit?.changes.tasks ?? []) {
+        if (command.action !== 'remove') continue;
+        const type = catalog.taskTypes.find(t => t.id === command.task.type);
+        const item = type?.items.find(t => t.id === command.task.id);
+        if (!type || !item) continue;
+        const now = await currentItem(type.id,item.id);
+        if (!now) continue;
+        invariant(isDeepStrictEqual(now.persistedSettings ?? now.settings,item.persistedSettings ?? item.settings),
+          'revision_conflict','任务配置已变化，请重新打开后确认移除。');
+        invariant(type.canRemove && (item.settings?.personaId === roleId ||
+          this.conversationPersona(item.settings?.conversationId) === roleId ||
+          previous.taskIds.some(t => taskKey(t) === taskKey(command.task))), 'task_owner', '不可移除此角色之外的任务。');
+        await this.scope().capabilities.invoke('core.automation.types@1', type.id, { action:'remove', id:item.id });
+      }
+      if (changed('profileId') && draft.profileId) {
         const binding = this.store.binding(conversationId);
         invariant(
           !binding || binding.state === 'active',
@@ -474,16 +491,16 @@ export class Characters {
       }
       signal.throwIfAborted();
       for (const task of changedTasks)
-        if (task.settings.enabled) await this.saveTask(task, roleId, conversationId, true);
-      this.store.saveConversation({
+        if (!edit && task.settings.enabled) await this.saveTask(task, roleId, conversationId, true);
+      if (!existing || !edit && existing.review === undefined) this.store.saveConversation({
         ...this.store.conversation(conversationId)!,
         review: existing?.review ?? draft.features.includes('review'),
       });
-      this.store.put('characters', roleId, { ...role, state: 'ready' });
+      this.store.put('characters', roleId, { ...role, state: 'ready', issue:undefined });
       this.store.remove('character-drafts', roleId);
       this.store.saveReceipt(key, { hash, revision, state: 'completed', roleId });
       this.events.emit('characters.updated', { personaId: roleId });
-      return this.read(roleId);
+      return edit ? {persona:draft.persona} : this.read(roleId);
     } catch (error) {
       const role = this.store.document<CharacterRecord>('characters', roleId);
       if (role && this.store.receipt(key)) {
@@ -724,7 +741,7 @@ export class Characters {
         mcp: false,
         run: (v, _c, signal) => run(v, signal),
       });
-    op('character.catalog', '读取角色创建与编辑能力', z.object({}), () => this.catalog());
+    op('character.catalog', '读取角色创建与编辑能力', z.object({}), () => this.catalog(true));
     op('character.read', '读取角色完整配置', z.object({ id }), (v) => this.read(v.id));
     op(
       'character.workspace',
@@ -736,15 +753,20 @@ export class Characters {
           : await ensureCharacterWorkspace(dirname(this.store.path), v.id),
       }),
     );
-    op('character.draft', '保存角色创建草稿', characterDraft, (v) => this.saveDraft(v));
+    op('character.draft', '保存角色创建草稿', characterDraft.extend({ edits: characterEdits.optional() }), v => {
+      this.store.put('character-drafts', v.persona.id, v);
+      return v;
+    });
+    op('character.patch', '保存已修改的角色配置', z.object({ id, changes: characterEdits, requestId:id }),
+      (v,s) => this.commit(undefined,v.requestId,s,{ id:v.id, changes:v.changes }));
     op('character.drafts', '读取角色创建草稿', z.object({}), () =>
       this.store.documents('character-drafts'),
     );
     op(
       'character.commit',
       '创建或更新角色及其绑定任务',
-      z.object({ draft: characterDraft, requestId: id }),
-      (v, s) => this.commit(v.draft, v.requestId, s),
+      z.object({ draft: characterDraft, requestId: id, createOnly:z.boolean().optional() }),
+      (v, s) => this.commit(v.draft, v.requestId, s, undefined, v.createOnly),
     );
     op(
       'package.export',

@@ -163,12 +163,7 @@ export class KnowledgePipeline {
       'pipeline.save',
       z.object({ policy: ingestionPolicy, expected: z.string() }),
       'knowledge.write',
-      async (v) => {
-        invariant(
-          v.expected === ingestionHash(this.policy()),
-          'revision_conflict',
-          '入库流程已由其他窗口修改，请刷新',
-        );
+      async (v, signal) => {
         const parsers = await this.knowledge.files.parsers.list();
         for (const name of ['documentParser', 'mediaParser', 'imageParser'] as const)
           invariant(
@@ -177,7 +172,11 @@ export class KnowledgePipeline {
             'parser_missing',
             '解析器不可用',
           );
-        this.knowledge.store.set('knowledge.pipeline', v.policy);
+        signal.throwIfAborted();
+        this.knowledge.store.transaction(() => {
+          invariant(v.expected === ingestionHash(this.policy()), 'revision_conflict', '入库流程已由其他窗口修改，请刷新');
+          this.knowledge.store.set('knowledge.pipeline', v.policy);
+        });
         this.knowledge.events?.emit('knowledge.updated', {});
         return { policy: this.policy(), fingerprint: ingestionHash(this.policy()) };
       },

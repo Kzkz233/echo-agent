@@ -284,13 +284,13 @@ export function PluginPage({
                 {field.type === 'textarea' ? (
                   <textarea
                     value={value[field.key] ?? ''}
-                    readOnly={!view.save}
+                    readOnly={!view.save || field.readOnly}
                     onChange={(event) => setValue({ ...value, [field.key]: event.target.value })}
                   />
                 ) : field.type === 'select' ? (
                   <select
                     value={value[field.key] ?? ''}
-                    disabled={!view.save}
+                    disabled={!view.save || field.readOnly}
                     onChange={(event) => setValue({ ...value, [field.key]: event.target.value })}
                   >
                     {field.options?.map((option) => (
@@ -312,7 +312,7 @@ export function PluginPage({
                     max={field.max}
                     value={field.type === 'boolean' ? undefined : (value[field.key] ?? '')}
                     checked={field.type === 'boolean' ? Boolean(value[field.key]) : undefined}
-                    disabled={!view.save}
+                    disabled={!view.save || field.readOnly}
                     onChange={(event) =>
                       setValue({
                         ...value,
@@ -331,7 +331,7 @@ export function PluginPage({
           </div>
           {view.save && (
             <div className="form-actions">
-              <Button type="submit">{t('保存')}</Button>
+              <Button type="submit">{t(view.submitLabel ?? '保存')}</Button>
             </div>
           )}
         </form>

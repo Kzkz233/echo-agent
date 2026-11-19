@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
 import { invariant } from '../contracts/index.ts';
-import type { Application } from '../../apps/server/application.ts';
+import type { Store } from './store.ts';
+import type { Registry } from './registry.ts';
+import type { Events } from './events.ts';
+import type { Jobs } from './jobs.ts';
+import type { Updates } from './updates.ts';
+import type { Maintenance } from './maintenance.ts';
+type Services = { store:Store; registry:Registry; events:Events; jobs:Jobs; updates:Pick<Updates,'status'> };
 
 /** Desktop owns process exit. The backend drains work and hands over an identified request. */
 export class Lifecycle {
@@ -19,7 +25,9 @@ export class Lifecycle {
     blockers: string[];
     error?: string;
   };
-  constructor(readonly app: Application) {}
+  private lease?:string;
+  private releasing?:Promise<void>;
+  constructor(readonly app: Services, readonly maintenance:Maintenance) {}
   status(): {
     id?: string;
     action?: string;
@@ -37,7 +45,7 @@ export class Lifecycle {
   }
   request(action: 'restart' | 'stop' | 'update', timeoutSeconds = 300, updateId?: string) {
     invariant(process.env.ECHO_DESKTOP_PID, 'desktop_required', '此安装没有可管理的桌面宿主');
-    invariant(!this.controller, 'maintenance_busy', '已有重启或退出请求');
+    invariant(!this.controller && !this.lease && !this.releasing, 'maintenance_busy', '已有重启或退出请求');
     const request = {
       id: randomUUID(),
       action,
@@ -48,36 +56,36 @@ export class Lifecycle {
     this.requestValue = request;
     const controller = new AbortController();
     this.controller = controller;
-    this.app.router.pauseAdmission();
-    this.app.clock.pause();
+    this.lease = request.id;
     this.app.events.emit('system.maintenance', { paused: true });
     this.task = (async () => {
       try {
+        const wait = AbortSignal.any([controller.signal,AbortSignal.timeout(timeoutSeconds*1000)]);
+        await this.maintenance.inspect('prepare',request.id,wait);
         // Domain providers decide which work has a safe checkpoint. No generic replay.
-        for (const job of await this.app.jobs.list())
+        for (const job of await this.app.jobs.list(wait))
           if (['running', 'queued'].includes(job.state) && job.controls.includes('pause')) {
-            await this.app.jobs.control(job.id, 'pause', controller.signal);
+            wait.throwIfAborted();
             this.app.store.set('system.maintenance.paused-jobs', [
               ...new Set([
                 ...this.app.store.get<string[]>('system.maintenance.paused-jobs', []),
                 job.id,
               ]),
             ]);
+            await this.app.jobs.control(job.id, 'pause', wait);
           }
         const deadline = Date.now() + timeoutSeconds * 1000;
         while (!controller.signal.aborted) {
-          const jobs = await this.app.jobs.list();
+          const [jobs,participants] = await Promise.all([this.app.jobs.list(wait),this.maintenance.inspect('prepare',request.id,wait)]);
+          wait.throwIfAborted();
           request.blockers = [
             ...(this.dirty.size ? ['有尚未保存的编辑'] : []),
             ...jobs
               .filter((j) => ['running', 'queued', 'pausing', 'unavailable'].includes(j.state))
               .map((j) => j.id),
-            ...(!this.app.router.idle || this.app.clock.active ? ['后台执行尚未到达安全点'] : []),
-            ...(this.app.store.documents<any>('channel-outbound').some((j) => j.state === 'sending')
-              ? ['消息仍在投递']
-              : []),
+            ...participants.blockers,
           ];
-          if (!request.blockers.length) {
+          if (!request.blockers.length && participants.same()) {
             request.state = 'ready';
             this.app.events.emit('system.lifecycle', { ...request });
             return;
@@ -86,31 +94,54 @@ export class Lifecycle {
           await delay(250, undefined, { signal: controller.signal });
         }
       } catch (error) {
+        if (this.lease !== request.id || controller.signal.aborted) return;
         if (request.state !== 'cancelled') {
           request.state = 'failed';
           (request as any).error = controller.signal.aborted
             ? '请求已取消'
             : String((error as Error).message);
         }
-        if (!this.closed) this.restore();
+        if (!this.closed) await this.restore().catch(e => { (request as any).error = String(e); });
       }
     })();
     return request;
   }
+  async freeze() {
+    invariant(!this.releasing, 'update_busy','正在恢复任务。');
+    const lease = this.lease ??= randomUUID();
+    const signal = this.controller?.signal;
+    const [jobs, participants] = await Promise.all([this.app.jobs.list(signal),this.maintenance.inspect('prepare',lease,signal)]);
+    signal?.throwIfAborted();
+    invariant(this.lease === lease && !this.dirty.size && !participants.blockers.length && participants.same() &&
+      !jobs.some(j => ['running','queued','pausing','unavailable'].includes(j.state)),
+      'update_busy','后台任务或消息投递仍在执行，请完成后再更新。');
+    const sealed = await this.maintenance.inspect('seal',lease,signal);
+    invariant(this.lease === lease && !this.dirty.size && !sealed.blockers.length && sealed.same() && participants.same(),'update_busy','后台任务仍在执行。');
+    this.app.registry.beginUpdate();
+  }
   restore() {
+    if (this.releasing) return this.releasing;
+    const lease = this.lease;
     this.controller?.abort();
-    this.controller = undefined;
-    this.app.clock.resume();
-    this.app.router.resumeAfterUpdateFailure();
-    this.app.registry.resumeAfterUpdateFailure();
-    this.app.events.emit('system.maintenance', { paused: false });
-    void this.resumeSaved();
+    this.releasing = (async () => {
+      this.app.registry.resumeAfterUpdateFailure();
+      if (lease) {
+        const {blockers} = await this.maintenance.inspect('resume',lease);
+        invariant(!blockers.length,'maintenance_recovery','尚未恢复：'+blockers.join('、'));
+      }
+      this.controller = undefined;
+      this.lease = undefined;
+      this.app.events.emit('system.maintenance', { paused: false });
+      await this.resumeSaved();
+    })().finally(() => { this.releasing = undefined; });
+    return this.releasing;
   }
   async close() {
     this.closed = true;
     this.app.events.emit('system.lifecycle.closed', {});
     this.controller?.abort();
     await this.task;
+    await this.releasing;
     await this.recovery;
   }
   resumeSaved() {
@@ -127,7 +158,8 @@ export class Lifecycle {
       for (const id of ids) {
         if (this.closed) return;
         const job = (await this.app.jobs.list()).find((j) => j.id === id);
-        if (job?.state === 'paused' && job.controls.includes('resume'))
+        if (!job || job.state === 'unavailable' || job.state === 'pausing') continue;
+        if (job.state === 'paused' && job.controls.includes('resume'))
           await this.app.jobs.control(id, 'resume', new AbortController().signal);
         this.app.store.set(
           'system.maintenance.paused-jobs',
@@ -172,14 +204,13 @@ export class Lifecycle {
       if (signal.aborted) abort();
     });
   }
-  handoff(id: string) {
+  async handoff(id: string) {
     invariant(
       this.requestValue?.id === id && this.requestValue.state === 'ready' && !this.dirty.size,
       'maintenance_stale',
       '请等待任务结束并保存编辑',
     );
-    this.app.router.pauseForUpdate();
-    this.app.registry.beginUpdate();
+    await this.freeze();
     this.requestValue.state = 'handed-off';
     return { accepted: true };
   }
@@ -211,17 +242,17 @@ export class Lifecycle {
       true,
       (v) => this.request(v.action, v.timeoutSeconds, v.updateId),
     );
-    op('cancel', z.object({}), true, () => {
+    op('cancel', z.object({}), true, async () => {
       if (this.requestValue) this.requestValue.state = 'cancelled';
-      this.restore();
+      await this.restore();
       return this.status();
     });
-    op('fail', z.object({ id: z.string(), error: z.string().max(2000) }), true, (v) => {
+    op('fail', z.object({ id: z.string(), error: z.string().max(2000) }), true, async (v) => {
       const request = this.requestValue;
       if (request && request.id === v.id) {
         request.state = 'failed';
         request.error = v.error;
-        this.restore();
+        await this.restore();
       }
       return this.status();
     });

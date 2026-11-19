@@ -1,0 +1,61 @@
+{
+  "apiVersion": 1,
+  "id": "zotero",
+  "package": "@echo/zotero",
+  "name": "Zotero",
+  "description": "检索本机个人文献库，管理分组和笔记，关联已有的知识条目。",
+  "version": "1.0.0",
+  "category": "Files and knowledge",
+  "dependencies": [
+    "knowledge"
+  ],
+  "permissions": [
+    "zotero.read",
+    "zotero.write",
+    "zotero.configure",
+    "knowledge.source",
+    "ui.contribute",
+    "zotero.import"
+  ],
+  "characterPermissions": [
+    "zotero.read",
+    "zotero.write",
+    "zotero.import"
+  ],
+  "settings": [
+    {
+      "key": "serverId",
+      "toolSetupHint": "尚未配置文献库连接",
+      "label": "Zotero 本机服务 ID",
+      "type": "text"
+    },
+    {
+      "key": "secretRef",
+      "toolSetupHint": "尚未配置文献库连接",
+      "label": "本地 API 凭据引用",
+      "type": "text"
+    }
+  ],
+  "views": [],
+  "pages": [
+    {
+      "id": "zotero.connection",
+      "title": "连接 Zotero 文献库",
+      "placement": "plugin-settings",
+      "view": {
+        "type": "form",
+        "load": "zotero.status",
+        "save": "zotero.connect",
+        "fields": [
+          {
+            "key": "library",
+            "label": "本机文献库",
+            "type": "text",
+            "readOnly": true
+          }
+        ],
+        "submitLabel": "连接并刷新"
+      }
+    }
+  ]
+}

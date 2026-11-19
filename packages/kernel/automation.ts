@@ -1,3 +1,4 @@
+import { providerSnapshot } from './provider-snapshot.ts';
 import { z } from 'zod';
 import { id, invariant } from '../contracts/index.ts';
 import type { Capabilities } from './capabilities.ts';
@@ -87,7 +88,7 @@ const descriptor = z.object({
   canRemove: z.boolean().default(false),
 });
 const request = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('catalog') }),
+  z.object({ action: z.literal('catalog'), view: z.enum(['definition','instances']).optional() }),
   z.object({ action: z.literal('save'), id, settings: value,
     actor: z.object({ personaId: id, conversationId: id, permissions: z.array(z.string()) }).optional() }),
   z.object({ action: z.literal('remove'), id }),
@@ -101,9 +102,11 @@ export type AutomationType = z.infer<typeof descriptor> & {
   owner: string;
 };
 type Scope = ReturnType<Capabilities['forOwner']>;
+type Description = Omit<z.input<typeof descriptor>,'items'> & { items?: AutomationItem[] };
 type Handler = {
-  describe: () =>
-    z.input<typeof descriptor> | undefined | Promise<z.input<typeof descriptor> | undefined>;
+  items?: (signal: AbortSignal) => AutomationItem[] | Promise<AutomationItem[]>;
+  describe: (signal: AbortSignal) =>
+    Description | undefined | Promise<Description | undefined>;
   save?: (id: string, settings: Record<string, unknown>, actor?: { personaId: string; conversationId: string; permissions: string[] }) => unknown;
   remove?: (id: string) => unknown;
   run?: (id: string, requestId: string, signal: AbortSignal) => unknown;
@@ -129,9 +132,10 @@ export function contributeAutomation(
 ) {
   ctx.capabilities.provide(point, type, label, async (input: z.infer<typeof request>, signal) => {
     if (input.action === 'catalog') {
-      const catalog = await handler.describe();
+      if (input.view === 'instances' && handler.items) return { catalog: { items:await handler.items(signal) } };
+      const catalog = await handler.describe(signal);
       return catalog
-        ? { catalog: { ...catalog, canRun: !!handler.run, canRemove: !!handler.remove } }
+        ? { catalog: { ...catalog, items:input.view === 'definition' ? [] : handler.items ? await handler.items(signal) : catalog.items ?? [], canRun: !!handler.run, canRemove: !!handler.remove } }
         : {};
     }
     signal.throwIfAborted();
@@ -151,15 +155,17 @@ export function contributeAutomation(
 
 export class Automation {
   constructor(readonly scope: Scope) {}
-  async catalog(signal: AbortSignal) {
-    const available = this.scope.list(point).filter((type) => type.state === 'active');
+  async catalog(signal: AbortSignal, view?: 'definition' | 'instances', only?: string) {
+    const available = this.scope.list(point).filter((type) => type.state === 'active' && (!only || type.id === only));
     const rows = await Promise.allSettled(
       available.map(async (type) => {
-        const result = (await this.scope.invoke(point, type.id, { action: 'catalog' }, signal)) as {
+        const result = (await providerSnapshot(
+          (bounded) => this.scope.invoke(point, type.id, { action: 'catalog', ...(view && { view }) }, bounded), signal,
+        )) as {
           catalog?: z.infer<typeof descriptor>;
         };
         return (
-          result.catalog && { ...result.catalog, id: type.id, name: type.label, owner: type.owner }
+          result.catalog && { ...result.catalog, ...(view === 'definition' && { items:[] }), id: type.id, name: type.label, owner: type.owner }
         );
       }),
     );

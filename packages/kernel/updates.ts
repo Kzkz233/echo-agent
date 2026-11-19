@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { cp, copyFile, mkdir, realpath, rm, stat } from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';
@@ -19,6 +19,18 @@ import {
   verifyApp,
 } from './update-files.ts';
 import { availableSpace, packageSize, updatePlanSchema, updateRoot } from './update-transaction.ts';
+
+export async function waitForUpdateHelper(transaction: string, helper: ChildProcess, launchId: string) {
+  const deadline = Date.now() + 30000;
+  const id = basename(transaction);
+  while (Date.now() < deadline) {
+    if (helper.exitCode !== null || helper.signalCode !== null) throw Error('更新助手已提前退出。');
+    const ready = await jsonFile<{ id: string; launchId: string; pid: number }>(join(transaction, 'helper-ready.json'));
+    if (ready?.id === id && ready.launchId === launchId && ready.pid === helper.pid) return;
+    await new Promise(done => setTimeout(done, 100));
+  }
+  throw Error('等待更新助手启动超时。');
+}
 
 const repository = 'Kzkz233/echo-agent';
 type Release = {
@@ -300,7 +312,7 @@ export class Updates {
       return this.status();
     });
   }
-  async handoff(id: string, quiesce: () => void) {
+  async handoff(id: string, quiesce: () => void | Promise<void>) {
     return this.exclusive(async () => {
       const pending = await this.prepared();
       invariant(
@@ -346,27 +358,28 @@ export class Updates {
         join(this.project, 'dist/update-helper.mjs'),
         join(parent, 'update-helper.mjs'),
       );
-      quiesce();
+      await quiesce();
+      const launchId = randomUUID();
       const helper = spawn(
         join(parent, 'node.exe'),
-        [join(parent, 'update-helper.mjs'), transaction],
+        [join(parent, 'update-helper.mjs'), transaction, launchId],
         { detached: true, windowsHide: true, stdio: 'ignore', cwd: parent },
       );
       await new Promise<void>((done, reject) => {
         helper.once('spawn', done);
         helper.once('error', reject);
       });
-      helper.unref();
-      for (let attempt = 0; attempt < 50; attempt++) {
-        const ready = await jsonFile<{ id: string }>(join(transaction, 'helper-ready.json'));
-        if (ready?.id === id) {
-          this.handedOff = true;
-          await rm(join(parent, 'prepared.json'));
-          return { accepted: true };
-        }
-        await new Promise((done) => setTimeout(done, 100));
+      try {
+        await waitForUpdateHelper(transaction, helper, launchId);
+        await rm(join(parent, 'prepared.json'));
+        this.handedOff = true;
+        helper.unref();
+        return { accepted: true };
+      } catch (error) {
+        // A helper that never took ownership must not apply this plan on a later exit.
+        if (helper.exitCode === null && helper.signalCode === null) helper.kill();
+        throw error;
       }
-      throw Error('更新助手未能启动。');
     });
   }
   async confirm(desktop: BuildInfo) {
@@ -393,7 +406,7 @@ export class Updates {
     });
     return { accepted: true };
   }
-  register(registry: Registry, quiesce: () => void, resume: () => void, confirmed?: () => void) {
+  register(registry: Registry, quiesce: () => void | Promise<void>, resume: () => void | Promise<void>, confirmed?: () => void) {
     const operation = (name: string, input: z.ZodType, run: (input: any) => unknown) =>
       registry.register({
         name,
@@ -422,7 +435,7 @@ export class Updates {
       try {
         return await this.handoff(value.id, quiesce);
       } catch (error) {
-        resume();
+        await resume();
         throw error;
       }
     });

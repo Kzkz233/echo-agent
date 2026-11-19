@@ -1,3 +1,4 @@
+import { hasScopedSignalKey, legacyNoticeSelector } from '../contracts/legacy-signals.ts';
 import { outputTargets, outputTask, deliveryPlan } from '../contracts/delivery.ts';
 import type { Deliveries } from './delivery.ts';
 import { createHash } from 'node:crypto';
@@ -14,6 +15,12 @@ const descriptor = z.object({
 });
 const nextPoint = 'core.automation.signals@2';
 const nextDescriptor = z.object({ action: z.enum(['conversation', 'notice', 'either', 'task']) });
+const eventPoint = 'core.automation.signals@3';
+const messageSource = z.enum(['observation', 'care', 'review', 'trigger', 'handoff']);
+const eventDescriptor = nextDescriptor.extend({
+  messageSource: messageSource.default('trigger'),
+  noticeSource: z.enum(['notification','review']).default('notification'),
+});
 export const triggerAction = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('task'),
@@ -29,7 +36,7 @@ export const triggerAction = z.discriminatedUnion('action', [
     recordOnly: z.boolean().default(false),
     reportPrompt: z.string().max(10000).optional(),
     resultContext: z.object({ workSessionId: id.optional(), evidenceIds: z.array(z.string().max(512)).max(100).optional(), reviewable: z.boolean().optional() }).optional(),
-    messageSource: z.enum(['observation', 'care', 'review', 'trigger', 'handoff']).optional(),
+    messageSource: messageSource.optional(),
     kind: id,
     requestId: id,
     conversationId: id,
@@ -57,22 +64,14 @@ export const triggerAction = z.discriminatedUnion('action', [
 ]);
 type TriggerAction = z.input<typeof triggerAction>;
 type Scope = ReturnType<Capabilities['forOwner']>;
-const builtInSignals = new Set([
-  'observation.interesting',
-  'care.opportunity',
-  'mail-triggers.arrived',
-]);
-export function isAdditionalSignal(kind: unknown): kind is string {
-  return typeof kind === 'string' && !builtInSignals.has(kind);
-}
-
 export function contributeSignal(
   ctx: PluginContext,
   kind: string,
   label: string,
   action: z.infer<typeof nextDescriptor>['action'],
+  semantics: Pick<z.input<typeof eventDescriptor>,'messageSource'|'noticeSource'> = {},
 ) {
-  ctx.capabilities.provide(nextPoint, kind, label, () => ({ action }));
+  ctx.capabilities.provide(eventPoint, kind, label, () => ({ action, ...semantics }));
 }
 
 export class TriggerActions {
@@ -92,6 +91,12 @@ export class TriggerActions {
       cardinality: 'many',
     });
     scope.define({
+      id: eventPoint,
+      description: '触发来源声明的动作和消息语义',
+      input:z.object({}), output:eventDescriptor,
+      providePermission:'automation.contribute', consumePermission:'automation.invoke', cardinality:'many',
+    });
+    scope.define({
       id: nextPoint,
       description: '统一的会话、通知与任务触发来源',
       input: z.object({}),
@@ -102,7 +107,7 @@ export class TriggerActions {
     });
   }
   sources() {
-    return [...this.scope.list(nextPoint), ...this.scope.list(point)].filter(
+    return [...this.scope.list(eventPoint), ...this.scope.list(nextPoint), ...this.scope.list(point)].filter(
       (source, index, all) =>
         source.state === 'active' &&
         all.findIndex((s) => s.id === source.id && s.state === 'active') === index,
@@ -119,9 +124,9 @@ export class TriggerActions {
     const input = triggerAction.parse(raw);
     const source = this.sources().find((item) => item.id === input.kind && item.owner === owner);
     invariant(source, 'trigger_source', '触发来源未注册或已停用。');
-    const type = nextDescriptor.parse(await this.scope.invoke(source.point, source.id, {}, signal));
+    const type = eventDescriptor.parse(await this.scope.invoke(source.point, source.id, {}, signal));
     invariant(
-      type.action === 'either' || type.action === input.action,
+      type.action === input.action || (type.action === 'either' && input.action !== 'task'),
       'trigger_action',
       '此来源没有注册该动作。',
     );
@@ -145,7 +150,8 @@ export class TriggerActions {
       );
       return { state: 'accepted' as const };
     }
-    const requestId = isAdditionalSignal(source.id)
+    if (input.task) invariant(input.task.type.startsWith(owner + '.'), 'trigger_task_owner','任务结果必须属于事件来源插件。');
+    const requestId = hasScopedSignalKey(source.id)
       ? 'trigger-' +
         createHash('sha256')
           .update(JSON.stringify([owner, input.kind, input.requestId]))
@@ -154,12 +160,13 @@ export class TriggerActions {
     if (input.action === 'notice') {
       if (input.conversationId) await this.router.taskResults.submit({
         id: requestId + '.record', conversationId: input.conversationId, text: input.title + '\n' + input.text,
-        source: owner === 'review' ? 'review' : 'trigger', task: source.label.slice(0, 160), report: false,
+        source: type.noticeSource === 'notification' ? 'trigger' : type.noticeSource, task: source.label.slice(0, 160), report: false,
+        context: { tasks: input.task ? [input.task] : undefined, outputId:requestId },
       }, signal);
       if (this.deliveries && input.conversationId) {
         const conversation=this.router.store.conversation(input.conversationId);
         invariant(conversation,'missing_conversation','通知会话不存在。');
-        const plan=input.delivery ?? await this.deliveries.plan(input.conversationId,owner==='review'?'review':'notification',input.outputTargets,{bubble:input.bubble,task:input.task,legacySources:[owner==='review'?'review':isAdditionalSignal(input.kind)?'signal:'+input.kind:'notification','notice']},signal);
+        const plan=input.delivery ?? await this.deliveries.plan(input.conversationId,type.noticeSource,input.outputTargets,{bubble:input.bubble,task:input.task,legacySources:[legacyNoticeSelector(input.kind,type.noticeSource),'notice']},signal);
         await this.deliveries.publish({id:requestId,personaId:conversation.personaId,conversationId:conversation.id,title:input.title,text:input.text,plan},signal);
       } else await this.scope.invoke('notifications.publish@1','notifications.inbox',{
         id:requestId,title:input.title,text:input.text,conversationId:input.conversationId,bubble:input.bubble,triggerKind:input.kind,
@@ -168,12 +175,12 @@ export class TriggerActions {
     }
     const previous = this.router.store.run(requestId);
     const messageSource =
-      input.messageSource ?? (owner === 'observation' ? 'observation' : owner === 'care' ? 'care' : 'trigger');
-    const plan=previous?.meta.delivery ?? input.delivery ?? await this.deliveries?.plan(input.conversationId,messageSource,input.outputTargets,{bubble:input.bubble,localOnly:input.localOnly,task:input.task,legacySources:[isAdditionalSignal(input.kind)?'signal:'+input.kind:messageSource]},signal);
+      source.point === eventPoint ? type.messageSource : input.messageSource ?? type.messageSource;
+    const plan=previous?.meta.delivery ?? input.delivery ?? await this.deliveries?.plan(input.conversationId,messageSource,input.outputTargets,{bubble:input.bubble,localOnly:input.localOnly,task:input.task,legacySources:[hasScopedSignalKey(input.kind)?'signal:'+input.kind:messageSource]},signal);
     return this.router.taskResults.submit({ id: requestId, conversationId: input.conversationId,
       text: input.text, source: messageSource, task: source.label.slice(0, 160),
       report: !input.recordOnly, reportPrompt: input.reportPrompt, delivery: plan as any,
-      context: input.resultContext,
+      context: { ...input.resultContext, tasks:input.task ? [input.task] : undefined },
       reasoning: input.reasoning, expiresAt: input.expiresAt,
       bubble: input.bubble, localOnly: input.localOnly, triggerKind: input.kind }, signal);
   }

@@ -1,0 +1,27 @@
+{
+  "apiVersion": 1,
+  "id": "computer-use",
+  "package": "@echo/computer-use",
+  "name": "Windows Computer Use",
+  "version": "1.0.0",
+  "description": "通过 Windows 辅助功能读取获准的前台窗口，按控件执行操作。",
+  "category": "System",
+  "dependencies": [],
+  "permissions": [
+    "computer-use.read",
+    "computer-use.interact"
+  ],
+  "characterPermissions": [
+    "computer-use.read",
+    "computer-use.interact"
+  ],
+  "settings": [
+    {
+      "key": "applications",
+      "toolSetupHint": "尚未配置允许的应用",
+      "label": "允许操作的应用，每行一个 EXE 完整路径",
+      "type": "textarea"
+    }
+  ],
+  "views": []
+}

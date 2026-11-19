@@ -107,6 +107,19 @@ export function OutputHistory({ personaId, taskType, taskId, act }: any) {
       window.removeEventListener('echo-event', listener);
     };
   }, [personaId, taskType, taskId]);
+  if (!rows.length && !issue) return null;
+  return (
+    <section className="task-run-history">
+      <h2>{t('结果与投递')}</h2>
+      {issue && <p role="alert">{issue}</p>}
+      {rows.map((row) => (
+        <OutputRecord key={row.id} row={row} act={act}/>
+      ))}
+    </section>
+  );
+}
+
+export function OutputRecord({row,act}: any) {
   const labels: Record<string, string> = {
     pending: '等待投递',
     sending: '投递中',
@@ -117,12 +130,7 @@ export function OutputHistory({ personaId, taskType, taskId, act }: any) {
     skipped: '未投递',
     closed: '已结束跟进',
   };
-  if (!rows.length && !issue) return null;
   return (
-    <section className="task-run-history">
-      <h2>{t('结果与投递')}</h2>
-      {issue && <p role="alert">{issue}</p>}
-      {rows.map((row) => (
         <details key={row.id} className="card">
           <summary>{row.title ?? row.text.slice(0, 80)}</summary>
           <p className="readable-pre">{row.text}</p>
@@ -161,7 +169,5 @@ export function OutputHistory({ personaId, taskType, taskId, act }: any) {
           ))}
           {!row.deliveries.length && <span className="muted">{t('仅保留结果')}</span>}
         </details>
-      ))}
-    </section>
   );
 }

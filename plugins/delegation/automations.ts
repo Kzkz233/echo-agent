@@ -124,6 +124,7 @@ export class AgentAutomations {
       if (run.state !== 'succeeded') error = text;
       await this.router.taskResults.submit({ id: 'agent-result-' + requestId, conversationId: parent,
         source: 'handoff', task: task.name, text, report: task.report,
+        context: { tasks:[{type,id}], workSessionId:work.id, executionState:run.state },
         reportPrompt: task.report ? task.reportPrompt : undefined, delivery }, controller.signal);
       const receipt = { state: run.state, taskId: id, runId: run.id };
       this.router.store.saveReceipt(receiptKey, receipt);
@@ -134,7 +135,7 @@ export class AgentAutomations {
         // Execution errors remain visible to later conversation, without starting another failing report run.
         await this.router.taskResults.submit({ id: 'agent-result-' + requestId,
           conversationId: this.parent(task.personaId), source: 'handoff', task: task.name,
-          text: '任务未完成：' + error, report: false }).catch(() => {});
+          context: { tasks:[{type,id}], executionState:'failed' }, text: '任务未完成：' + error, report: false }).catch(() => {});
       }
       const receipt = { state: controller.signal.aborted ? 'cancelled' : 'failed', taskId: id, error };
       this.router.store.saveReceipt(receiptKey, receipt);
@@ -171,9 +172,10 @@ export class AgentAutomations {
           { key: 'report', label: '结果汇报', kind: 'boolean' },
           { key: 'reportPrompt', label: '汇报要求', kind: 'textarea', when: { key: 'report', value: true } },
           { key: 'outputTargets', label: '汇报渠道', kind: 'outputs', outputSource: 'handoff', when: { key: 'report', value: true } },
-        ], items: this.tasks().map(task => ({ id: task.id, name: task.name, enabled: task.enabled,
+        ], }),
+      items: () => this.tasks().map(task => ({ id: task.id, name: task.name, enabled: task.enabled,
           personaId: task.personaId, state: this.running.has(task.id) ? 'running' : !task.enabled ? 'paused' : task.lastError ? 'failed' : 'waiting',
-          nextAt: task.nextAt, lastAt: task.lastAt, settings: task })) }),
+          nextAt: task.nextAt, lastAt: task.lastAt, settings: task })),
       save: (id, value) => this.save({ ...value, id }),
       remove: id => { invariant(!this.running.has(id), 'task_busy', '请先停止正在执行的任务。');
         this.clock.cancel('agent-task.' + id); this.router.store.remove('agent-automations', id); },

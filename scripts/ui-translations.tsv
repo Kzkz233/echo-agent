@@ -2704,3 +2704,14 @@ GitHub 更新已暂存	GitHub update staged
 窗口操作失败	Window action failed
 高级生成限制	Advanced generation limits
 留空自动使用模型声明的输出能力；未声明时使用通用默认值。这是单次响应上限，不限制任务总用量。会话或任务可单独覆盖。	Leave blank to use the model's declared output capacity, or the general default when unknown. This limits one response, not the total task. Sessions and tasks may override it.
+插件工具授权	Plugin tool access
+交互操作	Interact
+搜索插件或工具	Search plugins or tools
+工具已注册	Tools registered
+配置连接	Configure connection
+已配置	Configured
+未找到匹配的工具	No matching tools
+尚未配置允许的网站	No allowed websites configured
+尚未配置允许的应用	No allowed applications configured
+尚未配置文献库连接	Library connection not configured
+在「角色功能」的「插件工具授权」中选择可用工具。外部工具可能执行写入操作。	Choose tools under Character features → Plugin tool access. External tools may write data.

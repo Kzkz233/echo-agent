@@ -263,14 +263,18 @@
  .role-editor .wizard-actions { margin-left: 0; }
 }
 
-.role-permission-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
-.role-permission-list .inline-toggle { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin: 0; border: 1px solid var(--border); border-radius: var(--radius-panel); }
-.role-permission-list .inline-toggle > span { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 10px; }
-.role-permission-list strong { font-weight: 500; font-size: var(--font-caption); }
-.role-permission-list small { color: var(--muted); font-size: var(--font-caption); white-space: nowrap; }
-.role-tool-grant { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-panel); }
-.role-tool-grant strong { flex-basis: 100%; }
-.role-tool-grant .inline-toggle { border: 0; padding: 0; margin-inline-end: 9px; }
+.role-plugin-tools { scroll-margin-block: 16px; display: grid; gap: 12px; }
+.role-plugin-tools > h3, .role-grant-group > h4 { margin: 0; }
+.role-permission-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.role-grant-group { border: 1px solid var(--border); border-radius: var(--radius-panel); padding: 12px; min-width: 0; }
+.role-grant-group > h4 { font-size: var(--font-body); overflow-wrap: anywhere; }
+.role-grant-setup, .role-tool-grant { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-block: 6px; }
+.role-grant-setup { justify-content: space-between; color: var(--muted); }
+.role-tool-grant { border-top: 1px solid var(--border); }
+.role-tool-grant > span { flex: 1 1 60px; overflow-wrap: anywhere; }
+.role-tool-grant small { display: block; color: var(--muted); }
+.role-tool-grant .inline-toggle { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; margin: 0; padding: 0; }
+.role-grant-group > h4 + .role-tool-grant { margin-block-start: 6px; }
 .role-workspaces { overflow: auto; margin: 0 0 16px; }
 .role-workspaces table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
 .role-workspaces th, .role-workspaces td { padding: 6px; text-align: start; border-bottom: 1px solid var(--border); }

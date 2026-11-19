@@ -1,3 +1,5 @@
+import { useTaskCatalog } from './use-task-catalog.ts';
+import { RecordedTasks, TaskHistory } from './task-history.tsx';
 import { useEffect, useState } from 'react';
 import { rpc } from './client.ts';
 import { t } from './i18n.ts';
@@ -21,8 +23,8 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
       return {};
     }
   });
-  const [catalog, setCatalog] = useState<any>({ types: [] }),
-    [workers, setWorkers] = useState<any[]>([]);
+  const { catalog, ready, error:catalogError } = useTaskCatalog();
+  const [workers, setWorkers] = useState<any[]>([]);
   const [history, setHistory] = useState(saved.history === true),
     [filter, setFilter] = useState(typeof saved.filter === 'string' ? saved.filter : ''),
     [selected, setSelected] = useState<any>(
@@ -52,7 +54,6 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
       timer: ReturnType<typeof setTimeout>;
     const load = async () => {
       const results = await Promise.allSettled([
-        rpc('automation.catalog'),
         delegation ? rpc('delegation.list', { personaId }) : Promise.resolve([]),
         data.plugins.some((p: any) => p.id === 'review' && p.enabled)
           ? rpc('review.list')
@@ -60,16 +61,15 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
         rpc('work.list', { personaId }),
       ]);
       if (!alive) return;
-      if (results[0].status === 'fulfilled') setCatalog(results[0].value);
-      if (results[1].status === 'fulfilled') setWorkers(results[1].value);
-      if (results[2].status === 'fulfilled') setReviewRuns(results[2].value);
-      if (results[3].status === 'fulfilled') setWorkSessions(results[3].value);
+      if (results[0].status === 'fulfilled') setWorkers(results[0].value);
+      if (results[1].status === 'fulfilled') setReviewRuns(results[1].value);
+      if (results[2].status === 'fulfilled') setWorkSessions(results[2].value);
       setLoaded(true);
     };
     void load();
     const update = (event: any) => {
       if (
-        /^(work\.|automation\.|delegation\.|review\.|run\.|interaction\.|observation\.|characters\.updated|binding\.changed|inference\.)/.test(
+        /^(work\.|automation\.|delegation\.|review\.|run\.(started|completed)|interaction\.|observation\.|characters\.updated|binding\.changed|inference\.)/.test(
           event.detail.type,
         )
       ) {
@@ -196,7 +196,9 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
         }}
       />
       <div id="task-panel" role="tabpanel" aria-labelledby={'task-' + view}>
-        {!loaded ? <EmptyState title={t('正在打开…')} /> : manual ? (
+        {view === 'automation' && !!catalog.unavailable?.length && <p role="status">{t('无法读取任务类型')} · {catalog.unavailable.join(' · ')}</p>}
+        {catalogError && <p role="alert">{catalogError}</p>}
+        {!loaded || !ready ? <EmptyState title={t('正在打开…')} /> : manual ? (
           <>
             <Button secondary onClick={() => setManual(false)}>
               {t('返回任务列表')}
@@ -208,6 +210,7 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
             <Button secondary onClick={() => setSelected(undefined)}>
               {t('返回任务列表')}
             </Button>
+            {current.kind === 'worker' && <TaskHistory act={act} personaId={personaId} type={current.managed ? current.origin.type : 'delegation'} id={current.managed ? current.origin.id : current.id}/>}
             {current.background ? (
               <AutomationView
                 {...{ act, openTask, personaId }}
@@ -332,11 +335,7 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
                 <button
                   className="task-record"
                   key={row.key}
-                  onClick={() => {
-                    if (row.definition?.statusPage && row.definition.statusPage !== 'automation')
-                      openTask(row.definition.statusPage, row.type, row.id, 'status');
-                    else setSelected(row);
-                  }}
+                  onClick={() => setSelected(row)}
                 >
                   <span>
                     <strong>{row.name}</strong>
@@ -356,6 +355,7 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
                 </button>
               ))}
             </div>
+            {view === 'automation' && <RecordedTasks key={personaId} personaId={personaId} act={act}/>}
             {!rows.length && (
               <EmptyState
                 title={t(

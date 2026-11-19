@@ -1,4 +1,31 @@
 [
+["插件工具授权", "Plugin tool access"],
+["交互操作", "Interact"],
+["搜索插件或工具", "Search plugins or tools"],
+["工具已注册", "Tools registered"],
+["配置连接", "Configure connection"],
+["已配置", "Configured"],
+["未找到匹配的工具", "No matching tools"],
+["尚未配置允许的网站", "No allowed websites configured"],
+["尚未配置允许的应用", "No allowed applications configured"],
+["尚未配置文献库连接", "Library connection not configured"],
+["在「角色功能」的「插件工具授权」中选择可用工具。外部工具可能执行写入操作。", "Choose tools under Character features → Plugin tool access. External tools may write data."],
+["迁移到另一台设备，保留任务设置和已安装扩展","Migrate to another device with task settings and installed extensions"],
+["首次启动迁入库前，请先停止旧设备的自动化。迁入的扩展需手动启用，凭据需重新配置。","Stop automation on the old device before opening the migrated data. Re-enable extensions and configure credentials on the new device."],
+["浏览器操作","Browser Use"],
+["在独立的浏览器会话中阅读和操作已授权的网站。","Read and interact with approved sites in an isolated browser session."],
+["允许的网站，每行一个 HTTPS 来源","Allowed sites, one HTTPS origin per line"],
+["浏览器","Browser"],
+["Windows 桌面操作","Windows Computer Use"],
+["通过 Windows 辅助功能读取获准的前台窗口，按控件执行操作。","Read approved foreground windows and interact with their Windows accessibility controls."],
+["允许操作的应用，每行一个 EXE 完整路径","Allowed applications, one full executable path per line"],
+["Zotero","Zotero"],
+["连接并刷新","Connect and refresh"],
+["本机文献库","Local library"],
+["连接 Zotero 文献库","Connect Zotero library"],
+["检索本机个人文献库，管理分组和笔记，关联已有的知识条目。","Search your local library, manage collections and notes, and link indexed documents."],
+["Zotero 本机服务 ID","Local Zotero server ID"],
+["本地 API 凭据引用","Local API credential reference"],
   [
     "提供方不可用",
     "(provider unavailable)"
@@ -10774,5 +10801,51 @@
   [
     "默认模型不可用于此任务，请指定兼容的模型。",
     "The default model is unavailable for this task. Select a compatible model."
-  ]
+  ],
+  [
+    "运行详情",
+    "Run details"
+  ],
+  [
+    "旧草稿缺少编辑基线，请从角色资料重新编辑。",
+    "This older draft has no edit baseline. Open the character profile to edit it."
+  ],
+  [
+    "已记入主会话",
+    "Recorded in the main session"
+  ],
+  [
+    "等待主会话接棒",
+    "Waiting for the main session"
+  ],
+  [
+    "主会话处理中",
+    "Main session in progress"
+  ],
+  [
+    "主会话已完成",
+    "Main session finished"
+  ],
+  [
+    "主会话处理失败",
+    "Main session failed"
+  ],
+  [
+    "暂无主会话运行记录",
+    "No main session run recorded"
+  ],
+  [
+    "暂无渠道回执",
+    "No delivery receipt recorded"
+  ],
+  [
+    "执行状态",
+    "Execution status"
+  ],
+  [
+    "历史任务",
+    "Task history"
+  ],
+  ["在文件夹中显示", "Show in folder"],
+  ["下载附件", "Download attachment"]
 ]

@@ -34,6 +34,10 @@ test('public audit refuses excluded names, compiled identifiers, renamed databas
     ['launcher.exe', Buffer.concat([Buffer.from([0]), Buffer.from('fixture-extension', 'utf16le')]), /in executable/],
     ['cache.bin', Buffer.from('SQLite format 3\0'), /embedded database/],
     ['library.enl', 'synthetic data', /runtime\/private data path/],
+    ['zotero.sqlite.1.bak', 'fixture', /runtime\/private data path/],
+    ['.zotero-ft-cache', 'fixture', /runtime\/private data path/],
+    ['rclone.conf', 'fixture', /runtime\/private data path/],
+    ['fixture.dpapi', 'fixture', /runtime\/private data path/],
     ['example.webp', 'unapproved image', /unapproved public media asset/],
     ['extra.zip', 'uninspected archive', /unapproved embedded archive/],
   ];

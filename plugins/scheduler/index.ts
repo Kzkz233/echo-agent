@@ -42,6 +42,7 @@ export class Scheduler {
     readonly events: Events,
     readonly clock: Clock,
   ) {
+    store.db.exec("CREATE INDEX IF NOT EXISTS scheduler_runs_job_time ON documents(json_extract(data,'$.jobId'),json_extract(data,'$.startedAt')) WHERE namespace='scheduler-runs'");
     for (const e of store.documents<Execution>('scheduler-runs'))
       if (e.state === 'running')
         store.put('scheduler-runs', e.id, { ...e, state: 'unknown', error: '进程中断，未重放。' });
@@ -173,8 +174,7 @@ export class Scheduler {
         const describe = (mail: boolean) => {
           const providers = ctx.capabilities.list('scheduler.handlers@1').filter((p) => p.state === 'active');
           const accounts = this.store.documents<{ id: string; name?: string; address?: string; username?: string }>('mail-accounts');
-          const jobs = this.jobs().filter((job) => (job.provider === 'mail.sync') === mail);
-          if (mail && !jobs.length && !providers.some((p) => p.id === 'mail.sync')) return;
+          if (mail && !providers.some(p => p.id === 'mail.sync') && !this.jobs().some(j => j.provider === 'mail.sync')) return;
           const fields: AutomationField[] = [
             ...(mail ? [{ key: 'accountId', label: '邮箱账户', kind: 'select' as const,
               options: accounts.map((a) => ({ value: a.id, label: a.name ?? a.address ?? a.username ?? a.id })) }]
@@ -187,13 +187,18 @@ export class Scheduler {
             { key: 'minute', label: '分钟', kind: 'number', min: 0, max: 59, when: { key: 'mode', value: 'daily' } },
             { key: 'timezone', label: '时区', kind: 'text', when: { key: 'mode', value: 'daily' } },
           ];
-          const executions = this.store.documents<Execution>('scheduler-runs')
-            .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
           return {
             defaults: { mode: 'interval', minutes: 60, hour: 7, minute: 0, timezone: 'Asia/Shanghai', input: {} },
             fields,
-            items: jobs.map((job) => {
-              const latest = executions.find((run) => run.jobId === job.id);
+          };
+        };
+        const items = (mail: boolean) => {
+          const providers = ctx.capabilities.list('scheduler.handlers@1').filter(p => p.state === 'active');
+          const accounts = this.store.documents<{id:string; name?:string}>('mail-accounts');
+          const jobs = this.jobs().filter(job => (job.provider === 'mail.sync') === mail);
+          return jobs.map((job) => {
+              const row = this.store.db.prepare("SELECT data FROM documents WHERE namespace='scheduler-runs' AND json_extract(data,'$.jobId')=? ORDER BY json_extract(data,'$.startedAt') DESC LIMIT 1").get(job.id) as {data:string} | undefined;
+              const latest = row && JSON.parse(row.data) as Execution;
               const accountId = (job.input as { accountId?: string } | undefined)?.accountId;
               return {
                 id: job.id, name: job.name, enabled: job.enabled,
@@ -205,8 +210,7 @@ export class Scheduler {
                 lastAt: latest?.finishedAt,
                 settings: { ...job, ...(mail ? { accountId } : {}) },
               };
-            }),
-          };
+            });
         };
         for (const mail of [true, false]) {
           const getJob = (id: string) => {
@@ -215,7 +219,7 @@ export class Scheduler {
             return job;
           };
           contributeAutomation(ctx, mail ? 'scheduler.mail' : 'scheduler.timed', mail ? '邮件同步' : '通用定时任务', {
-            describe: () => describe(mail),
+            describe: () => describe(mail), items: () => items(mail),
             save: (id, settings) => {
               if (this.store.document('scheduler-jobs', id)) getJob(id);
               const accountId = mail ? z.string().min(1).parse(settings.accountId) : undefined;
@@ -237,9 +241,9 @@ export class Scheduler {
           });
         }
         const op = operations(ctx, 'scheduler');
-        op('list', '任务和执行记录', z.object({}), 'scheduler.read', () => ({
+        op('list', '任务和执行记录', z.object({ before: id.optional(), limit: z.number().int().min(1).max(500).default(500) }), 'scheduler.read', (v) => ({
           jobs: this.jobs(),
-          runs: this.store.documents('scheduler-runs').slice(-500),
+          runs: this.store.documentHistory('scheduler-runs', 'startedAt', v.limit, v.before),
           providers: ctx.capabilities.list('scheduler.handlers@1'),
         }));
         op(

@@ -7,12 +7,17 @@ import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { join, relative, isAbsolute, resolve, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
+import { packageFiles, packageTables, type PackageLocation } from './extension-archive.ts';
+import { collectAssets } from './portable-assets.ts';
 async function run() {
   const { database, destination } = workerData;
   await mkdir(destination, { recursive: true });
   await snapshotDatabase(database, join(destination, 'echo.sqlite'));
   const snapshot = new DatabaseSync(join(destination, 'echo.sqlite'), { readOnly: true });
   const manifest: { path: string; hash: string; bytes: number }[] = [];
+  const packages: PackageLocation[] = [];
+  let assets: Awaited<ReturnType<typeof collectAssets>> = { saved: [], directories: [] };
+  const externalExtensions = new Set<string>();
   const safe = (p: string) =>
     p !== '..' && !p.startsWith('..\\') && !p.startsWith('../') && !isAbsolute(p);
   const save = async (sub: string, bytes: Buffer) => {
@@ -59,6 +64,27 @@ async function run() {
       (
         snapshot.prepare('SELECT data FROM documents WHERE namespace=?').all(namespace) as any[]
       ).map((r) => JSON.parse(r.data));
+    assets = await collectAssets(
+      snapshot,
+      dirname(database),
+      workerData.owners ?? [],
+      (sub, path) => recordFile(sub, path, true),
+    );
+    const copied = new Set<string>();
+    for (const namespace of packageTables) {
+      for (const row of rows(namespace)) {
+        const pack = await packageFiles(dirname(database), row);
+        if (!pack) {
+          externalExtensions.add(row.manifest.id);
+          continue;
+        }
+        packages.push({ namespace, id: row.manifest.id, directory: pack.directory });
+        if (copied.has(pack.directory)) continue;
+        for (const file of pack.files)
+          await recordFile(pack.directory + '/' + file.name, file.path, true, file.hash);
+        copied.add(pack.directory);
+      }
+    }
     const roots = new Map(rows('vaults').map((r) => [r.id, r.path]));
     for (const [id, configured] of roots) {
       if (!/^[\w][\w.-]*$/.test(id)) throw Error('Invalid library ID');
@@ -95,23 +121,22 @@ async function run() {
     await recordFile('semantic/index.sqlite', join(destination, 'semantic/index.sqlite'));
   }
   const raw = join(dirname(database), 'observations');
-  const attachments=join(dirname(database),'chat-attachments');
-  for(const file of await readdir(attachments).catch(()=>[]))if(/^[a-f0-9]{64}$/.test(file))
-    await save('chat-attachments/'+file,await readFile(join(attachments,file)));
+  const attachments = join(dirname(database), 'chat-attachments');
+  for (const file of await readdir(attachments).catch(() => []))
+    if (/^[a-f0-9]{64}$/.test(file))
+      await recordFile('chat-attachments/' + file, join(attachments, file), true);
   for (const file of await readdir(raw).catch(() => []))
     if (/^\d{4}-\d\d-\d\d\.jsonl$/.test(file))
       await save('observations/' + file, await readFile(join(raw, file)));
-  const bytes = await readFile(join(destination, 'echo.sqlite'));
-  manifest.push({
-    path: 'echo.sqlite',
-    hash: createHash('sha256').update(bytes).digest('hex'),
-    bytes: bytes.length,
-  });
+  await recordFile('echo.sqlite', join(destination, 'echo.sqlite'));
   await writeFile(
     join(destination, 'manifest.json'),
     JSON.stringify(
       {
-        format: 'echo-backup-v1',
+        format: 'echo-backup-v2',
+        packages,
+        assets,
+        externalExtensions: [...externalExtensions],
         createdAt: new Date().toISOString(),
         credentialsIncluded: false,
         files: manifest,

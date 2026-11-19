@@ -301,7 +301,7 @@ export class Care {
           })),
       character: characterFeature(this.store, 'care', z.object({}), [], ['care.rules']),
       activate: (ctx) => {
-        contributeSignal(ctx, 'care.opportunity', '主动交流机会', 'conversation');
+        contributeSignal(ctx, 'care.opportunity', '主动交流机会', 'conversation', { messageSource:'care' });
         this.ctx = ctx;
         ctx.capabilities.define({
           id: 'care.context@1',
@@ -429,7 +429,8 @@ export class Care {
               },
               { key: 'prompt', label: '主动交流提示词', kind: 'textarea' },
             ],
-            items: this.rules().map((rule) => {
+          }),
+          items: () => this.rules().map((rule) => {
               const result = this.store.get<{ at?: string; failed?: boolean }>(
                 'care.result.' + rule.id,
                 {},
@@ -464,7 +465,6 @@ export class Care {
                 },
               };
             }),
-          }),
           save: (id, settings) => this.saveRule(id, settings),
           remove: (id) => {
             this.abortRule(id);

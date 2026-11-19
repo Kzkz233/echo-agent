@@ -15,6 +15,7 @@ export type ExtensionPoint = {
   providePermission: string;
   consumePermission: string;
   cardinality?: 'one' | 'many';
+  ownerCallsOnly?: boolean;
 };
 type Definition = {
   contract: ExtensionPoint;
@@ -79,6 +80,7 @@ export class Capabilities {
           output: z.toJSONSchema(contract.output),
           provide: contract.providePermission,
           consume: contract.consumePermission,
+          ...(contract.ownerCallsOnly && {ownerCallsOnly:true}),
           cardinality: contract.cardinality ?? 'many',
         }),
       )
@@ -190,7 +192,8 @@ export class Capabilities {
       '扩展点或提供方尚未就绪',
     );
     invariant(
-      caller.permissions.has('*') || caller.permissions.has(definition.contract.consumePermission),
+      (!definition.contract.ownerCallsOnly || caller === definition.owner) &&
+        (caller.permissions.has('*') || caller.permissions.has(definition.contract.consumePermission)),
       'capability_consume_denied',
       '没有调用此扩展点的权限',
     );
@@ -267,6 +270,7 @@ export class Capabilities {
         return off;
       },
       list: (point?: string) => this.list(point),
+      instanceKey: (point:string, id:string) => this.instanceKey(point,id),
       subscribe: (fn: () => void) => {
         this.listeners.add(fn);
         const off = () => {

@@ -12,6 +12,7 @@ export const replySubmission = z.object({
   targetId: key,
   phase: z.enum(['progress', 'final']).describe('每个目标每阶段只能提交一次。尚有正文待发送时用 progress；final 必须包含该目标的完整答复，提交后不能追加。'),
   title: z.string().trim().min(1).max(200).optional(),
+  attachmentIds: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(4).optional(),
   messages: z.array(z.string().trim().min(1).max(20000)).min(1).max(3)
     .describe('要分条发送时，把全部分段放在这一个数组里；不要为同一目标反复调用 final。'),
 }).strict();
@@ -24,6 +25,7 @@ export const outputTarget = z.object({
   issue: z.string().max(500).optional(),
   portable: z.boolean().default(false),
   supportsImages: z.boolean().default(false),
+  supportsFiles: z.boolean().optional(),
   presentation: z.enum(['bubble', 'external']).optional(),
   style: key.optional(),
   initialStyle: z.string().max(600).optional(),
@@ -43,6 +45,7 @@ export const outputEnvelope = z.object({
   text: z.string().max(100000),
   title: z.string().max(200).optional(),
   parts: replySubmission.shape.messages.optional(),
+  attachmentIds: replySubmission.shape.attachmentIds,
   plan: deliveryPlan,
 });
 export const deliveryResult = z.object({

@@ -21,17 +21,34 @@ export function CharacterHome({
   backstage = false,
 }: any) {
   const confirm = useConfirm();
-  const [character, setCharacter] = useState<any>(() => data.characters.find((item: any) => item.id === role.id));
-  const activity = data.characterActivities?.[role.id] ?? { enabled: true, revision: 0 };
+  const storedRole = data.characters.find((item: any) => item.id === role.id);
+  const [legacyRole, setLegacyRole] = useState<any>();
+  const [roleError, setRoleError] = useState('');
   useEffect(() => {
+    if (storedRole) return;
     let alive = true;
-    rpc('persona.character.read', { id: role.id }).then((value) => {
-      if (alive) setCharacter(value);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [role.id, data.characters]);
+    setRoleError('');
+    rpc('persona.character.read', { id: role.id }).then(
+      value => { if (alive) setLegacyRole(value); },
+      error => { if (alive) setRoleError(String(error)); },
+    );
+    return () => { alive = false; };
+  }, [role.id, storedRole]);
+  const character = storedRole ?? (legacyRole?.persona?.id === role.id ? legacyRole : undefined);
+  const activity = data.characterActivities?.[role.id] ?? { enabled: true, revision: 0 };
+  const hasAvatar = character?.features.includes('avatar') &&
+    data.plugins.some((plugin: any) => plugin.id === 'avatar' && plugin.enabled);
+  const [profile, setProfile] = useState<{ id: string; enabled?: boolean; error?: string }>();
+  const avatar = profile?.id === role.id ? profile : undefined;
+  useEffect(() => {
+    if (!backstage || !hasAvatar) return;
+    let alive = true;
+    rpc('avatar.profile', { personaId: role.id }).then(
+      (value) => { if (alive) setProfile({ id: role.id, enabled: value.enabled }); },
+      (error) => { if (alive) setProfile({ id: role.id, error: String(error) }); },
+    );
+    return () => { alive = false; };
+  }, [backstage, role.id, hasAvatar, data.characters]);
   const exportRole = () =>
     act(async () => {
       const pack = await rpc('persona.package.export', {
@@ -98,6 +115,7 @@ export function CharacterHome({
     }, '');
   return (
     <div className="character-home">
+      {!storedRole && roleError && <p role="alert">{roleError}</p>}
       {(backstage || !activity.enabled || character?.state === 'needs-attention') && (
         <header
           className={'character-home-heading' + (backstage ? '' : ' character-dialogue-heading')}
@@ -125,21 +143,21 @@ export function CharacterHome({
               </Button>
             )}
             {backstage &&
-              character?.features.includes('avatar') &&
-              data.plugins.some((plugin: any) => plugin.id === 'avatar' && plugin.enabled) && (
+              hasAvatar && (
                 <Button
                   secondary
-                  disabled={!activity.enabled}
+                  title={avatar?.error}
+                  disabled={!activity.enabled || avatar?.enabled === undefined}
                   onClick={() =>
                     act(() =>
                       rpc('avatar.configureRole', {
                         personaId: role.id,
-                        patch: { enabled: !data.avatarProfiles?.[role.id]?.enabled },
+                        patch: { enabled: !avatar?.enabled },
                       }),
                     )
                   }
                 >
-                  {t(data.avatarProfiles?.[role.id]?.enabled ? '隐藏桌宠' : '显示桌宠')}
+                  {t(avatar?.enabled ? '隐藏桌宠' : '显示桌宠')}
                 </Button>
               )}
             {backstage && (

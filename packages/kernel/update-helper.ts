@@ -21,7 +21,7 @@ async function main() {
     JSON.parse(await readFile(join(transaction, 'plan.json'), 'utf8')),
   );
   let trial: ChildProcess | undefined;
-  await atomicJson(join(transaction, 'helper-ready.json'), { pid: process.pid, id: plan.id });
+  await atomicJson(join(transaction, 'helper-ready.json'), { pid: process.pid, id: plan.id, launchId: process.argv[3] });
   await installTransaction(plan, transaction, {
     async stopped() {
       for (let attempt = 0; attempt < 225; attempt++) {

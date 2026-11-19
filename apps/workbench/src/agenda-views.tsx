@@ -386,8 +386,7 @@ export function AgendaCalendar({ data, act }: any) {
             ))}
           <h2>{t('Recent reminders')}</h2>
           {reminders
-            .slice(-10)
-            .reverse()
+            .slice(0, 10)
             .map((r) => (
               <div key={r.id}>
                 <b>{r.title}</b>
