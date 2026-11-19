@@ -224,6 +224,36 @@ function assistant(id: string): TranscriptMessage {
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
     content: [{ type: 'toolCall', id, name: 'fixture_read', arguments: { part: 1 } }] };
 }
+test('Responses resumes after a persisted partial tool call without emitting an unmatched output', async t => {
+  const f = await fixture(t, 'openai-responses', (body, step) => {
+    const history = pairs('openai-responses', body);
+    assert.equal(history.calls.length, 1);
+    assert.match(history.calls[0], /^confirmed_call/);
+    assert.deepEqual(history.results, history.calls);
+    assert(!JSON.stringify(body.input).includes('partial_call'));
+    return answer('openai-responses', step, 'echo_respond',
+      { targetId: 'core.chat', phase: 'final', messages: ['Synthetic continuation'] });
+  });
+  const { store } = f.app;
+  store.append(f.chat.id, 'user', 'human', 'Previous task');
+  const confirmed = { ...assistant('confirmed_call|fc_confirmed'), api: 'openai-responses',
+    provider: 'echo-previous', model: 'previous' } as TranscriptMessage;
+  store.appendTranscript(f.chat.id, 'confirmed', confirmed);
+  store.appendTranscript(f.chat.id, 'confirmed', { role: 'toolResult', toolCallId: 'confirmed_call|fc_confirmed',
+    toolName: 'fixture_read', isError: false, timestamp: 2, content: [{ type: 'text', text: 'Confirmed read' }] });
+  const partial = assistant('partial_call|item_partial');
+  assert.equal(partial.role, 'assistant');
+  store.appendTranscript(f.chat.id, 'partial', { ...partial, stopReason: 'error',
+    api: 'openai-responses', provider: 'echo-previous', model: 'previous' });
+  await f.restart();
+  const run = await f.app.router.send({ conversationId: f.chat.id, requestId: 'after-failed-tool-stream',
+    text: 'Resume the task' });
+  assert.equal(run.state, 'succeeded', run.error ?? 'Failed to resume after restart');
+  assert.equal(f.reads, 0, 'No tool from the previous run should execute again');
+  assert.equal(f.app.store.db.prepare("SELECT count(*) AS n FROM session_entries WHERE run_id='partial'").get()?.n, 1,
+    'Keep the failed attempt in the durable session log');
+});
+
 test('interrupted tool outcomes remain unknown and paired; raw media is not archived; original rows survive migration', async t => {
   const cleanup: (() => Promise<void>)[] = [];
   const runtime = await temporary(deferredCleanup(cleanup)), path = join(runtime, 'history.sqlite');

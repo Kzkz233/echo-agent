@@ -7,6 +7,7 @@ import type { WorkAuthority, WorkOrigin } from '../contracts/work.ts';
 import type { Router } from './router.ts';
 import { conversationCompaction } from './compaction.ts';
 import { Clock } from './clock.ts';
+import type { TaskModelReceipt } from '../contracts/task-model.ts';
 
 export type WorkSession = {
   id: string;
@@ -106,7 +107,8 @@ export class WorkSessions {
   }
   async run(input: {
     id: string; profileId: string; requestId: string; text: string; reasoning?: Reasoning;
-    authority?: Omit<WorkAuthority, 'active'>; timeoutMs?: number;
+    authority?: Omit<WorkAuthority, 'active'>; timeoutMs?: number; taskModel?: TaskModelReceipt;
+    reasoningDefault?: 'model';
   }, signal: AbortSignal): Promise<Run> {
     invariant(input.timeoutMs === undefined || Number.isSafeInteger(input.timeoutMs) && input.timeoutMs >= 0,
       'work_timeout', '执行时限必须为非负整数。');
@@ -126,7 +128,9 @@ export class WorkSessions {
           const inheritedReasoning = store.binding(row.parentConversationId)?.profileId === input.profileId ? parent?.reasoning : undefined;
           return await this.router.send({ conversationId: row.conversationId, requestId: input.requestId,
             source: 'delegation', text: input.text,
-            reasoning: !input.reasoning || input.reasoning === 'inherit' ? inheritedReasoning ?? input.reasoning : input.reasoning,
+            reasoning: input.reasoningDefault === 'model' ? input.reasoning ?? 'inherit'
+              : !input.reasoning || input.reasoning === 'inherit' ? inheritedReasoning ?? input.reasoning : input.reasoning,
+            taskModel: input.taskModel,
             messageOrigin: { sender: 'system', task: row.origin.name } }, life);
         } finally {
           if (input.authority) store.put('work-authorities', row.conversationId, { ...input.authority, id: row.conversationId, active: false });
@@ -139,7 +143,7 @@ export class WorkSessions {
   /** API-backed task steps share the work lifecycle and history, without starting another agent. */
   async infer(input: {
     id: string; task: Task; requestId: string; messages: ModelInput[];
-    profileId?: string; reasoning?: Reasoning;
+    profileId?: string; reasoning?: Reasoning; taskModel?: TaskModelReceipt;
     interpret?: (result: GenerateResult) => string;
   }, signal: AbortSignal): Promise<GenerateResult> {
     let result: GenerateResult | undefined;
@@ -156,7 +160,8 @@ export class WorkSessions {
         profileId: profile.id, epoch: (binding?.epoch ?? 0) + 1, state: 'running',
         source: 'delegation', input: input.messages.at(-1)?.text ?? '', createdAt: new Date().toISOString(),
         meta: { workSession: true, inferenceTask: input.task, contextLimit: profile.modelOptions.contextWindowTokens,
-          contextWindowKind: 'model', reasoning: input.reasoning } };
+          contextWindowKind: 'model', reasoning: input.reasoning,
+          ...(input.taskModel ? { taskModel: { ...input.taskModel, model: profile.model } } : {}) } };
       store.createRun(run);
       store.put('work-sessions', row.id, { ...store.document<WorkSession>('work-sessions', row.id)!, runId: run.id });
       // Images remain transient. Persist text and image counts, never screenshot data.

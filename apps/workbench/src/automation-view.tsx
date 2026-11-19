@@ -9,6 +9,7 @@ import { rpc } from './client.ts';
 import { locale, t } from './i18n.ts';
 import { ReasoningSelect } from './reasoning-select.tsx';
 import { ModelChoice } from './model-choice.tsx';
+import { taskModelChoice } from '../../../packages/contracts/task-model.ts';
 import { WorkExecutionSettings, WorkContextSettings } from './work-settings.tsx';
 import {
   Button,
@@ -92,25 +93,30 @@ export function TaskField({
         value={String(value ?? '')}
         executor={field.kind === 'executor'}
         taskId={field.inferenceTask}
-        inheritValue={profileId}
+        inheritLabel={field.modelFallback === 'main' ? '使用主会话模型' : undefined}
+        inheritValue={field.modelFallback === 'main' ? profileId ?? '' : profileId}
+        showInheritedModel={field.modelFallback === 'main'}
         personaId={String(draft.settings.personaId ?? '') || undefined}
         onChange={(next) => onChange(field.key, next || undefined)}
       />
     );
-  if (field.kind === 'reasoning')
+  if (field.kind === 'reasoning') {
+    const explicit = field.modelField ? draft.settings[field.modelField] : undefined;
+    const selected = field.modelFallback === 'main'
+      ? taskModelChoice(typeof explicit === 'string' ? explicit : undefined, profileId).profileId
+      : String(draft.settings.profileId ?? draft.settings.visionProfileId ?? profileId ?? '') || undefined;
     return (
       <ReasoningSelect
         label={field.label}
         value={String(value ?? 'inherit')}
-        profileId={
-          String(draft.settings.profileId ?? draft.settings.visionProfileId ?? profileId ?? '') ||
-          undefined
-        }
-        taskId={field.inferenceTask}
+        inheritLabel={field.modelFallback === 'main' ? '使用模型默认' : undefined}
+        profileId={selected}
+        taskId={field.modelFallback === 'main' && !selected ? undefined : field.inferenceTask}
         personaId={String(draft.settings.personaId ?? '') || undefined}
         onChange={(next) => onChange(field.key, next)}
       />
     );
+  }
   if (field.kind === 'records') {
     const rows = Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
     return (

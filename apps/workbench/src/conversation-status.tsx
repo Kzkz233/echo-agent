@@ -1,3 +1,5 @@
+import type { TaskModelReceipt } from '../../../packages/contracts/task-model.ts';
+import { TaskModelDetails } from './task-model-details.tsx';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Run } from '../../../packages/contracts/index.ts';
@@ -90,6 +92,7 @@ export function ConversationStatus({ run, limit }: { run?: Run; limit?: number }
 
   return (
     <div className="conversation-status">
+      {run?.meta.taskModel ? <TaskModelDetails model={run.meta.taskModel as TaskModelReceipt} /> : null}
       {metrics && <span className="conversation-status-item" title={t('平均生成速度包含模型等待时间，工具执行单独计时。')}>
         <Icon name="speed" size={15} />
         {t('{steps} 步', { steps: metrics.modelSteps })}
@@ -153,7 +156,7 @@ export function WorkConversationStatus({ data, conversationId }: { data: any; co
   useEffect(() => {
     let alive = true;
     const load = () => void rpc<Run[]>('runs.list', { conversationId }).then(runs => {
-      if (alive) setRun(runs.find(run => run.meta.generationMetrics || run.state === 'succeeded'));
+      if (alive) setRun(runs.find(run => run.meta.taskModel || run.meta.generationMetrics || run.state === 'succeeded'));
     }).catch(() => {});
     load();
     const update = (event: any) => {

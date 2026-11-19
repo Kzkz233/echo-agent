@@ -223,7 +223,6 @@ export function registerStarterCharacters(app: Application) {
                 sourceIds: ['core.conversation', 'observation.source'],
                 conversationScope: 'selected',
                 conversationIds: [previous?.mainConversationId ?? 'main-' + roleId],
-                profileId: value.profileId,
                 reasoning: 'off',
                 autoApply: true,
                 prompt: example.review,
@@ -257,9 +256,8 @@ export function registerStarterCharacters(app: Application) {
               settings: {
                 name: '一起看',
                 minBubbleSeconds: 300,
-                visionProfileId: value.profileId,
                 visionReasoning: 'off',
-                interactionReasoning: 'off',
+                interactionReasoning: 'inherit',
                 interactionPrompt: example.interaction,
                 observationPrompt: example.observation,
               },
@@ -326,8 +324,6 @@ export function registerStarterCharacters(app: Application) {
             reasoning: 'off',
             routes: {
               [inferenceTasks.query]: value.profileId,
-              [inferenceTasks.vision]: value.profileId,
-              [inferenceTasks.review]: value.profileId,
             },
             permissions: {
               projectDirectory: workspace,

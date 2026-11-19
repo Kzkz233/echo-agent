@@ -52,12 +52,13 @@ test('starter studio creates two editable roles with licensed assets, inactive t
     );
     assert.equal(role.reasoning, 'off');
     assert.equal(role.routes['memory.query'], 'test');
-    assert.equal(role.routes['observation.vision'], 'test');
+    assert.equal(role.routes['observation.vision'], undefined);
+    assert.equal(role.routes['review.generate'], undefined);
     const observation = role.tasks.find((task: any) => task.type === 'observation.tasks');
-    assert.equal(observation.settings.visionProfileId, 'test');
+    assert.equal(observation.settings.visionProfileId, undefined);
     assert.equal(observation.settings.visionReasoning, 'off');
     const policy = role.tasks.find((task: any) => task.type === 'review.policies');
-    assert.equal(policy.settings.profileId, 'test');
+    assert.equal(policy.settings.profileId, undefined);
     assert.equal(policy.settings.reasoning, 'off');
     assert.deepEqual(policy.settings.conversationIds, [role.mainConversationId]);
     assert(policy.settings.sourcePrompts['mail.source']);

@@ -112,3 +112,59 @@ test('inherited role models follow the current main model without freezing an im
   assert.equal(app.router.route(inferenceTasks.vision, 'inherit-role').id, 'alternate');
   assert.equal(app.router.route(inferenceTasks.query, 'inherit-role').id, 'alternate');
 });
+
+test('legacy task routes become visible task settings, preserving explicit overrides and other routes', async t => {
+  const app = await setup(t), backend = new FakeBackend();
+  app.router.backends.set('api', backend);
+  for (const [id, vision] of [['old-vision', true], ['old-review', false], ['text-main', false], ['explicit', true]] as const)
+    seedProfile(app, profileSchema.parse({ id, name: id, kind: 'api', vision, model: id, endpoint: 'http://127.0.0.1:1/v1' }));
+  const role = await app.registry.call('persona.character.commit', { requestId: 'legacy-models', draft: characterDraft.parse({
+    persona: { id: 'legacy-role', name: 'Legacy', prompt: 'Untouched' },
+    features: ['memory', 'review', 'observation'], profileId: 'test',
+    routes: { [inferenceTasks.review]: 'old-review', [inferenceTasks.vision]: 'old-vision', [inferenceTasks.query]: 'test' },
+  }) }, internal);
+  for (const [id, profileId] of [['inherited', undefined], ['specified', 'explicit']] as const)
+    app.reviews.saveTask(id, { personaId: 'legacy-role', enabled: false, profileId, reportPrompt: 'Keep this prompt' });
+  app.observations.configure(observationConfigSchema.parse({ id: 'observe', personaId: 'legacy-role', enabled: false }));
+  await app.plugins.disable('observation');
+  await app.plugins.disable('review');
+  await app.plugins.enable('review');
+  await app.plugins.enable('observation');
+  const tasks = app.reviews.tasks().filter(task => task.personaId === 'legacy-role');
+  assert.deepEqual(tasks.map(task => [task.id, task.profileId, task.reportPrompt]), [
+    ['inherited', 'old-review', 'Keep this prompt'], ['specified', 'explicit', 'Keep this prompt'],
+  ]);
+  assert.equal(app.observations.config('observe').visionProfileId, 'old-vision');
+  assert.deepEqual(app.store.document<any>('characters', 'legacy-role').routes, { [inferenceTasks.query]: 'test' });
+  await app.router.inference.refresh();
+  await app.router.bind(role.mainConversationId, 'text-main', new AbortController().signal);
+  assert.equal(app.router.taskModel(inferenceTasks.review, 'legacy-role', tasks[0].profileId).profile.id, 'old-review');
+  assert.equal(app.router.taskModel(inferenceTasks.review, 'legacy-role').profile.id, 'text-main');
+  assert.throws(() => app.router.taskModel(inferenceTasks.vision, 'legacy-role'), /视觉模型/);
+  await app.plugins.disable('review');
+  await app.plugins.enable('review');
+  assert.deepEqual(app.reviews.tasks().filter(task => task.personaId === 'legacy-role'), tasks);
+});
+
+test('changing the main model cannot silently break enabled tasks that inherit it', async t => {
+  const app = await setup(t);
+  app.router.backends.set('api', new FakeBackend());
+  seedProfile(app, profileSchema.parse({ id: 'text-only', name: 'Text only', kind: 'api',
+    model: 'text', endpoint: 'http://127.0.0.1:1/v1' }));
+  const role = await app.registry.call('persona.character.commit', { requestId: 'initial-main', draft: characterDraft.parse({
+    persona: { id: 'main-role', name: 'Main', prompt: 'Fixture' }, features: ['memory', 'observation'], profileId: 'test',
+    tasks: [{ type: 'observation.tasks', id: 'screen', settings: { enabled: true,
+      allowlist: [{ id: 'sample', type: 'process', value: 'fixture.exe' }] } }],
+  }) }, internal);
+  await assert.rejects(app.registry.call('persona.character.commit', { requestId: 'text-main', draft: {
+    ...role, profileId: 'text-only',
+  } }, internal), /视觉模型/);
+  assert.equal(app.store.binding(role.mainConversationId)?.profileId, 'test');
+  assert.equal(app.observations.config('screen').enabled, true);
+  const tasks = role.tasks.map((task: any) => ({ ...task, settings: { ...task.settings, visionProfileId: 'test' } }));
+  await app.registry.call('persona.character.commit', { requestId: 'text-main-and-vision', draft: {
+    ...role, profileId: 'text-only', tasks,
+  } }, internal);
+  assert.equal(app.store.binding(role.mainConversationId)?.profileId, 'text-only');
+  assert.equal(app.observations.config('screen').visionProfileId, 'test');
+});

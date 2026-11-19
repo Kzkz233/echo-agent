@@ -4,9 +4,9 @@ import { UnreadDot, usePageBadges } from './badges.tsx';
 import { CharacterPortrait } from './character-portrait.tsx';
 import { BrandMark, BrandWordmark } from './brand.tsx';
 import { WindowControls, nativeWindowChrome } from './window-chrome.tsx';
-import { inferenceTasks } from '../../../packages/contracts/inference.ts';
 import { CharacterLibrary } from './character-library.tsx';
 import { ReviewResume } from './review-resume.tsx';
+import { TaskModelDetails } from './task-model-details.tsx';
 import { StorageSettings, PluginPackageInstaller } from './core-settings.tsx';
 import { UpdatesView, confirmDesktopReady } from './updates-view.tsx';
 import { type ObservationConfig } from '../../../packages/contracts/index.ts';
@@ -2066,7 +2066,10 @@ function Observation() {
     const refresh = () => void load().catch(() => {});
     refresh();
     const fn = (e: any) => {
-      if (e.detail.type.startsWith('observation.')) refresh();
+      if (e.detail.type.startsWith('observation.') ||
+          e.detail.type === 'input.changed' ||
+          ((e.detail.type === 'run.started' || e.detail.type === 'run.completed') &&
+            e.detail.data?.run?.source === 'observation')) refresh();
     };
     window.addEventListener('echo-event', fn);
     return () => {
@@ -2159,7 +2162,15 @@ function Observation() {
                         ? t('上次互动由角色主动跳过。')
                         : status.interactionOutcome === 'empty'
                           ? t('上次互动的模型返回为空，没有生成气泡。')
-                          : t('上次互动未完成，请查看运行诊断。')}
+                          : status.interactionOutcome === 'recorded'
+                            ? t('上次观察已记录，未唤起角色。')
+                            : status.interactionOutcome === 'queued'
+                              ? t('观察互动已排队。')
+                              : status.interactionOutcome === 'expired'
+                                ? t('观察互动排队超时，已保留记录。')
+                                : status.interactionOutcome === 'running'
+                                  ? t('角色正在处理观察结果。')
+                                  : t('上次互动未完成，请查看运行诊断。')}
                   </p>
                 )}
                 {status?.enabled && status?.samplingReason && (
@@ -2209,7 +2220,6 @@ function Observation() {
                       <time>{new Date(o.timestamp).toLocaleTimeString(locale())}</time>
                       <p>{o.summary}</p>
                       <small>{o.sources.join(' · ')}</small>
-                      {o.interesting && <span className="tag">{t('值得聊聊')}</span>}
                     </div>
                   ))}
                 {!recent.length && <Empty>{t('还没有完成的观察。')}</Empty>}
@@ -2225,14 +2235,13 @@ function Knowledge() {
   return <KnowledgeView {...useApp()} />;
 }
 function Review() {
-  const { act, openTask, data } = useApp();
+  const { act, openTask } = useApp();
   const [jobs, setJobs] = useState<any[]>([]);
-  const [resumeModels, setResumeModels] = useState<Record<string, string>>({});
   const load = () => rpc('review.list', {}).then(setJobs);
   useEffect(() => {
     void load();
     const listener = (e: any) => {
-      if (e.detail.type === 'review.updated') void load();
+      if (/^(review\.updated|characters\.updated|binding\.changed|inference\.)/.test(e.detail.type)) void load();
     };
     window.addEventListener('echo-event', listener);
     return () => window.removeEventListener('echo-event', listener);
@@ -2256,6 +2265,7 @@ function Review() {
             {t('段')}{' '}
           </p>
           <progress value={job.nextPacket} max={Math.max(1, job.totalPackets)} />
+          {job.taskModel && <TaskModelDetails model={job.taskModel} />}
           {job.error && <p className="warning">{job.error}</p>}
           <p className="review-notes">{job.notes}</p>
           {job.drafts.length > 0 && (
@@ -2300,25 +2310,7 @@ function Review() {
             </details>
           )}
           <div className="row">
-            {job.state === 'paused' && (
-              <ModelChoice
-                data={data}
-                label="续跑模型"
-                taskId={inferenceTasks.review}
-                value={resumeModels[job.id] ?? job.profileId ?? ''}
-                inheritLabel="沿用任务模型"
-                inheritValue={job.profileId}
-                personaId={job.personaId}
-                onChange={(value) => setResumeModels({ ...resumeModels, [job.id]: value })}
-              />
-            )}
-            {job.state === 'paused' && (
-              <ReviewResume
-                run={job}
-                profileId={resumeModels[job.id] || job.profileId || undefined}
-                act={act}
-              />
-            )}
+            {job.state === 'paused' && <ReviewResume key={job.id} run={job} act={act} />}
             {job.state === 'completed' &&
               !job.applied &&
               (job.drafts.length > 0 || job.actions?.length > 0) && (

@@ -5,6 +5,7 @@ import { Button, EmptyState } from './ui.tsx';
 import { DelegationView } from './character-workspace.tsx';
 import { AutomationView } from './automation-view.tsx';
 import { ReviewResume } from './review-resume.tsx';
+import { TaskModelDetails } from './task-model-details.tsx';
 import { ReviewCandidates } from './review-candidates.tsx';
 import { ChatView } from './chat-view.tsx';
 import { PageTabs } from './page-header.tsx';
@@ -68,7 +69,7 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
     void load();
     const update = (event: any) => {
       if (
-        /^(work\.|automation\.|delegation\.|review\.|run\.|interaction\.|observation\.)/.test(
+        /^(work\.|automation\.|delegation\.|review\.|run\.|interaction\.|observation\.|characters\.updated|binding\.changed|inference\.)/.test(
           event.detail.type,
         )
       ) {
@@ -273,6 +274,7 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
                           <p>
                             {run.nextPacket} / {run.totalPackets}
                           </p>
+                          {run.taskModel && <TaskModelDetails model={run.taskModel} />}
                           {run.state === 'paused' && <ReviewResume run={run} act={act} />}
                           {run.checkpointFlow && <ReviewCandidates jobId={run.id} />}
                           {run.state === 'completed' && !run.applied && (

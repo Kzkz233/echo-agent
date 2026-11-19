@@ -133,7 +133,7 @@ test('wall-clock slots limit selection despite 1Hz detection', () => {
   assert(gate.select(signatures[1], 1700000005000, config));
 });
 
-test('a previously attempted observation cannot consume the next interaction cooldown', async (t) => {
+test('a fresh readable observation can wake the role without a vision interaction cue', async (t) => {
   const app = await setup(t),
     chat = conversation(app),
     backend = new FakeBackend();
@@ -188,7 +188,7 @@ test('a previously attempted observation cannot consume the next interaction coo
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(app.store.get('observation.roleCooldown.companion', 0), 0);
   const freshTime = new Date().toISOString();
-  await app.observations.record(record('fresh', freshTime));
+  await app.observations.record({ ...record('fresh', freshTime), interesting: false, readable: true });
   await until(() => { const run=app.store.run('observe-fresh'); if(run?.state==='failed') throw Error(run.error); return run?.state === 'succeeded'; }, 4000);
   assert.equal(app.store.run('observe-fresh')?.meta.triggerKind, 'observation.interesting');
   assert.equal(backend.calls.length, 1);
@@ -201,6 +201,7 @@ test('a previously attempted observation cannot consume the next interaction coo
   assert(input.includes(localTimestamp(new Date(freshTime))));
   assert(!input.includes(freshTime));
   assert.equal(app.observations.recent().at(-1)!.timestamp, freshTime);
+  assert.equal(app.observations.status().interactionOutcome, 'reply');
 });
 test('HSV detects color change with equal brightness and wraps hue circularly', () => {
   assert.equal(hsvDifference(new Uint8Array([0, 255, 128]), new Uint8Array([120, 255, 128])), 1);
@@ -281,11 +282,12 @@ for (const count of [1,9]) test(`${count}-frame tasks invoke vision once with ma
     assert(request.messages[0].text.includes(`${Math.sqrt(count)}×${Math.sqrt(count)}`));
     const payload=JSON.parse(request.messages.at(-1)!.text);assert.equal(payload.frames.length,count);
     assert.deepEqual(payload.frames.map((f:any)=>f.window),frames.map(f=>f.title));
-    return {text:'{"summary":"Synthetic frames","attention":""}'};
+    return {text:'{"summary":"Synthetic frames","attention":""} }'};
   };
   await app.observations.process(frames,0);
   assert.equal(app.observations.status().lastError,'');assert.equal(backend.calls.length,1);
   assert.deepEqual(app.observations.recent().at(-1)?.frameTimes,frames.map(f=>f.timestamp));
+  assert.equal(app.observations.recent().at(-1)?.summary, 'Synthetic frames');
 });
 
 test('legacy observation settings gain read defaults without rewriting user data',async(t)=>{

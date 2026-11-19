@@ -721,7 +721,7 @@ export function CharacterWizard({
                   key={task.id + ':' + f.key}
                   field={f}
                   profileId={
-                    !f.inferenceTask || f.inferenceTask === inferenceTasks.chat
+                    f.modelFallback === 'main' || !f.inferenceTask || f.inferenceTask === inferenceTasks.chat
                       ? draft.profileId
                       : (draft.routes[f.inferenceTask] ?? draft.profileId)
                   }

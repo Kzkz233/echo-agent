@@ -14,6 +14,7 @@ export function ModelChoice({
   inherit = true,
   inheritLabel = '跟随角色默认',
   inheritValue,
+  showInheritedModel = false,
   personaId,
   backendKinds,
   disabled = false,
@@ -27,6 +28,7 @@ export function ModelChoice({
   inherit?: boolean;
   inheritLabel?: string;
   inheritValue?: string;
+  showInheritedModel?: boolean;
   personaId?: string;
   backendKinds?: string[];
   disabled?: boolean;
@@ -82,6 +84,7 @@ export function ModelChoice({
   );
   const canInherit =
     inherit && (!hasInheritance || eligible.some((profile: any) => profile.id === inherited));
+  const inheritedProfile = showInheritedModel ? profiles.find((profile: any) => profile.id === inherited) : undefined;
   const selected = profiles.find((profile: any) => profile.id === value);
   const selectedExecutor =
     pendingExecutor ??
@@ -150,6 +153,7 @@ export function ModelChoice({
         >
           <option value="" disabled={!canInherit || (executor && selectedExecutor !== 'builtin')}>
             {t(inherit ? emptyLabel : '选择模型')}
+            {inherit && inheritedProfile ? ' · ' + modelDisplayName(inheritedProfile) : ''}
             {inherit && hasInheritance && !canInherit ? ' · ' + t('当前不可用') : ''}
           </option>
           {candidates.map((profile: any) => (
@@ -165,6 +169,9 @@ export function ModelChoice({
           )}
         </select>
       </label>
+      {showInheritedModel && (data || catalog) && !value && !canInherit && !issue && (
+        <small className="warning">{t('默认模型不可用于此任务，请指定兼容的模型。')}</small>
+      )}
       {issue && <p className="warning">{issue}</p>}
       {executor && selectedExecutor !== 'builtin' && !candidates.length && (
         <p className="muted">{t('请在执行器插件中添加可用的执行配置。')}</p>

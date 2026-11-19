@@ -39,6 +39,11 @@ export function normalizeHistory(messages: Message[]): Message[] {
     }
     if (native?.role === 'assistant') {
       if (batch.length) flush();
+      // Pi discards failed/aborted assistant turns at serialization. Their
+      // streamed fragments never became accepted calls, so pairing them here
+      // would leave a standalone output on the wire. Retain the original row;
+      // any separately recorded result is handled as an unpaired history fact.
+      if (native.stopReason === 'error' || native.stopReason === 'aborted') continue;
       const calls = native.content.filter(part => part.type === 'toolCall');
       // Failed empty attempts remain in durable storage/usage, not LLM history.
       if (!native.content.length || !calls.length && !native.content.some(part => part.type === 'text' && part.text.trim())) continue;

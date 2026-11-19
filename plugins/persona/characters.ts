@@ -17,6 +17,7 @@ import type { PluginContext } from '../../packages/kernel/registry.ts';
 import type { Events } from '../../packages/kernel/events.ts';
 import { roleToolGrants } from '../../packages/kernel/tool-access.ts';
 import { portableTaskSettings } from '../../packages/contracts/portable-settings.ts';
+import { taskModelChoice } from '../../packages/contracts/task-model.ts';
 
 const applicationOnlyCharacterFeatures = new Set(['knowledge', 'semantic', 'documents', 'assets']);
 
@@ -360,6 +361,19 @@ export class Characters {
           'task_owner',
           '任务属于另一个角色。',
         );
+      }
+      const oldMain = this.store.binding(previous.mainConversationId)?.profileId;
+      const nextMain = draft.profileId || oldMain;
+      for (const task of draft.tasks) {
+        if (!task.settings.enabled) continue;
+        const type = catalog.taskTypes.find(row => row.id === task.type);
+        for (const field of type?.fields ?? []) {
+          if (field.modelFallback !== 'main' || !field.inferenceTask || !['model', 'executor'].includes(field.kind)) continue;
+          const explicit = task.settings[field.key];
+          const choice = taskModelChoice(typeof explicit === 'string' ? explicit : undefined, nextMain);
+          if (changedTasks.includes(task) || (choice.source === 'main' && nextMain !== oldMain))
+            this.router.requireTaskModel(field.inferenceTask, choice.profileId);
+        }
       }
       const conversationId = previous.mainConversationId || 'main-' + roleId;
       const revision = receipt?.revision ?? previous.revision + 1;

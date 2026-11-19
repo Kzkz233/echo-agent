@@ -5900,6 +5900,22 @@
     "The last interaction failed. See runtime diagnostics."
   ],
   [
+    "上次观察已记录，未唤起角色。",
+    "The last observation was recorded without starting an interaction."
+  ],
+  [
+    "观察互动已排队。",
+    "The observation interaction is queued."
+  ],
+  [
+    "观察互动排队超时，已保留记录。",
+    "The observation expired while queued. Its record was kept."
+  ],
+  [
+    "角色正在处理观察结果。",
+    "The character is processing the observation."
+  ],
+  [
     "采样暂缓",
     "Sampling temporarily paused"
   ],
@@ -10738,5 +10754,25 @@
   [
     "编辑关注 ",
     "Edit concern "
+  ],
+  [
+    "使用模型默认",
+    "Use model default"
+  ],
+  [
+    "任务指定",
+    "Task setting"
+  ],
+  [
+    "本次续跑指定",
+    "Selected for this resume"
+  ],
+  [
+    "旧版默认",
+    "Legacy default"
+  ],
+  [
+    "默认模型不可用于此任务，请指定兼容的模型。",
+    "The default model is unavailable for this task. Select a compatible model."
   ]
 ]

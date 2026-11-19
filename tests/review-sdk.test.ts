@@ -7,7 +7,7 @@ import { characterDraft } from '../plugins/persona/character-contracts.ts';
 import { profileSchema } from '../packages/contracts/index.ts';
 import { seedProfile } from '../scripts/inference-fixture.ts';
 
-test('actual Pi SDK checkpoints, searches, reads, updates and hands Review to two parent deliveries', async t => {
+test('actual Pi SDK completes Review and two parent deliveries despite an empty closing response', async t => {
   const app = await setup(t);
   await app.plugins.enable('notifications');
   const role = await app.registry.call('persona.character.commit', { requestId: 'role', draft: characterDraft.parse({
@@ -57,7 +57,7 @@ test('actual Pi SDK checkpoints, searches, reads, updates and hands Review to tw
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       res.end('data: ' + JSON.stringify({ choices: [{ index: 0, delta: { role: 'assistant',
         ...(name ? { tool_calls: [{ index: 0, id: 'call_' + workerSteps + '_' + reports, type: 'function',
-          function: { name, arguments: JSON.stringify(args) } }] } : { content: 'Done' }) },
+          function: { name, arguments: JSON.stringify(args) } }] } : { content: '' }) },
         finish_reason: name ? 'tool_calls' : 'stop' }] }) + '\n\ndata: [DONE]\n\n');
     } catch (error) { serverError = error; res.writeHead(500); res.end('Synthetic server failed'); }
   });

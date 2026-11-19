@@ -18,6 +18,7 @@ export function ReasoningSelect({
   value,
   onChange,
   label = '思考强度',
+  inheritLabel = labels.inherit,
   profileId,
   connectionId,
   model,
@@ -33,6 +34,7 @@ export function ReasoningSelect({
   value: string;
   onChange: (value: string) => void;
   label?: string;
+  inheritLabel?: string;
   disabled?: boolean;
   compact?: boolean;
   profileId?: string;
@@ -106,10 +108,10 @@ export function ReasoningSelect({
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
     >
-      <option value="inherit">{t(labels.inherit)}</option>
+      <option value="inherit">{t(inheritLabel)}</option>
       {value !== 'inherit' && !levels.includes(value as any) && (
         <option value={value} disabled={unsupported}>
-          {t(labels[value as keyof typeof labels] ?? value)}
+          {t(value === 'inherit' ? inheritLabel : labels[value as keyof typeof labels] ?? value)}
           {alias
             ? ' → ' + t(labels[alias])
             : ' · ' + t(support ? '当前模型不支持' : '支持情况未确认')}
@@ -129,7 +131,7 @@ export function ReasoningSelect({
         title={
           t(label) +
           ' · ' +
-          t(labels[value as keyof typeof labels] ?? value) +
+          t(value === 'inherit' ? inheritLabel : labels[value as keyof typeof labels] ?? value) +
           (unsupported
             ? '\n' + t('当前模型不支持')
             : !support && current

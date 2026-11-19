@@ -33,6 +33,8 @@ const field = z.object({
     'work-context',
   ]),
   inferenceTask: id.optional(),
+  modelFallback: z.literal('main').optional(),
+  modelField: id.optional(),
   outputSource: z.string().optional(),
   outputSourceField: z.string().optional(),
   outputSources: z.record(z.string(),z.string()).optional(),

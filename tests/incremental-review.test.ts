@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { setup, conversation, FakeBackend, until } from './helpers.ts';
 import { internal } from '../packages/kernel/registry.ts';
 import { characterDraft } from '../plugins/persona/character-contracts.ts';
+import { profileSchema } from '../packages/contracts/index.ts';
+import { seedProfile } from '../scripts/inference-fixture.ts';
 
 test('maintenance search is bounded, uses registered retrieval, reads complete versions and never widens a role', async t => {
   const app = await setup(t);
@@ -79,8 +81,10 @@ test('memory maintenance advances only after success, covers batches, and leaves
 
 test('Review checkpoints survive a failed attempt, preserve candidate evidence and require confirmed writes before resolution', async t => {
   const app = await setup(t), fake = new FakeBackend(); app.router.backends.set('api', fake);
+  seedProfile(app, profileSchema.parse({ id: 'next-model', name: 'Next model', kind: 'api',
+    endpoint: 'http://127.0.0.1:1/v1', model: 'synthetic-next' }));
   const role = await app.registry.call('persona.character.commit', { requestId: 'role', draft: characterDraft.parse({
-    persona: { id: 'fixture-role', name: 'Fixture', prompt: 'ROLE' }, profileId: 'test', features: ['memory', 'review'],
+    persona: { id: 'fixture-role', name: 'Fixture', prompt: 'ROLE' }, profileId: 'test', reasoning: 'off', features: ['memory', 'review'],
   }) }, internal);
   app.store.append(role.mainConversationId, 'user', 'human', 'ORIGINAL_SOURCE '.repeat(800));
   await app.registry.call('automation.save', { type: 'review.policies', id: 'review-fixture', settings: {
@@ -92,7 +96,10 @@ test('Review checkpoints survive a failed attempt, preserve candidate evidence a
     const job = app.reviews.jobs().find(job => job.state === 'running')!;
     const caller = { kind: 'mcp' as const, ...request.principal!, permissions: new Set(['review.read', 'review.write', 'memory.read', 'memory.write']) };
     const call = (name: string, args: any) => app.registry.call(name, args, caller) as Promise<any>;
-    if (attempt++ === 0) {
+    const firstAttempt = attempt++ === 0;
+    assert.equal(request.profile.id, firstAttempt ? 'test' : 'next-model');
+    assert.equal(request.reasoning, 'inherit');
+    if (firstAttempt) {
       const packet = await call('review.readMaterial', { jobId: job.id });
       await assert.rejects(call('review.readMaterial', { jobId: job.id }), /检查点/);
       const saved = await call('review.checkpoint', { jobId: job.id, packetIndex: packet.index,
@@ -120,9 +127,46 @@ test('Review checkpoints survive a failed attempt, preserve candidate evidence a
   await until(() => app.reviews.jobs().find(row => row.id === job.id)?.state === 'paused');
   assert.equal(app.store.documents('review-candidates.' + job.id).length, 1);
   assert(!app.store.allMessages(app.reviews.jobs().find(row => row.id === job.id)!.workerConversationId!).some(row => row.meta.reviewPacket !== undefined));
-  await app.registry.call('review.resume', { id: job.id, confirmed: true }, internal);
+  await app.router.bind(role.mainConversationId, 'next-model', new AbortController().signal);
+  const listing = await app.registry.call('review.list', {}, internal) as any[];
+  assert.deepEqual(listing.find(row => row.id === job.id).resumeModel, {
+    profileId: 'next-model', model: 'synthetic-next', source: 'main',
+  });
+  await assert.rejects(app.registry.call('review.resume', { id: job.id, confirmed: true, expectedProfileId: 'test' }, internal), /续跑模型已改变/);
+  await app.registry.call('review.resume', { id: job.id, confirmed: true, expectedProfileId: 'next-model' }, internal);
   await until(() => ['paused', 'completed'].includes(app.reviews.jobs().find(row => row.id === job.id)!.state));
   const done = app.reviews.jobs().find(row => row.id === job.id)!;
   assert.equal(done.state, 'completed', done.error ?? 'Review failed');
+  const attempts = app.store.runs().filter(run => run.conversationId === done.workerConversationId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  assert.deepEqual(attempts.map(run => run.meta.taskModel), [
+    { profileId: 'test', model: 'synthetic', source: 'main' },
+    { profileId: 'next-model', model: 'synthetic-next', source: 'main' },
+  ]);
   assert.equal(app.store.documents<any>('memories').filter(row => row.text === 'KEEP_NARRATIVE').length, 1);
+});
+
+test('Review resumes a saved finish receipt without submitting another worker request', async t => {
+  const app = await setup(t);
+  const fake = new FakeBackend();
+  app.router.backends.set('api', fake);
+  const parent = conversation(app, { kind: 'main' });
+  app.store.append(parent.id, 'user', 'human', 'Synthetic material.');
+  await app.registry.call('automation.save', { type: 'review.policies', id: 'saved-finish', settings: {
+    personaId: parent.personaId, enabled: false, report: false, autoApply: false, memoryOperations: [],
+    conversationScope: 'selected', conversationIds: [parent.id], sourceIds: [], targetIds: [],
+  } }, internal);
+  let requests = 0;
+  fake.responder = async () => { requests++; throw Error('Unexpected model request'); };
+  const started = await app.reviews.start(parent.personaId, 'saved-finish-run');
+  await until(() => app.reviews.jobs().find(job => job.id === started.id)?.state === 'paused');
+  const paused = app.reviews.jobs().find(job => job.id === started.id)!;
+  for (const index of paused.packets.keys())
+    app.store.put('review-checkpoints', JSON.stringify([paused.id, index]), { fingerprint: 'fixture', ids: [] });
+  app.store.put('review-jobs', paused.id, { ...paused, agentFinished: true, nextPacket: paused.packets.length,
+    report: 'No changes.', notes: 'Preserved finish receipt.' });
+  await app.registry.call('review.resume', { id: paused.id, confirmed: true }, internal);
+  await until(() => app.reviews.jobs().find(job => job.id === paused.id)?.state === 'completed');
+  assert.equal(requests, 1);
+  assert.equal(app.reviews.jobs().find(job => job.id === paused.id)?.notes, 'Preserved finish receipt.');
 });

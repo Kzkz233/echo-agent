@@ -12,6 +12,8 @@ import {
 } from './output.ts';
 import { characterFeature, characterEnabled } from '../../packages/kernel/characters.ts';
 import { contributeInferenceTask } from '../../packages/kernel/inference.ts';
+import { migrateTaskModelRoute } from '../../packages/kernel/task-model.ts';
+import type { TaskModelReceipt } from '../../packages/contracts/task-model.ts';
 import { inferenceTasks } from '../../packages/contracts/inference.ts';
 import packageManifest from './echo-plugin.json' with { type: 'json' };
 import { defineManifest } from '../../packages/kernel/registry.ts';
@@ -130,6 +132,8 @@ export type ReviewJob = {
   applied: boolean;
   error?: string;
   profileId?: string;
+  resumeProfileId?: string;
+  taskModel?: TaskModelReceipt;
   execution?: {
     runtime: 'pi' | 'worker';
     profileId: string;
@@ -394,17 +398,7 @@ export class Reviews {
         JSON.stringify(task.memoryOperations) !== JSON.stringify(previousTask.memoryOperations) ||
         JSON.stringify(task.targetIds) !== JSON.stringify(previousTask.targetIds)))
       this.router.workSessions.cancelOrigin('review.policies', taskId);
-    if (task.enabled) {
-      const selected =
-        task.profileId ?? this.router.route(inferenceTasks.review, task.personaId).id;
-      const model = this.router.inference.models().find((model) => model.id === selected);
-      const purpose = this.router.inference.task(inferenceTasks.review);
-      invariant(
-        model && purpose && this.router.inference.compatible(model, purpose),
-        'review_model',
-        '请选择可用的整理执行模型。',
-      );
-    }
+    if (task.enabled) this.router.taskModel(inferenceTasks.review, task.personaId, task.profileId);
     invariant(
       this.store.document('personas', task.personaId),
       'persona_missing',
@@ -723,7 +717,7 @@ export class Reviews {
       caller.personaId === job.personaId && this.active.has(job.id), 'review_owner', '只能操作当前整理任务。');
     return job;
   }
-  private async performAgent(job: ReviewJob, signal: AbortSignal) {
+  private async runAgent(job: ReviewJob, signal: AbortSignal) {
     // Already-read legacy packets and confirmed writes remain valid when explicitly resuming.
     if (!job.checkpointFlow) { job = { ...job, checkpointFlow: { startPacket: job.nextPacket } }; this.save(job); }
     const policy = job.policy!;
@@ -734,8 +728,7 @@ export class Reviews {
     const workId = 'review-' + policy.id + (policy.contextMode === 'fresh' ? '-' + job.id : '');
     const permissions = ['memory.read', 'knowledge.read', 'review.read', 'review.write',
       ...(policy.autoApply && policy.memoryOperations.length ? ['memory.write'] : [])];
-    const selectedProfile = job.profileId ?? policy.profileId;
-    const profile = selectedProfile ? this.router.profile(selectedProfile) : this.router.route(inferenceTasks.review, job.personaId);
+    const model = job.taskModel!;
     const work = this.router.workSessions.register({ id: workId, personaId: job.personaId,
       parentConversationId: parentId, title: policy.name,
       origin: { type: 'review.policies', id: policy.id, name: policy.name, owner: 'review' },
@@ -746,9 +739,9 @@ export class Reviews {
     job = { ...job, workerConversationId: work.conversationId };
     this.save(job);
     const allSources = [...new Set(job.packets.flatMap(packet => packet.sources))];
-    const run = await this.router.workSessions.run({ id: work.id, profileId: profile.id,
-      requestId: 'review-run-' + job.id + '-' + (job.errors?.length ?? 0),
-      reasoning: policy.reasoning, timeoutMs: policy.timeoutMinutes * 60000,
+    return this.router.workSessions.run({ id: work.id, profileId: model.profileId,
+      taskModel: model, requestId: 'review-run-' + job.id + '-' + (job.errors?.length ?? 0),
+      reasoning: policy.reasoning, reasoningDefault: 'model', timeoutMs: policy.timeoutMinutes * 60000,
       authority: { owner: 'review', taskType: 'review.policies', taskId: policy.id,
         permissions, memoryOperations: policy.memoryOperations,
         coreApproval: { executor: 'review.memory-change', payload: { jobId: job.id } },
@@ -776,9 +769,19 @@ export class Reviews {
           (policy.targetPrompts[target.id] ?? target.instructions) + '\n如需更新此目标，调用 review_stageAction。'),
       ].filter(Boolean).join('\n\n'),
     }, signal);
-    invariant(run.state === 'succeeded', 'review_execution', run.error ?? '记忆整理未完整执行。');
-    job = this.store.document<ReviewJob>('review-jobs', job.id)!;
-    invariant(job.agentFinished && job.nextPacket === job.packets.length, 'review_incomplete', '整理会话结束，但没有确认完成全部材料。');
+  }
+  private async completeAgent(job: ReviewJob, signal: AbortSignal) {
+    signal.throwIfAborted();
+    invariant(job.agentFinished && readingComplete(this.store, job) &&
+      !candidatesFor(this.store, job.id).some(row => row.state === 'pending'),
+      'review_incomplete', '整理会话结束，但没有确认完成全部材料及候选处理。');
+    // A confirmed Review result can survive a failed closing model message.
+    // An uncertain worker outcome still needs the conversation's usual reconciliation.
+    invariant(!job.workerConversationId || !this.store.runs().some(run =>
+      run.conversationId === job.workerConversationId && run.requestId.startsWith('review-run-' + job.id + '-') &&
+      ['running', 'unknown'].includes(run.state)),
+      'review_execution', '整理子会话仍有未确认的执行结果，请先核对该运行。');
+    const policy = job.policy!;
     if (!policy.autoApply) await this.submitCoreProposals(job, signal);
     if (policy.autoApply) await this.applyTargets(job, signal);
     const vault = await this.files.managed('review', 'Review Archives');
@@ -809,6 +812,15 @@ export class Reviews {
     this.publishRetention(job.personaId);
     await this.report(job, 'completed');
   }
+  private resumeModel(job: Pick<ReviewJob, 'personaId' | 'policy'>) {
+    const live = this.tasks().find(task => task.id === job.policy?.id && task.personaId === job.personaId);
+    try {
+      return this.router.taskModel(inferenceTasks.review, job.personaId,
+        live ? live.profileId : job.policy?.profileId).receipt;
+    } catch {
+      return undefined;
+    }
+  }
   private async perform(jobId: string) {
     if (this.active.has(jobId)) return;
     const completed = this.store.document<ReviewJob>('review-jobs', jobId);
@@ -830,15 +842,15 @@ export class Reviews {
           ].slice(-20),
         };
       job = { ...job, policy, state: 'running', error: undefined, pausedByCharacter: false };
-      this.save(job);
-      if (job.runtimeVersion === 2) { await this.performAgent(job, signal); return; }
-      if (job.nextPacket < job.packets.length) {
-        const profile = job.profileId
-          ? this.router.profile(job.profileId)
-          : this.router.route(inferenceTasks.review, job.personaId);
+      if (job.runtimeVersion === 2 ? !job.agentFinished : job.nextPacket < job.packets.length) {
+        const live = this.tasks().find(task => task.id === policy.id && task.personaId === job.personaId);
+        const { profile, receipt } = this.router.taskModel(inferenceTasks.review, job.personaId,
+          live ? live.profileId : policy.profileId, job.resumeProfileId);
         job = {
           ...job,
           profileId: profile.id,
+          resumeProfileId: undefined,
+          taskModel: receipt,
           execution: {
             profileId: profile.id,
             runtime: this.router.inference.adapter(profile.adapterId!).workerOnly ? 'worker' : 'pi',
@@ -846,6 +858,16 @@ export class Reviews {
         };
       }
       this.save(job);
+      if (job.runtimeVersion === 2) {
+        if (!job.agentFinished) {
+          const run = await this.runAgent(job, signal);
+          job = this.store.document<ReviewJob>('review-jobs', jobId)!;
+          invariant(run.state === 'succeeded' || (run.state === 'failed' && job.agentFinished),
+            'review_execution', run.error ?? '记忆整理未完整执行。');
+        }
+        await this.completeAgent(job, signal);
+        return;
+      }
       await this.archive(policy);
       for (let i = job.nextPacket; i < job.packets.length; i++) {
         signal.throwIfAborted();
@@ -1758,6 +1780,7 @@ export class Reviews {
           const migrated = this.tasks();
           if (migrated.length) this.store.set('review.tasks', migrated);
         }
+        migrateTaskModelRoute(this.store, 'review.tasks', inferenceTasks.review, 'profileId');
         for (const task of this.tasks()) this.migrateCursors(task);
         schedule(true);
         dispose(
@@ -1989,6 +2012,7 @@ export class Reviews {
                   label: '整理执行器',
                   kind: 'executor',
                   inferenceTask: inferenceTasks.review,
+                  modelFallback: 'main',
                 },
                 {
                   key: 'contextMode', portability: 'value',
@@ -2004,7 +2028,9 @@ export class Reviews {
                   key: 'reasoning', portability: 'value',
                   label: '思考强度',
                   kind: 'reasoning',
+                  modelField: 'profileId',
                   inferenceTask: inferenceTasks.review,
+                  modelFallback: 'main',
                 },
                 { key: 'autoApply', label: '自动纳入非核心记忆', kind: 'boolean' },
                 { key: 'workerSettings', label: '上下文设置', kind: 'work-context' },
@@ -2084,10 +2110,11 @@ export class Reviews {
               invariant(!effective.enabled || permissions.has('*') || permissions.has('memory.read'), 'review_permission', '整理任务需要记忆读取权限。');
               invariant(!effective.enabled || !effective.autoApply || permissions.has('*') || permissions.has('memory.write'),
                 'review_permission', '自动写入记忆需要已授予的记忆修改权限。');
-              const role = this.store.document<{ mainConversationId: string; routes?: Record<string, string> }>('characters', actor.personaId);
+              const role = this.store.document<{ mainConversationId: string }>('characters', actor.personaId);
               const policy = this.store.document<{ allowedProfileIds?: string[] }>('character-settings.delegation', actor.personaId);
+              const savedProfile = this.tasks().find(task => task.id === id && task.personaId === actor.personaId)?.profileId;
               const allowed = [role && this.store.binding(role.mainConversationId)?.profileId,
-                role?.routes?.[inferenceTasks.review], ...(policy?.allowedProfileIds ?? [])];
+                savedProfile, ...(policy?.allowedProfileIds ?? [])];
               invariant(!effective.profileId || allowed.includes(effective.profileId), 'review_permission', '该执行模型未获角色授权。');
             }
             return this.saveTask(id, settings);
@@ -2144,6 +2171,7 @@ export class Reviews {
               ...(job.error ? { error: job.error.slice(0, 500) } : {}) }));
           return jobs.map(({ materials, packets, pending, repairs, ...job }) => ({
               ...job,
+              ...(job.state === 'paused' ? { resumeModel: this.resumeModel(job) } : {}),
               repairCount: repairs?.length ?? 0,
               pendingPacket: pending?.packetIndex,
               materialCount: job.materialCount ?? materials.length,
@@ -2220,6 +2248,7 @@ export class Reviews {
             id,
             confirmed: z.literal(true),
             profileId: id.optional(),
+            expectedProfileId: id.optional(),
             maxOutputTokens: outputTokenLimit.optional(),
           }),
           'review.write',
@@ -2227,57 +2256,31 @@ export class Reviews {
             const job = this.store.document<ReviewJob>('review-jobs', v.id);
             invariant(job?.state === 'paused', 'review_state', '仅暂停的任务可以续跑。');
             ownPersona(caller, job.personaId);
-            // Execution limits are configuration, not a frozen part of historical materials.
-            // An explicit resume uses today's task settings; evidence and mutation permissions stay frozen.
             const live = this.tasks().find(task => task.id === job.policy?.id && task.personaId === job.personaId);
-            if (live) {
-              job.policy = { ...(job.policy ?? live), maxOutputTokens: live.maxOutputTokens,
-                compaction: live.compaction, contextBlocks: live.contextBlocks };
-              if (live.runtimeVersion === 2 && job.runtimeVersion !== 2) {
-                job.runtimeVersion = 2;
-                job.policy.runtimeVersion = 2;
-                // Preserve the old candidate and checkpoints for inspection; the Agent now uses versioned tools.
-                job.agentFinished = false;
-              }
-              this.save(job);
-            }
+            const frozen = job.policy ?? live ?? this.policy(job.personaId);
             invariant(!this.jobs().some((other) => other.id !== job.id &&
-              this.belongs(other, job.policy ?? this.policy(job.personaId)) &&
-              ['pending', 'running'].includes(other.state)),
+              this.belongs(other, frozen) && ['pending', 'running'].includes(other.state)),
               'review_unfinished', '此整理任务正在执行，请等待本次执行结束。');
-            if (v.profileId) {
-              const model = this.router.inference
-                .models()
-                .find((model) => model.id === v.profileId);
-              const task = this.router.inference.task(inferenceTasks.review);
-              invariant(
-                model && task && this.router.inference.compatible(model, task),
-                'review_model',
-                '请选择可用于整理的模型。',
-              );
-              this.save({
-                ...job,
-                profileId: v.profileId,
-                pending:
-                  job.pending && v.profileId !== job.profileId
-                    ? { ...job.pending, repairs: 0 }
-                    : job.pending,
-              });
-            }
-            if (v.maxOutputTokens !== undefined) {
-              const current = this.store.document<ReviewJob>('review-jobs', v.id)!;
-              this.save({
-                ...current,
-                policy: {
-                  ...(current.policy ?? this.policy(current.personaId)),
-                  maxOutputTokens: v.maxOutputTokens,
-                },
-                pending:
-                  current.pending && current.policy?.maxOutputTokens !== v.maxOutputTokens
-                    ? { ...current.pending, repairs: 0 }
-                    : current.pending,
-              });
-            }
+            const finalizeOnly = job.runtimeVersion === 2 && job.agentFinished;
+            const receipt = finalizeOnly ? undefined : this.router.taskModel(inferenceTasks.review, job.personaId,
+              live ? live.profileId : frozen.profileId, v.profileId).receipt;
+            invariant(!receipt || !v.expectedProfileId || receipt.profileId === v.expectedProfileId,
+              'review_resume_model_changed', '续跑模型已改变，请刷新记录后重新确认。');
+            // Use current execution settings while preserving evidence and mutation authority.
+            const upgrade = live?.runtimeVersion === 2 && job.runtimeVersion !== 2;
+            const policy = { ...frozen,
+              ...(live ? { profileId: live.profileId, reasoning: live.reasoning,
+                maxOutputTokens: live.maxOutputTokens, timeoutMinutes: live.timeoutMinutes,
+                compaction: live.compaction, contextBlocks: live.contextBlocks } : {}),
+              ...(upgrade ? { runtimeVersion: 2 as const } : {}),
+              ...(v.maxOutputTokens !== undefined ? { maxOutputTokens: v.maxOutputTokens } : {}),
+            };
+            this.save({ ...job, policy, resumeProfileId: finalizeOnly ? undefined : v.profileId,
+              ...(upgrade ? { runtimeVersion: 2, agentFinished: false } : {}),
+              ...(job.pending && receipt && (receipt.profileId !== job.profileId ||
+                policy.maxOutputTokens !== frozen.maxOutputTokens)
+                ? { pending: { ...job.pending, repairs: 0 } } : {}),
+            });
             void this.execute(v.id);
             return { accepted: true };
           },

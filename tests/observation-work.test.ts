@@ -2,17 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
 import { setup, conversation, FakeBackend, until, submitFixtureReplies } from './helpers.ts';
-import { observationConfigSchema, type Frame } from '../packages/contracts/index.ts';
+import { observationConfigSchema, observationSilence, type Frame } from '../packages/contracts/index.ts';
 import { internal } from '../packages/kernel/registry.ts';
 import { inferenceTasks } from '../packages/contracts/inference.ts';
 
-async function fixture(t: Parameters<typeof setup>[0]) {
+async function fixture(t: Parameters<typeof setup>[0], report = true) {
   const app = await setup(t), main = conversation(app, { kind: 'main', review: true }), fake = new FakeBackend();
   app.router.backends.set('api', fake);
   t.mock.method(app.observations, 'sample', async () => {});
   app.observations.configure(observationConfigSchema.parse({ id: 'screen', name: 'Synthetic screen task',
     enabled: true, conversationId: main.id, personaId: main.personaId,
-    frameCount: 1, outputTargets: ['core.chat'], allowlist: [{ id: 'allowed', type: 'process', value: 'fixture.exe' }] }));
+    frameCount: 1, report, outputTargets: ['core.chat'], allowlist: [{ id: 'allowed', type: 'process', value: 'fixture.exe' }] }));
   const task = (app.observations as any).task('screen');
   task.start(); task.stats.allowed = true; task.lastSample = { at: Date.now() };
   const jpeg = await sharp({ create: { width: 32, height: 20, channels: 3, background: 'green' } }).jpeg().toBuffer();
@@ -22,7 +22,7 @@ async function fixture(t: Parameters<typeof setup>[0]) {
 }
 
 test('Observe uses a real API work session, records quiet results in main history and Review reads those same rows', async t => {
-  const { app, main, fake, frame } = await fixture(t);
+  const { app, main, fake, frame } = await fixture(t, false);
   fake.responder = async () => ({ text: '{"summary":"Watching a synthetic tutorial.","attention":""}',
     usage: { prompt_tokens: 1250, completion_tokens: 35, cached_tokens: 1000 } });
   await app.observations.process([frame()], undefined, 'screen');
@@ -41,6 +41,7 @@ test('Observe uses a real API work session, records quiet results in main histor
   assert(!childHistory.includes('base64'));
   assert(!app.store.allMessages(work.conversationId).some(message => message.role === 'user'));
   const results = app.store.allMessages(main.id).filter(m => !!m.meta.taskResult);
+  await until(() => app.observations.status('screen').interactionOutcome === 'recorded');
   assert.equal(results.length, 1); assert.equal(results[0].meta.report, false);
   assert(!results[0].text.includes('latestFrame')); assert(!results[0].text.includes('visiblePercent'));
   const materials = await app.reviews.collect(main.personaId);
@@ -50,6 +51,25 @@ test('Observe uses a real API work session, records quiet results in main histor
   await assert.rejects(app.router.send({ conversationId: work.conversationId, requestId: 'manual', text: 'Run arbitrary work' }), /来源自动化任务/);
 });
 const jpegPrefix = (bytes: Buffer) => bytes.toString('base64').slice(0, 50);
+
+test('Observe records unreadable frames, while a readable batch lets the role choose silence', async t => {
+  const { app, main, fake, frame } = await fixture(t);
+  fake.responder = async request => request.messages.some(m => m.images?.length)
+    ? { text: '{"summary":"A tutorial is playing.","attention":""}' }
+    : { text: observationSilence };
+
+  await app.observations.process([{ ...frame(), visibility: { visiblePercent: 70, litPercent: 0 } }], undefined, 'screen');
+  await until(() => app.observations.status('screen').interactionOutcome === 'recorded');
+  assert.equal(fake.calls.length, 0);
+
+  app.store.set('observation.task.screen.lastReportAt', 0);
+  await app.observations.process([frame()], undefined, 'screen');
+  await until(() => app.observations.status('screen').interactionOutcome === 'skip');
+  assert.equal(fake.calls.length, 2);
+  const messages = app.store.allMessages(main.id);
+  assert.deepEqual(messages.filter(m => !!m.meta.taskResult).map(m => m.meta.report), [false, true]);
+  assert(!messages.some(m => m.role === 'assistant'));
+});
 
 test('Observe hands off concise results once; channel failure does not replay old samples or consume new result identity', async t => {
   const { app, main, fake, task, frame } = await fixture(t);
@@ -106,7 +126,7 @@ test('API work shares cancellation and ownership; aborted results never enter hi
 });
 
 test('visual requests maintain a bounded period overview without another inference call and reset it after reporting', async t => {
-  const { app, main, fake, frame } = await fixture(t);
+  const { app, main, fake, frame } = await fixture(t, false);
   const expected = ['', '', 'PHASE_TWO'];
   let index = 0;
   fake.responder = async request => {

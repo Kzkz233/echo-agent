@@ -356,7 +356,7 @@ export const observationConfigSchema = z.object({
   historyRounds: z.number().int().min(0).max(10).default(2),
   visionReasoning: reasoning.default('inherit'),
   visionProfileId: id.optional(),
-  interactionReasoning: reasoning.default('off'),
+  interactionReasoning: reasoning.default('inherit'),
   width: z.number().int().min(280).max(1600).default(840),
   quality: z.number().int().min(35).max(95).default(75),
   showCaptureBorder: z.boolean().default(false),
@@ -399,6 +399,7 @@ export type Observation = {
   sources: string[];
   summary: string;
   interesting: boolean;
+  readable?: boolean;
   attention?: string;
   periodSummary?: string;
   periodAfter?: string;

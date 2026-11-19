@@ -41,6 +41,7 @@ import { messageContextRules, renderMessageText, type MessageOrigin } from '../c
 import { captureMessageContext, storedMessageContext, messageSourcePoint } from './message-context.ts';
 import { configuredTimezone } from './time.ts';
 import { historyGroups, nativeMessage } from './conversation-history.ts';
+import { taskModelChoice, type TaskModelReceipt } from '../contracts/task-model.ts';
 
 type Submission = {
   conversationId: string;
@@ -56,6 +57,7 @@ type Submission = {
   workSession?: true;
   delivery?: DeliveryPlan;
   messageOrigin?: MessageOrigin;
+  taskModel?: TaskModelReceipt;
   recordedInputId?: string;
   expiresAt?: number;
 };
@@ -373,6 +375,27 @@ export class Router {
         return result;
       },
     } satisfies Backend;
+  }
+  taskModel(task: Task, personaId: string, explicit?: string, resume?: string) {
+    const role = this.store.document<{ mainConversationId: string }>('characters', personaId);
+    const choice = taskModelChoice(resume || explicit,
+      role && this.store.binding(role.mainConversationId)?.profileId);
+    // Standalone legacy personas without a role record still use their existing route.
+    const fallback = !choice.profileId && !role ? this.route(task, personaId) : undefined;
+    const profileId = choice.profileId ?? fallback?.id;
+    const profile = this.requireTaskModel(task, profileId);
+    const receipt: TaskModelReceipt = { profileId: profile.id, model: profile.model,
+      source: fallback ? 'legacy' : resume ? 'resume' : choice.source };
+    return { profile, receipt };
+  }
+  requireTaskModel(task: Task, profileId: string | undefined) {
+    invariant(profileId, 'task_model_missing', '请指定执行模型，或先为角色设置主会话模型。');
+    const model = this.inference.models().find(row => row.id === profileId);
+    const purpose = this.inference.task(task);
+    invariant(model && purpose && this.inference.compatible(model, purpose),
+      'task_model_incompatible', purpose?.inputs.includes('image')
+        ? '请选择支持图像输入的视觉模型。' : '当前模型不支持此任务，请选择兼容的模型。');
+    return this.profile(profileId);
   }
   route(task: Task, personaId?: string) {
     invariant(
@@ -1180,9 +1203,11 @@ export class Router {
         createdAt: new Date().toISOString(),
         meta: {
           fingerprint,
+          model: profile.model,
           bubble: input.bubble ?? false,
           ...(delivery ? { delivery, implicitDelivery: !input.delivery } : {}),
           ...(input.workSession ? { workSession: true } : {}),
+          ...(input.taskModel ? { taskModel: { ...input.taskModel, model: profile.model } } : {}),
           origin: input.origin,
           triggerKind: input.triggerKind,
           ...(input.messageOrigin ? { messageOrigin: input.messageOrigin } : {}),
