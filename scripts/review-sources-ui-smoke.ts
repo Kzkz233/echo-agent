@@ -34,6 +34,13 @@ try {
   await page.locator('.role-editor-nav').getByRole('button',{name:'自动化任务',exact:true}).click();
   const scope=page.getByLabel('会话材料范围',{exact:true});
   await scope.waitFor();
+  const advanced = page.locator('details').filter({ has: page.locator('summary').filter({ hasText: '高级任务设置' }) }).last();
+  const toggle = advanced.locator(':scope > summary');
+  assert.equal(await advanced.getAttribute('open'), null);
+  await toggle.click();
+  assert(await advanced.locator('select').first().isVisible());
+  await toggle.click();
+  assert(await scope.isVisible());
   assert.deepEqual(await scope.locator('option').evaluateAll(options=>options.map(option=>(option as HTMLOptionElement).value)),['main','selected']);
   assert.equal(await scope.inputValue(),'selected');
   assert(await page.getByRole('checkbox',{name:'Legacy selected conversation',exact:true}).isChecked());

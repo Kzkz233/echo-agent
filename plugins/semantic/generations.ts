@@ -64,12 +64,14 @@ export class IndexGenerations {
   }
   async coverage(records: SearchRecord[]) {
     const bindings = this.bindings();
-    const heads = new Map(
-      (await this.knowledge.list()).map((d) => [
-        documentKey({ vaultId: d.vaultId, documentId: d.id }),
-        d.version,
-      ]),
-    );
+    const vaults = new Set(records.filter(r => bindings[documentKey(r)] && r.vaultId).map(r => r.vaultId!));
+    if (!vaults.size) return new Set<string>();
+    const heads = new Map<string,string>();
+    for (const vault of vaults) {
+      for (const entry of await this.knowledge.list(vault)) {
+        heads.set(documentKey({vaultId:vault,documentId:entry.id}),entry.version);
+      }
+    }
     return new Set(
       records
         .filter((r) => {

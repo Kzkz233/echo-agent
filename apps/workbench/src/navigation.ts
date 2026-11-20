@@ -78,6 +78,7 @@ export const sections: Section[] = [
       { id: 'approvals', text: '操作审批' },
     ],
   },
+  { id: 'general', text: '常规', icon: 'settings', group: '配置与维护', views: [{ id: 'general', text: '常规' }] },
   {
     id: 'appearance',
     text: '外观与语言',
@@ -115,6 +116,7 @@ export const coreViews = new Set([
   'chat',
   'character-session',
   'automation',
+  'general',
   'appearance',
   'backends',
   'plugins',
@@ -161,7 +163,7 @@ export function navigationSections(pages: FrontendPageEntry[] = []): Section[] {
 export const viewSection = (page: string, pages: FrontendPageEntry[] = []) =>
   navigationSections(pages).find((s) => s.views.some((v) => v.id === page));
 export const workspaceSections = new Set(['automation', 'knowledge', 'agenda', 'mail', 'activity']);
-export const settingsSections = new Set(['appearance', 'connections', 'plugins', 'system']);
+export const settingsSections = new Set(['general', 'appearance', 'connections', 'plugins', 'system']);
 export const isSettingsPage = (page: string, pages: FrontendPageEntry[] = []) =>
   (['settings', 'plugin-settings'].includes(
     pages.find((item) => item.id === page)?.placement ?? '',

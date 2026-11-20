@@ -31,5 +31,10 @@
   "category": "Memory and behavior",
   "optionalDependencies": [
     "approvals"
-  ]
+  ],
+  "agentTasks": {
+    "review.policies": {
+      "permission": "review.write"
+    }
+  }
 }

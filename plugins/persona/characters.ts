@@ -192,7 +192,7 @@ export class Characters {
     };
   }
   async commit(raw: unknown, requestId: string, signal: AbortSignal,
-    edit?: { id: string; changes: z.infer<typeof characterEdits> }, createOnly = false) {
+    edit?: { id: string; changes: z.infer<typeof characterEdits> }, createOnly = false, preserveDraft = false) {
     const roleId = edit?.id ?? characterDraft.parse(raw).persona.id;
     const key = 'character-setup.' + requestId;
     const hash = createHash('sha256').update(JSON.stringify(edit ?? characterDraft.parse(raw))).digest('hex');
@@ -222,7 +222,7 @@ export class Characters {
           if (role) this.store.put('characters',roleId,{...role,revision:role.revision+1});
           this.events.emit('characters.updated',{personaId:roleId});
         }
-        this.store.remove('character-drafts',roleId);
+        if (!preserveDraft) this.store.remove('character-drafts',roleId);
         this.store.saveReceipt(key,{hash,state:'completed',roleId});
         return {persona};
       }

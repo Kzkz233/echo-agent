@@ -7,7 +7,7 @@ import type { ReviewJob } from './index.ts';
 export const candidateSchema = z.object({ title: z.string().min(1).max(160),
   text: z.string().min(1).max(12000), sources: z.array(z.string()).min(1).max(50) });
 export type Candidate = z.infer<typeof candidateSchema> & { id: string; jobId: string; packetIndex: number;
-  state: 'pending' | 'changed' | 'unchanged'; reason?: string; receipts?: string[] };
+  state: 'pending' | 'changed' | 'unchanged' | 'staged'; reason?: string; receipts?: string[] };
 const packetKey = (job: ReviewJob, index: number) => JSON.stringify([job.id, index]);
 export const candidateNamespace = (jobId: string) => 'review-candidates.' + jobId;
 export function checkpoint(store: Store, job: ReviewJob, index: number, candidates: z.infer<typeof candidateSchema>[]) {

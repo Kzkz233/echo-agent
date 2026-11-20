@@ -8,3 +8,21 @@
     Abort
   echo_data_safe:
 !macroend
+
+!macro NSIS_HOOK_POSTUNINSTALL
+  ${If} $UpdateMode <> 1
+    Push $0
+    Push $1
+    Push $2
+    ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Echo Agent"
+    StrCpy $1 '"$INSTDIR\echo-desktop.exe" --login-startup --data-dir '
+    StrLen $2 $1
+    StrCpy $0 $0 $2
+    ${If} $0 == $1
+      DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Echo Agent"
+    ${EndIf}
+    Pop $2
+    Pop $1
+    Pop $0
+  ${EndIf}
+!macroend

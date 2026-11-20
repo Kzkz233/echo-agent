@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import { rpc } from './client.ts';
 import { t } from './i18n.ts';
 import { Button, useConfirm } from './ui.tsx';
+import { QuickModel } from './quick-model.tsx';
 import { ModelChoice } from './model-choice.tsx';
 
-export function StarterCharacters({ data, act, openRole, openSettings }: any) {
+export function StarterCharacters({ data, act, openRole, openSettings, openKnowledge }: any) {
   const [catalog, setCatalog] = useState<any>();
   const [model, setModel] = useState('');
+  const [choice, setChoice] = useState('hina');
+  const [connecting, setConnecting] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [requestId] = useState(() => crypto.randomUUID());
   const confirm = useConfirm();
@@ -18,13 +21,30 @@ export function StarterCharacters({ data, act, openRole, openSettings }: any) {
           data.conversations?.find(
             (c: any) => c.personaId === value.existing?.roles?.[0] && c.kind === 'main',
           )?.binding?.profileId ??
-          '',
+          data.profiles.find((p: any) => p.available && p.eligibility?.conversation)?.id ?? '',
       );
     });
   }, []);
   if (!catalog) return null;
+  const existingRole = data.personas?.find((role: any) => role.id === 'example-' + choice);
+  const start = async (profileId: string) => {
+    const result = await act(() => rpc('characters.examples.create', { profileId, requestId, characterId: choice }), '');
+    if (result) openRole({ id: result.roles[0], name: catalog.characters.find((c: any) => c.id === choice)?.name });
+  };
   return (
     <section className="starter-characters card">
+      {!catalog.existing && <section className="starter-setup">
+        <h2>{t('选择聊天伙伴')}</h2>
+        <div className="starter-character-grid">{catalog.characters.map((entry: any) => <label key={entry.id} className="starter-choice">
+          <input type="radio" name="starter-character" value={entry.id} checked={choice === entry.id} onChange={() => setChoice(entry.id)} />
+          <img src={entry.portrait} width="48" height="48" alt="" /><span><strong>{entry.name}</strong><br/>{t(entry.description)}</span></label>)}</div>
+        {data.profiles.filter((p: any) => p.available && p.eligibility?.conversation).length > 0 &&
+          <ModelChoice label="主会话模型" data={data} value={model} onChange={setModel} inherit={false} />}
+        <div className="row wrap"><Button onClick={() => existingRole ? openRole(existingRole) : model ? void start(model) : setConnecting(true)}>{t('开始聊天')}</Button>
+          <Button secondary onClick={openKnowledge}>{t('打开知识库')}</Button></div>
+        {connecting && <QuickModel localRuntime={data.plugins.some((p: any) => p.id === 'local-models' && p.enabled)}
+          onReady={async id => { setModel(id); await start(id); }} />}
+      </section>}
       <div className="page-title-actions">
         <div>
           <h2>{t('从示例开始')}</h2>
@@ -50,14 +70,13 @@ export function StarterCharacters({ data, act, openRole, openSettings }: any) {
           </div>
           <p>
             {t(
-              '包含可编辑的记忆整理、主动交流和实时观察任务。任务与桌宠初始关闭，可在角色配置中分别启用。',
+              '按已启用的功能创建任务模板，任务与桌宠初始暂停。',
             )}
           </p>
           {!catalog.existing && (
             <>
               <ModelChoice
-                label="语言与视觉模型"
-                taskId="observation.vision"
+                label="主会话模型"
                 data={data}
                 value={model}
                 onChange={setModel}
@@ -65,12 +84,10 @@ export function StarterCharacters({ data, act, openRole, openSettings }: any) {
               />
               <p className="muted">
                 {t(
-                  '使用同一多模态模型体验各项功能，默认关闭思考；本地语义检索使用随客户端提供的 BGE。',
+                  '选择一个可聊天的模型。屏幕观察可以另选视觉模型。',
                 )}
               </p>
-              <p className="muted">
-                {t('启用通用插件和角色工具权限；邮箱、QQ 与屏幕观察需要自行配置账号或授权。')}
-              </p>
+
             </>
           )}
           <div className="row wrap">

@@ -7,11 +7,13 @@ import { Events } from '../../packages/kernel/events.ts';
 import { defineManifest, type Plugin, type PluginContext } from '../../packages/kernel/registry.ts';
 import { operations } from '../shared.ts';
 const prepared = z.object({
+  personaId: id.optional(),
   title: z.string().min(1).max(200),
   details: z.array(z.object({ label: z.string().max(160), value: z.string().max(100000) })).max(30),
   frozen: z.unknown(),
 });
 export type Approval = {
+  personaId?: string;
   id: string;
   executor: string;
   payloadHash: string;
@@ -196,9 +198,10 @@ export class Approvals {
             limit: z.number().int().min(1).max(100).default(30),
           }),
           'approvals.read',
-          (v) => {
+          (v, _signal, caller) => {
             const all = this.store
               .documents<Approval>('approvals')
+              .filter(row => !row.personaId || caller.kind === 'ui' || caller.kind === 'internal' || row.personaId === caller.personaId)
               .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
             return {
               items: all
@@ -208,15 +211,18 @@ export class Approvals {
             };
           },
         );
-        op('get', '读取完整待审内容', z.object({ id }), 'approvals.read', (v) =>
-          this.store.document('approvals', v.id),
+        op('get', '读取完整待审内容', z.object({ id }), 'approvals.read', (v, _signal, caller) => {
+          const row = this.store.document<Approval>('approvals',v.id);
+          invariant(!row?.personaId || caller.kind === 'ui' || caller.kind === 'internal' || row.personaId === caller.personaId, 'approval_owner','仅能查看自己的申请。');
+          return row;
+        },
         );
         op(
           'request',
           '提出操作供前端审批',
           z.object({ executor: z.string(), payload: z.unknown(), requestId: id }),
           'approvals.request',
-          (v, s) => this.request(v.executor, v.payload, v.requestId, s),
+          (v, s, caller) => this.request(v.executor, v.payload, v.requestId, s, caller.pluginId),
         );
         ctx.registry.register({
           name: 'approvals.decide',

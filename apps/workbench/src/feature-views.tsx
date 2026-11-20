@@ -148,7 +148,7 @@ function UtilityPage({ page, data, act, personaId, setPage, embedded = false }: 
                 )}
                 {page === 'channels' && (
                   <>
-                    <h2>{t(form.id ? '编辑通道绑定' : '添加通道绑定')}</h2>
+                    <details className="setup-capability" key={form.id || 'new'} open={form.id ? true : undefined}><summary>{t(form.id ? '编辑通道绑定' : '添加通道绑定')}</summary>
                     <Button secondary onClick={() => setPage('plugins', 'qq')}>
                       {t('管理消息渠道连接')}
                     </Button>
@@ -218,12 +218,13 @@ function UtilityPage({ page, data, act, personaId, setPage, embedded = false }: 
                       {' '}
                       {t('Save binding')}{' '}
                     </Button>
+                    </details>
                     <h3>{t('Discovered peers')}</h3>
                     {rows.peers?.map((p: any) => (
                       <button
                         className="document-row"
                         key={p.adapter + p.peer}
-                        onClick={() => setForm({ ...form, adapter: p.adapter, peer: p.peer })}
+                        onClick={(e) => { const details = e.currentTarget.parentElement?.querySelector('details'); if (details) details.open = true; setForm({ ...form, adapter: p.adapter, peer: p.peer }); }}
                       >
                         {p.adapter} · {p.peer}
                       </button>
@@ -327,16 +328,14 @@ function UtilityPage({ page, data, act, personaId, setPage, embedded = false }: 
             {page === 'backup' && (
               <>
                 <h2>{t('Create a complete backup')}</h2>
-                <p>
-                  {' '}
-                  {t(
-                    '先在 Plugins → Backup 选择备份目录和保留数量。快照含会话、状态和受管档案，不含密钥文件。',
-                  )}{' '}
-                </p>
+                <PathInput directory label={t('备份目录')} value={form.backupDir ?? data.pluginSettings.backup?.directory ?? ''}
+                  onChange={(value: string) => set('backupDir', value)} />
                 <Button
-                  disabled={busy || rows.busy}
+                  disabled={busy || rows.busy || !(form.backupDir ?? data.pluginSettings.backup?.directory)?.trim()}
                   onClick={() =>
                     run(async () => {
+                      if (form.backupDir !== undefined && form.backupDir !== data.pluginSettings.backup?.directory)
+                        await rpc('settings.save', { pluginId: 'backup', value: { ...data.pluginSettings.backup, directory: form.backupDir } });
                       const r = await rpc('backup.run');
                       setMessage('Backup: ' + r.directory);
                     })
@@ -345,6 +344,7 @@ function UtilityPage({ page, data, act, personaId, setPage, embedded = false }: 
                   {' '}
                   {t('Back up now')}{' '}
                 </Button>
+                <details className="setup-capability"><summary>{t('校验、恢复与换机迁移')}</summary>
                 {text('directory', t('Backup directory to verify'))}
                 <Button
                   onClick={() =>
@@ -384,7 +384,7 @@ function UtilityPage({ page, data, act, personaId, setPage, embedded = false }: 
                 >
                   {' '}
                   {t('Restore to new directory')}{' '}
-                </Button>
+                </Button></details>
               </>
             )}
             {page === 'notifications' && (
@@ -423,9 +423,7 @@ function UtilityPage({ page, data, act, personaId, setPage, embedded = false }: 
               (page === 'notifications' && !rows.items?.length) ||
               (page === 'scheduler' && !rows.jobs?.length) ||
               (page === 'backup' && !rows.last)) && (
-              <EmptyState title={t('还没有记录')} icon={page}>
-                {t('完成左侧的设置后，记录会显示在这里。')}
-              </EmptyState>
+              <EmptyState title={page === 'approvals' ? t('目前没有待审批操作') : page === 'notifications' ? t('暂无新通知') : t('还没有记录')} icon={page} />
             )}
 
           {page === 'channels' && (
@@ -467,7 +465,7 @@ function UtilityPage({ page, data, act, personaId, setPage, embedded = false }: 
                   </button>
                 </section>
               ))}
-              <h2>{t('Delivery receipts')}</h2>
+              <details className="setup-capability"><summary>{t('Delivery receipts')}</summary>
               {rows.deliveries?.map((d: any) => (
                 <section key={d.id}>
                   <p>
@@ -510,7 +508,7 @@ function UtilityPage({ page, data, act, personaId, setPage, embedded = false }: 
                   <summary>{t('技术回执')}</summary>
                   <pre>{JSON.stringify(selected.receipt ?? selected, null, 2)}</pre>
                 </details>
-              )}
+              )}</details>
             </>
           )}
           {page === 'approvals' && (

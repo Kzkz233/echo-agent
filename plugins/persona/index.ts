@@ -6,6 +6,8 @@ import { Store } from '../../packages/kernel/store.ts';
 import { Router } from '../../packages/kernel/router.ts';
 import { Files } from '../files/index.ts';
 import type { Plugin } from '../../packages/kernel/registry.ts';
+import type { Deliveries } from '../../packages/kernel/delivery.ts';
+import { installRolePreferences } from './preferences.ts';
 import { Characters } from './characters.ts';
 
 export class Personas {
@@ -13,6 +15,7 @@ export class Personas {
     readonly store: Store,
     readonly router: Router,
     readonly files: Files,
+    readonly deliveries?: Deliveries,
   ) {}
   get(id: string) {
     return this.store.document<Persona>('personas', id);
@@ -52,9 +55,9 @@ export class Personas {
           .map(() => ({ label: '角色主会话', page: 'character', role: 'channel' })),
       activate: async (ctx) => {
         const { registry, capabilities } = ctx;
-        new Characters(this.store, this.router, this.router.events, (value) =>
-          this.save(value),
-        ).activate(ctx);
+        const characters = new Characters(this.store, this.router, this.router.events, value => this.save(value));
+        characters.activate(ctx);
+        installRolePreferences(ctx, characters, this.deliveries);
         if (!this.store.documents('personas').length)
           await this.save({
             id: 'companion',

@@ -2,7 +2,7 @@
   "apiVersion": 1,
   "id": "zotero",
   "package": "@echo/zotero",
-  "name": "Zotero",
+  "name": "Zotero 文献连接器",
   "description": "检索本机个人文献库，管理分组和笔记，关联已有的知识条目。",
   "version": "1.0.0",
   "category": "Files and knowledge",
@@ -55,6 +55,46 @@
           }
         ],
         "submitLabel": "连接并刷新"
+      }
+    },
+    {
+      "id": "zotero.library",
+      "title": "文献库",
+      "placement": "workspace",
+      "section": "knowledge",
+      "order": 10,
+      "view": {
+        "type": "catalog",
+        "load": "zotero.browse",
+        "columns": [
+          {
+            "key": "title",
+            "label": "标题"
+          },
+          {
+            "key": "caption",
+            "label": "短评"
+          },
+          {
+            "key": "rating",
+            "label": "评分"
+          },
+          {
+            "key": "attachments",
+            "label": "附件"
+          },
+          {
+            "key": "imported",
+            "label": "入库状态",
+            "localized": true
+          },
+          {
+            "key": "index",
+            "label": "索引状态",
+            "localized": true
+          }
+        ],
+        "action": "zotero.importAttachment"
       }
     }
   ]

@@ -16,7 +16,8 @@
     "automation.contribute",
     "character.contribute",
     "observation.source.provide",
-    "observation.source.read"
+    "observation.source.read",
+    "observation.task-edit"
   ],
   "characterPermissions": [
     "observation.read"
@@ -32,5 +33,18 @@
     "title": "自动化任务",
     "order": 10
   },
-  "category": "Memory and behavior"
+  "category": "Memory and behavior",
+  "agentTasks": {
+    "observation.tasks": {
+      "permission": "observation.task-edit",
+      "editOnly": true,
+      "fields": [
+        "name",
+        "reportIntervalSeconds",
+        "minBubbleSeconds",
+        "observationPrompt",
+        "interactionPrompt"
+      ]
+    }
+  }
 }

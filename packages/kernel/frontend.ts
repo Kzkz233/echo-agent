@@ -76,7 +76,7 @@ export class FrontendCatalog {
   async invoke(id: string, operation: string, input: unknown, personaId?: string, signal?: AbortSignal) {
     const page = await this.page(id), view = page.view;
     invariant(page.placement !== 'character' || personaId, 'page_character', '请先选择角色。');
-    const allowed = view.type === 'webview' ? view.operations : [view.load, view.save].filter(Boolean);
+    const allowed = view.type === 'webview' ? view.operations : [view.load, view.type === 'catalog' ? view.action : view.save].filter(Boolean);
     invariant(allowed.includes(operation), 'page_operation', '页面未声明此操作。');
     const plugin = this.plugins.plugins.get(page.owner)!;
     invariant(!operation.startsWith('frontend.') && !operation.startsWith('plugins.'), 'page_operation', '页面不能修改插件生命周期。');

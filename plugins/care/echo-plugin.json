@@ -10,7 +10,8 @@
     "care.read",
     "care.write",
     "automation.contribute",
-    "character.contribute"
+    "character.contribute",
+    "care.task-edit"
   ],
   "settings": [],
   "views": [
@@ -24,5 +25,20 @@
     "order": 20
   },
   "category": "Memory and behavior",
-  "optionalDependencies": []
+  "optionalDependencies": [],
+  "agentTasks": {
+    "care.rules": {
+      "permission": "care.task-edit",
+      "editOnly": true,
+      "fields": [
+        "name",
+        "prompt",
+        "hourStart",
+        "hourEnd",
+        "minMinutes",
+        "humanQuietMinutes",
+        "dailyMax"
+      ]
+    }
+  }
 }

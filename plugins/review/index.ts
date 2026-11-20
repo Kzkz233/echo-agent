@@ -1,4 +1,5 @@
 import type { Deliveries } from '../../packages/kernel/delivery.ts';
+import { describeFailure } from '../../packages/kernel/task-failure.ts';
 import { contributeJobs } from '../../packages/kernel/jobs.ts';
 import { outputTargets, type DeliveryPlan } from '../../packages/contracts/delivery.ts';
 import {
@@ -753,18 +754,20 @@ export class Reviews {
         `本次整理编号：${job.id}。材料共 ${job.packets.length} 段，已读取 ${job.nextPacket} 段。`,
         '通过 review_readMaterial 顺序阅读剩余全部材料。每段阅读后用 review_checkpoint 保存值得长期保留的候选及来源；没有候选也提交空数组，再读下一段。候选是检查点，不是已经写入的记忆。全部材料与检查点完成后才能修改记忆。',
         '不要通读整个记忆库。用 review_candidates 分页查看未处理候选，按主题批量构造查询，用 memory_search 检索相关旧记忆。用 memory_read 分页完整阅读拟修改或合并条目的当前版本（hasMore=false），再用完整 id 与 version 操作。检索摘要不能替代完整阅读。需要时可换查询、继续翻页；普通目录 memory_list 也是分页摘要。',
-        '每个候选处理后用 review_resolveCandidate 标记 changed（附成功记忆操作的 requestId）或 unchanged（附无需修改的原因）。未处理列表分页使用返回的 nextAfter 作为 after，或处理后从首页重新查询，不要累加 offset 跳过未处理项。相近候选可合并处理，避免重复写入。所有未处理候选都完成后再调用 review_finish。',
+        '用 review_resolveCandidate 处理每个候选。无需修改时标记 unchanged 并说明原因。分页使用 nextAfter 或重新查询首页。全部处理完毕后调用 review_finish。',
+        policy.autoApply ? '已执行记忆操作的候选标记 changed，附成功操作的 requestId。'
+          : '已暂存建议的候选标记 staged，附 proposalId。',
         '续跑时先核对已有候选、记忆操作回执及记忆当前版本。成功写入不能重复执行；以前已读材料仍可通过 index 重读。原始材料、候选和回执由程序保存，不能只依赖会话摘要。',
         policy.memoryPrompt,
         policy.memoryOperations.includes('propose-core') ? policy.corePrompt : '',
         '本次允许的记忆操作：' + policy.memoryOperations.join('、'),
         policy.autoApply
           ? '普通记忆使用 memory_change 执行；核心记忆使用 memory_change 的 propose-core，只提交用户审批。每次操作取得成功回执后才算生效。'
-          : '本次只提出建议，不直接写入。使用 review_stageChange 暂存建议，供用户确认。',
+          : '本次只提出建议，不直接写入。使用 review_stageChange 暂存建议，取返回的 proposalId 填入 review_resolveCandidate 的 receipts 并标记 staged。全部候选处理完后可立即 review_finish，用户随后确认是否应用。',
         '没有需要修改的内容也可以正常结束。最后必须调用 review_finish，保存简短结果与阅读笔记。',
         policy.report ? '不要向用户渠道直接发消息，主角色会按任务设置汇报。' : '本次只保存执行结果，不主动向用户渠道发消息。',
         job.notes ? '此前阅读笔记（仅供参考）：' + job.notes : '',
-        job.drafts.length ? `尚有 ${job.drafts.length} 条历史建议，请按需核对，勿重复执行已确认操作。` : '',
+        job.drafts.length ? `尚有 ${job.drafts.length} 条已暂存的建议。暂存与写入分别核对：自动纳入时检查候选和实际记忆回执后继续处理；建议模式可继续使用暂存回执。` : '',
         ...(job.targets ?? []).map(target => '可选整理目标 ' + target.id + '：\n' + target.context + '\n' +
           (policy.targetPrompts[target.id] ?? target.instructions) + '\n如需更新此目标，调用 review_stageAction。'),
       ].filter(Boolean).join('\n\n'),
@@ -772,9 +775,10 @@ export class Reviews {
   }
   private async completeAgent(job: ReviewJob, signal: AbortSignal) {
     signal.throwIfAborted();
-    invariant(job.agentFinished && readingComplete(this.store, job) &&
-      !candidatesFor(this.store, job.id).some(row => row.state === 'pending'),
-      'review_incomplete', '整理会话结束，但没有确认完成全部材料及候选处理。');
+    invariant(readingComplete(this.store, job), 'review_incomplete', '整理会话结束时尚有材料检查点未完成。');
+    const pending = candidatesFor(this.store, job.id).filter(row => row.state === 'pending').length;
+    invariant(!pending, 'review_incomplete', '整理会话结束时尚有 ' + pending + ' 条候选待处理，已保留进度。');
+    invariant(job.agentFinished, 'review_incomplete', '候选已处理，整理会话尚未提交完成回执。');
     // A confirmed Review result can survive a failed closing model message.
     // An uncertain worker outcome still needs the conversation's usual reconciliation.
     invariant(!job.workerConversationId || !this.store.runs().some(run =>
@@ -812,7 +816,7 @@ export class Reviews {
     this.publishRetention(job.personaId);
     await this.report(job, 'completed');
   }
-  private resumeModel(job: Pick<ReviewJob, 'personaId' | 'policy'>) {
+  private resumeModel(job: {personaId:string; policy?:Pick<ReviewTask,'id' | 'profileId'>}) {
     const live = this.tasks().find(task => task.id === job.policy?.id && task.personaId === job.personaId);
     try {
       return this.router.taskModel(inferenceTasks.review, job.personaId,
@@ -1304,6 +1308,7 @@ export class Reviews {
       ...(job.runtimeVersion === 2 ? [
         '执行结果以以下程序回执为准。只有回执确认的操作可以汇报为已完成，未成功的工具调用不算完成。',
         this.confirmedChanges(job, true), this.confirmedTargetChanges(job),
+        ...(!job.policy?.autoApply && job.drafts.length ? ['已暂存 ' + job.drafts.length + ' 条建议，实际应用状态以用户确认和执行回执为准。'] : []),
         '以下是工作会话的阅读总结，不是执行凭证；若与回执不符，以回执为准：',
       ] : []),
       job.report,
@@ -1547,13 +1552,13 @@ export class Reviews {
           input: z.object({ jobId: id, state: z.enum(['pending', 'all']).default('pending'), after: id.optional(),
             offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(50).default(12) }),
           output: z.unknown(), run: (value, caller) => {
-            readJob(caller, value.jobId);
+            const job = readJob(caller, value.jobId);
             const all = candidatesFor(this.store, value.jobId);
             const cursor = value.after ? all.findIndex(row => row.id === value.after) : -1;
             invariant(!value.after || cursor >= 0, 'review_cursor', '候选游标不属于本次整理。');
             const rows = all.slice(cursor + 1).filter(row => value.state === 'all' || row.state === 'pending');
             const page = rows.slice(value.offset, value.offset + value.limit);
-            return { items: page.map(({ text, ...row }) => ({ ...row, excerpt: text.slice(0, 240) })),
+            return { mode: job.policy?.autoApply ? 'apply' : 'propose', items: page.map(({ text, ...row }) => ({ ...row, excerpt: text.slice(0, 240) })),
               total: rows.length, hasMore: value.offset + value.limit < rows.length,
               nextAfter: value.offset + value.limit < rows.length ? page.at(-1)?.id : null,
               nextOffset: value.offset + value.limit < rows.length ? value.offset + value.limit : null };
@@ -1561,13 +1566,16 @@ export class Reviews {
         registry.register({ owner: 'review', name: 'review.readCandidate', description: '读取一条整理候选的完整内容与准确来源',
           permission: 'review.read', mcp: true, input: z.object({ jobId: id, id }), output: z.unknown(),
           run: (value, caller) => {
-            readJob(caller, value.jobId);
+            const job = readJob(caller, value.jobId);
             const row = this.store.document<Candidate>(candidateNamespace(value.jobId), value.id);
-            invariant(row?.jobId === value.jobId, 'review_candidate', '候选不属于本次整理。'); return row;
+            invariant(row && row.jobId === value.jobId, 'review_candidate', '候选不属于本次整理。');
+            const proposals = job.drafts.filter(draft => draft.sources.some(source => row.sources.includes(source)))
+              .map(draft => ({proposalId:this.changeId(job,draft), operation:draft.operation, title:draft.title}));
+            return {...row, mode:job.policy?.autoApply ? 'apply' : 'propose', stagedProposals:proposals};
           } });
-        registry.register({ owner: 'review', name: 'review.resolveCandidate', description: '确认候选已处理：changed 附记忆操作 requestId，unchanged 说明无需修改的原因',
+        registry.register({ owner: 'review', name: 'review.resolveCandidate', description: '确认候选已处理：changed 附记忆操作 requestId；staged 附暂存建议的 proposalId；unchanged 说明原因',
           permission: 'review.write', mcp: true,
-          input: z.object({ jobId: id, id, state: z.enum(['changed', 'unchanged']), reason: z.string().min(1).max(1000),
+          input: z.object({ jobId: id, id, state: z.enum(['changed', 'staged', 'unchanged']), reason: z.string().min(1).max(1000),
             receipts: z.array(id).max(20).default([]) }), output: z.unknown(), run: (value, caller) => {
             const job = this.agentJob(caller, value.jobId);
             invariant(readingComplete(this.store, job), 'review_incomplete', '请先完整阅读全部材料并保存检查点。');
@@ -1580,6 +1588,13 @@ export class Reviews {
                 const message = receipt?.messageId && this.store.allMessages(caller.conversationId!).find(message => message.id === receipt.messageId);
                 invariant(message && message.runId && this.store.run(message.runId)?.requestId.startsWith('review-run-' + job.id + '-'),
                   'review_receipt', '回执不是本次整理的已确认记忆操作。');
+              }
+            }
+            if (value.state === 'staged') {
+              invariant(!job.policy?.autoApply && value.receipts.length, 'review_receipt', '请提供建议模式下本候选的暂存回执。');
+              for (const proposalId of value.receipts) {
+                const draft = job.drafts.find(draft => this.changeId(job,draft) === proposalId);
+                invariant(draft?.sources.some(source => row.sources.includes(source)), 'review_receipt', '建议回执不属于本次整理或候选来源。');
               }
             }
             if (row.state !== 'pending') {
@@ -1619,16 +1634,24 @@ export class Reviews {
               instructions: (packet.sourceIds ?? []).map(source => job.policy?.sourcePrompts[source] ?? '').filter(Boolean) };
           } });
         registry.register({ owner: 'review', name: 'review.stageChange',
-          description: '暂存本次记忆整理建议，尚未写入记忆库', permission: 'review.write', mcp: true,
+          description: '建议模式下暂存记忆变更，返回 proposalId，用于将候选标记为 staged', permission: 'review.write', mcp: true,
+          offerToAgent: caller => !!caller.conversationId && !!this.store.db.prepare(`
+            SELECT 1 FROM documents w JOIN documents j ON j.namespace='review-jobs'
+              AND j.id=json_extract(w.data,'$.coreApproval.payload.jobId')
+            WHERE w.namespace='work-authorities' AND w.id=? AND json_extract(w.data,'$.active')=1
+              AND json_extract(j.data,'$.state')='running' AND json_extract(j.data,'$.policy.autoApply')=0
+          `).get(caller.conversationId),
           input: z.object({ jobId: id, change: memoryChange }), output: z.unknown(), run: (value, caller) => {
             const job = this.agentJob(caller, value.jobId);
             invariant(readingComplete(this.store, job), 'review_incomplete', '请先完整阅读材料并保存检查点。');
+            invariant(!job.policy?.autoApply, 'review_mode',
+              '此任务自动纳入普通记忆。请用 memory_change 处理候选并核对回执；propose-core 仍需单独审批。');
             this.authorize(job, value.change.operation);
             const sources = new Set(job.packets.flatMap(packet => packet.sources));
             invariant(value.change.sources.every((source: string) => sources.has(source)), 'review_sources', '请使用材料提供的完整来源编号。');
             const previous = job.drafts.find(change => this.changeId(job, change) === this.changeId(job, value.change));
             if (!previous) this.save({ ...job, drafts: [...job.drafts, value.change] });
-            return { state: 'staged', written: false };
+            return { state: 'staged', written: false, proposalId:this.changeId(job,value.change) };
           } });
         registry.register({ owner: 'review', name: 'review.finish',
           description: '确认整理完成，保存实际结果与笔记；用户渠道由主角色汇报', permission: 'review.write', mcp: true,
@@ -1876,6 +1899,7 @@ export class Reviews {
               },
               scope: 'character',
               previewOperation: 'review.preview',
+              failuresOperation: 'review.failures',
               fields: [
                 { key: 'scope', portability: 'value', label: '整理范围', kind: 'select', options: [
                   { value: 'incremental', label: '新增材料' }, { value: 'maintenance', label: '记忆库分批维护' },
@@ -1911,7 +1935,7 @@ export class Reviews {
                   when: { key: 'conversationScope', value: 'selected' },
                 },
                 {
-                  key: 'sourcePrompt.' + conversationSource,
+                  key: 'sourcePrompt.' + conversationSource, advanced: true,
                   label: '会话整理指引',
                   kind: 'textarea',
                 },
@@ -1958,7 +1982,7 @@ export class Reviews {
                   ];
                 }),
                 ...sources.map((source) => ({
-                  key: 'sourcePrompt.' + source.id,
+                  key: 'sourcePrompt.' + source.id, advanced: true,
                   label: (source.label ?? source.id) + ' · ' + '材料整理指引',
                   kind: 'textarea' as const,
                   when: [{ key: 'includeSources', value: true }, { key: 'sourceIds', portability: 'value', value: source.id }],
@@ -1974,7 +1998,7 @@ export class Reviews {
                   })),
                 },
                 ...activeTargets.map((target) => ({
-                  key: 'targetPrompt.' + target.id,
+                  key: 'targetPrompt.' + target.id, advanced: true,
                   label: target.label + ' · ' + '整理指引',
                   kind: 'textarea' as const,
                   when: { key: 'targetIds', portability: 'value', value: target.id },
@@ -1994,14 +2018,14 @@ export class Reviews {
                 { key: 'timezone', portability: 'value', label: '时区', kind: 'text' },
                 { key: 'rounds', label: '整理间隔（对话轮数）', kind: 'number', min: 2, max: 1000 },
                 {
-                  key: 'packetChars',
+                  key: 'packetChars', advanced: true,
                   label: '整理每段字符上限',
                   kind: 'number',
                   min: 2000,
                   max: 12000,
                 },
                 {
-                  key: 'fallbackMinutes',
+                  key: 'fallbackMinutes', advanced: true,
                   label: '进度兜底等待（分钟）',
                   kind: 'number',
                   min: 1,
@@ -2015,7 +2039,7 @@ export class Reviews {
                   modelFallback: 'main',
                 },
                 {
-                  key: 'contextMode', portability: 'value',
+                  key: 'contextMode', advanced: true, portability: 'value',
                   label: '工作会话',
                   kind: 'select',
                   description: '材料按增量读取，保留的工作会话使用自动上下文压缩。',
@@ -2034,7 +2058,7 @@ export class Reviews {
                 },
                 { key: 'autoApply', label: '自动纳入非核心记忆', kind: 'boolean' },
                 { key: 'workerSettings', label: '上下文设置', kind: 'work-context' },
-                { key: 'timeoutMinutes', label: '执行时限（分钟）', kind: 'number', min: 0,
+                { key: 'timeoutMinutes', advanced: true, label: '执行时限（分钟）', kind: 'number', min: 0,
                   description: '0 表示不限时。' },
                 {
                   key: 'memoryOperations', portability: 'value',
@@ -2050,15 +2074,15 @@ export class Reviews {
                     )
                     .map((value) => ({ value, label: memoryOperationLabels[value] })),
                 },
-                { key: 'memoryPrompt', label: '普通记忆维护指引', kind: 'textarea' },
+                { key: 'memoryPrompt', advanced: true, label: '普通记忆维护指引', kind: 'textarea' },
                 {
-                  key: 'corePrompt',
+                  key: 'corePrompt', advanced: true,
                   label: '核心记忆提案指引',
                   kind: 'textarea',
                   when: { key: 'memoryOperations', portability: 'value', value: 'propose-core' },
                 },
-                { key: 'prompt', label: '通用整理指引', kind: 'textarea' },
-                { key: 'reportPrompt', label: '汇报要求', kind: 'textarea', when: { key: 'report', value: true } },
+                { key: 'prompt', advanced: true, label: '通用整理指引', kind: 'textarea' },
+                { key: 'reportPrompt', advanced:true, label: '汇报要求', kind: 'textarea', when: { key: 'report', value: true } },
               ],
             };
           },
@@ -2155,6 +2179,28 @@ export class Reviews {
             });
           },
         });
+        op('review.failures', '读取指定整理任务的中断原因与已保存进度', z.object({taskId:id, personaId:id.optional()}),
+          'review.read', (v, caller) => {
+            if (v.personaId) ownPersona(caller, v.personaId);
+            const rows = this.store.db.prepare(`
+              SELECT id, json_extract(data,'$.createdAt') createdAt, json_extract(data,'$.personaId') personaId,
+                json_extract(data,'$.error') error, json_extract(data,'$.profileId') profileId,
+                json_extract(data,'$.taskModel.model') model, json_extract(data,'$.policy.profileId') taskProfileId,
+                json_extract(data,'$.agentFinished') agentFinished, json_extract(data,'$.runtimeVersion') runtimeVersion,
+                json_extract(data,'$.nextPacket') completed, coalesce(json_extract(data,'$.totalPackets'),json_array_length(data,'$.packets')) total
+              FROM documents WHERE namespace='review-jobs' AND json_extract(data,'$.state')='paused'
+                AND json_extract(data,'$.policy.id')=$task AND ($persona IS NULL OR json_extract(data,'$.personaId')=$persona)
+              ORDER BY createdAt DESC LIMIT 20`).all({task:v.taskId, persona:caller.personaId ?? v.personaId ?? null});
+            return rows.map(row => {
+              const finalize = row.runtimeVersion === 2 && !!row.agentFinished;
+              const expectedProfileId = finalize ? undefined : this.resumeModel({personaId:String(row.personaId),
+                policy:{id:v.taskId, profileId:row.taskProfileId ? String(row.taskProfileId) : undefined}})?.profileId;
+              return { id:row.id, createdAt:row.createdAt, failure:describeFailure(this.store, String(row.error || '整理中断。'),
+                finalize ? 'finalization' : 'execution', row.profileId ? String(row.profileId) : undefined, row.model ? String(row.model) : undefined),
+                checkpoint:{completed:Number(row.completed), total:Number(row.total),
+                  ...(expectedProfileId || finalize ? {resumeOperation:'review.resume', expectedProfileId} : {})} };
+            });
+          }, false);
         op('review.list', '读取整理记录与进度摘要；可用 offset、limit 分页', z.object({
           offset: z.number().int().min(0).optional(),
           limit: z.number().int().min(1).max(100).optional(),
@@ -2174,7 +2220,8 @@ export class Reviews {
               ...(job.error ? { error: job.error.slice(0, 500) } : {}) }));
           return jobs.map(({ materials, packets, pending, repairs, ...job }) => ({
               ...job,
-              ...(job.state === 'paused' ? { resumeModel: this.resumeModel(job) } : {}),
+              ...(job.state === 'paused' ? { resumeModel: this.resumeModel(job),
+                failure:job.error && describeFailure(this.store,job.error,job.agentFinished ? 'finalization' : 'execution',job.profileId,job.taskModel?.model) } : {}),
               repairCount: repairs?.length ?? 0,
               pendingPacket: pending?.packetIndex,
               materialCount: job.materialCount ?? materials.length,
@@ -2259,6 +2306,7 @@ export class Reviews {
             const job = this.store.document<ReviewJob>('review-jobs', v.id);
             invariant(job?.state === 'paused', 'review_state', '仅暂停的任务可以续跑。');
             ownPersona(caller, job.personaId);
+            invariant(!this.active.has(job.id), 'review_unfinished', '中断报告仍在处理，请在本次执行结束后续跑。');
             const live = this.tasks().find(task => task.id === job.policy?.id && task.personaId === job.personaId);
             const frozen = job.policy ?? live ?? this.policy(job.personaId);
             invariant(!this.jobs().some((other) => other.id !== job.id &&

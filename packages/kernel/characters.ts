@@ -46,6 +46,8 @@ export function defineCharacterFeatures(scope: ReturnType<Capabilities['forOwner
             key: z.string(),
             label: z.string(),
             type: z.string(),
+            advanced: z.boolean().optional(),
+            rowTitleKey: z.string().optional(),
             resource: z.string().optional(),
             backendKinds: z.array(z.string()).optional(),
             inferenceTask:z.string().optional(),

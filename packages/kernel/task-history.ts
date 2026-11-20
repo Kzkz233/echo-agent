@@ -1,3 +1,4 @@
+import { describeFailure } from './task-failure.ts';
 import type { Deliveries } from './delivery.ts';
 import type { Store } from './store.ts';
 import type { OutputEnvelope } from '../contracts/delivery.ts';
@@ -60,7 +61,14 @@ export function taskHistory(
         ? [{ ...out, deliveries: deliveries.rows(key) }]
         : [];
     });
+    const child = receipt.context?.executionRunId ? store.run(receipt.context.executionRunId) : undefined;
+    const work = child && receipt.context?.workSessionId && store.document<{conversationId:string; parentConversationId:string}>('work-sessions', receipt.context.workSessionId);
+    const childProfile = work?.conversationId === child?.conversationId && work?.parentConversationId === message.conversationId ? child?.profileId : undefined;
+    const handoffError = parent?.error ?? queue?.error;
     return {
+      executionFailure: receipt.context?.executionState === 'failed' && receipt.text
+        ? describeFailure(store, receipt.text, 'execution', childProfile) : undefined,
+      handoffFailure: handoffError ? describeFailure(store, handoffError, 'handoff', parent?.profileId) : undefined,
       id: resultId,
       createdAt: message.createdAt,
       text: receipt.text,

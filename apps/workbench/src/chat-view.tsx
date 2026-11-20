@@ -31,8 +31,8 @@ function MessageImage({ raw }: { raw: unknown }) {
   const image = replyImageSchema.safeParse(raw);
   return image.success ? <ReplyImageView image={image.data} /> : null;
 }
-function DialogueMessages({ messages, name, persona, failedRuns, partLimits, timezone, now }: {
-  messages: Message[]; name: string; persona?: Persona; failedRuns: Record<string, string>; partLimits: ReadonlyMap<string, number>; timezone?: string; now: Date;
+function DialogueMessages({ openSession, messages, name, persona, failedRuns, partLimits, timezone, now }: {
+  openSession?: () => void; messages: Message[]; name: string; persona?: Persona; failedRuns: Record<string, string>; partLimits: ReadonlyMap<string, number>; timezone?: string; now: Date;
 }) {
   return messages.map((message, index) => {
     const date = new Date(message.createdAt);
@@ -57,6 +57,7 @@ function DialogueMessages({ messages, name, persona, failedRuns, partLimits, tim
         </div>)}
         {user && (typeof message.meta.inputError === 'string' || message.runId && failedRuns[message.runId]) && <small className="dialogue-error" role="status">
           {t('执行失败')} · {String(message.meta.inputError ?? failedRuns[message.runId!])}
+          {openSession && <button className="text-button" onClick={openSession}>{t('查看后台工作会话')}</button>}
         </small>}
       </article>
     </Fragment>;
@@ -841,7 +842,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                   </EmptyState>
                 )
               )}
-              {dialogue ? <DialogueMessages messages={dialogueMessages} name={persona?.name ?? 'Echo'} persona={persona} failedRuns={failedRuns} partLimits={partLimits} timezone={timezone} now={now} /> : visibleMessages.map((message) =>
+              {dialogue ? <DialogueMessages openSession={openSession} messages={dialogueMessages} name={persona?.name ?? 'Echo'} persona={persona} failedRuns={failedRuns} partLimits={partLimits} timezone={timezone} now={now} /> : visibleMessages.map((message) =>
                 message.role === 'system' || message.role === 'tool' ? (
                   <details
                     className={

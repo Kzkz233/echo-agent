@@ -4,7 +4,7 @@ import { id, invariant } from '../../packages/contracts/index.ts';
 import { executionRequest } from '../../packages/contracts/work.ts';
 import { conversationPermissions } from '../../packages/contracts/interaction.ts';
 import { characterEnabled } from '../../packages/kernel/characters.ts';
-import { contributeAutomation } from '../../packages/kernel/automation.ts';
+import { Automation, contributeAutomation } from '../../packages/kernel/automation.ts';
 import { configuredTimezone, localTime, nextDaily } from '../../packages/kernel/time.ts';
 import type { Caller, PluginContext } from '../../packages/kernel/registry.ts';
 import type { Clock } from '../../packages/kernel/clock.ts';
@@ -67,11 +67,13 @@ export class AgentAutomations {
     // Character creation saves disabled task drafts before binding its main model.
     // Activation and every execution still validate the complete execution grant.
     if (task.enabled || this.router.store.binding(this.parent(task.personaId))) await this.authorize(task);
-    const nextAt = this.next(task);
+    const sameSchedule = old && old.enabled === task.enabled &&
+      (['mode','at','hour','minute','minutes'] as const).every(key => old[key] === task[key]);
+    const nextAt = sameSchedule && old.nextAt ? old.nextAt : this.next(task);
     invariant(Number.isFinite(nextAt) && (task.mode !== 'once' || nextAt > Date.now()), 'task_time', '请填写未来的有效执行时间。');
     this.running.get(task.id)?.abort();
     this.router.workSessions.cancelOrigin(type, task.id);
-    const saved = { ...task, nextAt };
+    const saved = { ...task, nextAt, lastAt:old?.lastAt, lastError:old?.lastError };
     this.router.store.put('agent-automations', task.id, saved);
     this.schedule(saved);
     this.router.events.emit('automation.changed', { owner: 'delegation' });
@@ -124,7 +126,7 @@ export class AgentAutomations {
       if (run.state !== 'succeeded') error = text;
       await this.router.taskResults.submit({ id: 'agent-result-' + requestId, conversationId: parent,
         source: 'handoff', task: task.name, text, report: task.report,
-        context: { tasks:[{type,id}], workSessionId:work.id, executionState:run.state },
+        context: { tasks:[{type,id}], workSessionId:work.id, executionState:run.state, executionRunId:run.id },
         reportPrompt: task.report ? task.reportPrompt : undefined, delivery }, controller.signal);
       const receipt = { state: run.state, taskId: id, runId: run.id };
       this.router.store.saveReceipt(receiptKey, receipt);
@@ -170,7 +172,7 @@ export class AgentAutomations {
           { key: 'minutes', label: '间隔（分钟）', kind: 'number', min: 1, when: { key: 'mode', value: 'interval' } },
           { key: 'execution', label: '执行设置', kind: 'execution' },
           { key: 'report', label: '结果汇报', kind: 'boolean' },
-          { key: 'reportPrompt', label: '汇报要求', kind: 'textarea', when: { key: 'report', value: true } },
+          { key: 'reportPrompt', advanced: true, label: '汇报要求', kind: 'textarea', when: { key: 'report', value: true } },
           { key: 'outputTargets', label: '汇报渠道', kind: 'outputs', outputSource: 'handoff', when: { key: 'report', value: true } },
         ], }),
       items: () => this.tasks().map(task => ({ id: task.id, name: task.name, enabled: task.enabled,
@@ -184,19 +186,25 @@ export class AgentAutomations {
     ctx.registry.register({ owner: 'delegation', name: 'delegation.schedule',
       description: '创建或编辑当前角色的自动化子任务：任务要求、执行时间、已授权执行配置和汇报渠道',
       permission: 'delegation.write', mcp: true,
-      input: schema.omit({ id: true, personaId: true }).extend({ id: id.optional(), enabled: z.boolean().default(true) }), output: z.unknown(),
-      run: (value, caller) => {
+      input: z.object({ id:id.optional(), name:z.string().optional(), prompt:z.string().optional() }).catchall(z.unknown()), output: z.unknown(),
+      run: async (value, caller, signal) => {
         invariant(caller.personaId && caller.conversationId, 'task_owner', '请从角色工作会话创建任务。');
         invariant(caller.conversationId === this.parent(caller.personaId), 'task_owner', '请由主角色创建自动化任务。');
         invariant(this.policy(caller.personaId).autonomous, 'delegation_policy', '角色未获准自主创建子任务。');
-        return this.save({ ...value, id: value.id ?? randomUUID(), personaId: caller.personaId }, caller);
+        const taskId = value.id ?? randomUUID();
+        const exists = this.tasks().some(row => row.id === taskId);
+        const result = await new Automation(ctx.capabilities).mutate(type, { action:'save', id:taskId, patch:true,
+          settings:{ ...(!exists && {enabled:true}), ...value, personaId:caller.personaId },
+          actor:{personaId:caller.personaId,conversationId:caller.conversationId,permissions:[...caller.permissions]} }, signal);
+        return result.saved;
       } });
     ctx.registry.register({ owner: 'delegation', name: 'delegation.automations',
       description: '查看、启停、移除或立即执行当前角色的自定义任务', permission: 'delegation.write', mcp: true,
       input: z.object({ action: z.enum(['list', 'pause', 'resume', 'run', 'remove']), id: id.optional(), requestId: id.optional() }),
-      output: z.unknown(), run: async (value, caller) => {
+      output: z.unknown(), run: async (value, caller, signal) => {
         invariant(caller.personaId && caller.conversationId === this.parent(caller.personaId), 'task_owner', '请从主角色管理任务。');
         if (value.action === 'list') return this.tasks().filter(task => task.personaId === caller.personaId);
+        invariant(this.policy(caller.personaId).autonomous, 'delegation_policy', '角色未获准自主管理子任务。');
         const task = this.tasks().find(task => task.id === value.id && task.personaId === caller.personaId);
         invariant(task, 'task_missing', '任务不存在。');
         if (value.action === 'run') return this.run(task.id, value.requestId ?? randomUUID());
@@ -204,7 +212,10 @@ export class AgentAutomations {
           this.running.get(task.id)?.abort(); this.clock.cancel('agent-task.' + task.id);
           this.router.store.remove('agent-automations', task.id); return { removed: true };
         }
-        return this.save({ ...task, enabled: value.action === 'resume' }, caller);
+        const result = await new Automation(ctx.capabilities).mutate(type,{action:'save',id:task.id,
+          patch:true,requireExisting:true,settings:{enabled:value.action === 'resume'},
+          actor:{personaId:caller.personaId,conversationId:caller.conversationId!,permissions:[...caller.permissions]}},signal);
+        return result.saved;
       } });
     for (const task of this.tasks()) {
       if (task.nextAt && task.nextAt < Date.now()) {

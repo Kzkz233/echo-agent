@@ -1,31 +1,400 @@
 [
-["插件工具授权", "Plugin tool access"],
-["交互操作", "Interact"],
-["搜索插件或工具", "Search plugins or tools"],
-["工具已注册", "Tools registered"],
-["配置连接", "Configure connection"],
-["已配置", "Configured"],
-["未找到匹配的工具", "No matching tools"],
-["尚未配置允许的网站", "No allowed websites configured"],
-["尚未配置允许的应用", "No allowed applications configured"],
-["尚未配置文献库连接", "Library connection not configured"],
-["在「角色功能」的「插件工具授权」中选择可用工具。外部工具可能执行写入操作。", "Choose tools under Character features → Plugin tool access. External tools may write data."],
-["迁移到另一台设备，保留任务设置和已安装扩展","Migrate to another device with task settings and installed extensions"],
-["首次启动迁入库前，请先停止旧设备的自动化。迁入的扩展需手动启用，凭据需重新配置。","Stop automation on the old device before opening the migrated data. Re-enable extensions and configure credentials on the new device."],
-["浏览器操作","Browser Use"],
-["在独立的浏览器会话中阅读和操作已授权的网站。","Read and interact with approved sites in an isolated browser session."],
-["允许的网站，每行一个 HTTPS 来源","Allowed sites, one HTTPS origin per line"],
-["浏览器","Browser"],
-["Windows 桌面操作","Windows Computer Use"],
-["通过 Windows 辅助功能读取获准的前台窗口，按控件执行操作。","Read approved foreground windows and interact with their Windows accessibility controls."],
-["允许操作的应用，每行一个 EXE 完整路径","Allowed applications, one full executable path per line"],
-["Zotero","Zotero"],
-["连接并刷新","Connect and refresh"],
-["本机文献库","Local library"],
-["连接 Zotero 文献库","Connect Zotero library"],
-["检索本机个人文献库，管理分组和笔记，关联已有的知识条目。","Search your local library, manage collections and notes, and link indexed documents."],
-["Zotero 本机服务 ID","Local Zotero server ID"],
-["本地 API 凭据引用","Local API credential reference"],
+  [
+    "检查点待完成",
+    "Checkpoint incomplete"
+  ],
+  [
+    "已暂存建议",
+    "Proposal saved"
+  ],
+  [
+    "登录 Windows 后启动 Echo",
+    "Start Echo when I sign in to Windows"
+  ],
+  [
+    "登录后在系统托盘运行，点击托盘图标可打开主窗口。",
+    "Echo runs in the system tray at sign-in. Click its icon to open the main window."
+  ],
+  [
+    "Windows 已禁用这个启动项，可在系统的「启动应用」中重新启用。",
+    "Windows disabled this startup app. You can enable it in Windows Startup Apps."
+  ],
+  [
+    "此启动项由另一份 Echo 安装或数据目录使用。",
+    "Another Echo installation or data directory owns this startup entry."
+  ],
+  [
+    "任务执行",
+    "Task execution"
+  ],
+  [
+    "上下文压缩",
+    "Context compaction"
+  ],
+  [
+    "主会话接棒",
+    "Main conversation handoff"
+  ],
+  [
+    "整理收尾",
+    "Review finalization"
+  ],
+  [
+    "网络连接中断",
+    "Network connection interrupted"
+  ],
+  [
+    "请求超时",
+    "Request timed out"
+  ],
+  [
+    "服务拒绝访问",
+    "Service denied access"
+  ],
+  [
+    "服务额度不足",
+    "Service quota exhausted"
+  ],
+  [
+    "请求受限",
+    "Rate limited"
+  ],
+  [
+    "上游服务错误",
+    "Upstream service error"
+  ],
+  [
+    "模型长度限制",
+    "Model length limit"
+  ],
+  [
+    "查看错误详情",
+    "See error details"
+  ],
+  [
+    "已连通模型目录。推理结果可在续跑后核对。",
+    "Model catalog reached. Check the inference result after resuming."
+  ],
+  [
+    "检查模型连接",
+    "Check model connection"
+  ],
+  [
+    "中断的运行",
+    "Interrupted runs"
+  ],
+  [
+    "已保存进度",
+    "Saved progress"
+  ],
+  [
+    "从断点续跑",
+    "Resume from checkpoint"
+  ],
+  [
+    "错误详情",
+    "Error details"
+  ],
+  [
+    "无法验证模型目录。",
+    "Could not verify the model catalog."
+  ],
+  [
+    "常规",
+    "General"
+  ],
+  [
+    "网络代理",
+    "Network proxy"
+  ],
+  [
+    "内置模型服务共用此设置，适用于聊天、后台任务、上下文压缩和向量请求。本机回环地址始终直连。",
+    "Built-in model services share this setting for chats, background tasks, context compaction, and embedding requests. Loopback addresses always connect directly."
+  ],
+  [
+    "模型连接方式",
+    "Model connection mode"
+  ],
+  [
+    "直接连接",
+    "Direct connection"
+  ],
+  [
+    "手动代理",
+    "Manual proxy"
+  ],
+  [
+    "优先使用 HTTP(S) 代理环境变量，Windows 桌面也支持系统自动代理规则（PAC）。",
+    "HTTP(S) proxy environment variables take priority. On Windows, automatic system proxy rules (PAC) are also supported."
+  ],
+  [
+    "代理地址",
+    "Proxy address"
+  ],
+  [
+    "填写 HTTP 或 HTTPS 代理的地址和端口。",
+    "Enter the HTTP or HTTPS proxy address and port."
+  ],
+  [
+    "请输入有效的 HTTP 或 HTTPS 代理地址。",
+    "Enter a valid HTTP or HTTPS proxy address."
+  ],
+  [
+    "已保存，下次请求生效。",
+    "Saved. Applies to the next request."
+  ],
+  [
+    "验证模型服务",
+    "Verify a model service"
+  ],
+  [
+    "模型目录连接成功。",
+    "Successfully connected to the model catalog."
+  ],
+  [
+    "工具授权",
+    "Tool permissions"
+  ],
+  [
+    "高级模型设置",
+    "Advanced model settings"
+  ],
+  [
+    "高级任务设置",
+    "Advanced task settings"
+  ],
+  [
+    "模型用途",
+    "Model purposes"
+  ],
+  [
+    "聊天模型",
+    "Chat models"
+  ],
+  [
+    "待连接",
+    "Not connected"
+  ],
+  [
+    "默认文本索引",
+    "Default text index"
+  ],
+  [
+    "其他渠道的表达风格",
+    "Other channel styles"
+  ],
+  [
+    "调整渠道表达",
+    "Edit channel style"
+  ],
+  [
+    "提议修改长期人设",
+    "Propose identity changes"
+  ],
+  [
+    "调整已有任务",
+    "Adjust existing tasks"
+  ],
+  [
+    "按已启用的功能创建任务模板，任务与桌宠初始暂停。",
+    "Templates use enabled features. Tasks and desktop companions start paused."
+  ],
+  [
+    "选择一个可聊天的模型。屏幕观察可以另选视觉模型。",
+    "Choose a model for chat. Observation can use a separate vision model."
+  ],
+  [
+    "请求已处理",
+    "Request processed"
+  ],
+  [
+    "正在加载…",
+    "Loading…"
+  ],
+  [
+    "没有匹配条目",
+    "No matching items"
+  ],
+  [
+    "打开知识条目",
+    "Open knowledge entry"
+  ],
+  [
+    "Zotero 文献连接器",
+    "Zotero Library Connector"
+  ],
+  [
+    "短评",
+    "Comment"
+  ],
+  [
+    "评分",
+    "Rating"
+  ],
+  [
+    "入库状态",
+    "Import status"
+  ],
+  [
+    "索引状态",
+    "Index status"
+  ],
+  [
+    "等待入库",
+    "Queued for import"
+  ],
+  [
+    "入库中",
+    "Importing"
+  ],
+  [
+    "入库失败",
+    "Import failed"
+  ],
+  [
+    "已入库",
+    "Imported"
+  ],
+  [
+    "未入库",
+    "Not imported"
+  ],
+  [
+    "状态不可用",
+    "Status unavailable"
+  ],
+  [
+    "已索引",
+    "Indexed"
+  ],
+  [
+    "未索引",
+    "Not indexed"
+  ],
+  [
+    "部分索引",
+    "Partially indexed"
+  ],
+  [
+    "导入或复用 PDF",
+    "Import or reuse PDF"
+  ],
+  [
+    "普通记忆",
+    "General memories"
+  ],
+  [
+    "类别",
+    "Category"
+  ],
+  [
+    "插件工具授权",
+    "Plugin tool access"
+  ],
+  [
+    "交互操作",
+    "Interact"
+  ],
+  [
+    "搜索插件或工具",
+    "Search plugins or tools"
+  ],
+  [
+    "工具已注册",
+    "Tools registered"
+  ],
+  [
+    "配置连接",
+    "Configure connection"
+  ],
+  [
+    "已配置",
+    "Configured"
+  ],
+  [
+    "未找到匹配的工具",
+    "No matching tools"
+  ],
+  [
+    "尚未配置允许的网站",
+    "No allowed websites configured"
+  ],
+  [
+    "尚未配置允许的应用",
+    "No allowed applications configured"
+  ],
+  [
+    "尚未配置文献库连接",
+    "Library connection not configured"
+  ],
+  [
+    "在「角色功能」的「插件工具授权」中选择可用工具。外部工具可能执行写入操作。",
+    "Choose tools under Character features → Plugin tool access. External tools may write data."
+  ],
+  [
+    "迁移到另一台设备，保留任务设置和已安装扩展",
+    "Migrate to another device with task settings and installed extensions"
+  ],
+  [
+    "首次启动迁入库前，请先停止旧设备的自动化。迁入的扩展需手动启用，凭据需重新配置。",
+    "Stop automation on the old device before opening the migrated data. Re-enable extensions and configure credentials on the new device."
+  ],
+  [
+    "浏览器操作",
+    "Browser Use"
+  ],
+  [
+    "在独立的浏览器会话中阅读和操作已授权的网站。",
+    "Read and interact with approved sites in an isolated browser session."
+  ],
+  [
+    "允许的网站，每行一个 HTTPS 来源",
+    "Allowed sites, one HTTPS origin per line"
+  ],
+  [
+    "浏览器",
+    "Browser"
+  ],
+  [
+    "Windows 桌面操作",
+    "Windows Computer Use"
+  ],
+  [
+    "通过 Windows 辅助功能读取获准的前台窗口，按控件执行操作。",
+    "Read approved foreground windows and interact with their Windows accessibility controls."
+  ],
+  [
+    "允许操作的应用，每行一个 EXE 完整路径",
+    "Allowed applications, one full executable path per line"
+  ],
+  [
+    "Zotero",
+    "Zotero"
+  ],
+  [
+    "连接并刷新",
+    "Connect and refresh"
+  ],
+  [
+    "本机文献库",
+    "Local library"
+  ],
+  [
+    "连接 Zotero 文献库",
+    "Connect Zotero library"
+  ],
+  [
+    "检索本机个人文献库，管理分组和笔记，关联已有的知识条目。",
+    "Search your local library, manage collections and notes, and link indexed documents."
+  ],
+  [
+    "Zotero 本机服务 ID",
+    "Local Zotero server ID"
+  ],
+  [
+    "本地 API 凭据引用",
+    "Local API credential reference"
+  ],
   [
     "提供方不可用",
     "(provider unavailable)"
@@ -10846,6 +11215,204 @@
     "历史任务",
     "Task history"
   ],
-  ["在文件夹中显示", "Show in folder"],
-  ["下载附件", "Download attachment"]
+  [
+    "在文件夹中显示",
+    "Show in folder"
+  ],
+  [
+    "下载附件",
+    "Download attachment"
+  ],
+  [
+    "更多设置",
+    "More settings"
+  ],
+  [
+    "连接聊天模型",
+    "Connect a chat model"
+  ],
+  [
+    "管理模型",
+    "Manage models"
+  ],
+  [
+    "内置模型已就绪",
+    "Built-in model configured"
+  ],
+  [
+    "恢复内置模型",
+    "Restore built-in model"
+  ],
+  [
+    "返回模型总览",
+    "Back to model overview"
+  ],
+  [
+    "下次运行",
+    "Next run"
+  ],
+  [
+    "回复风格",
+    "Reply style"
+  ],
+  [
+    "角色记忆已启用。可在角色资料中查看和纠正记忆。",
+    "Memory is on. Review and correct memories in the role profile."
+  ],
+  [
+    "查找角色设置",
+    "Find a role setting"
+  ],
+  [
+    "查看后台工作会话",
+    "View work session"
+  ],
+  [
+    "校验、恢复与换机迁移",
+    "Verify, restore or move to another device"
+  ],
+  [
+    "目前没有待审批操作",
+    "No actions need approval"
+  ],
+  [
+    "暂无新通知",
+    "No new notifications"
+  ],
+  [
+    "解析与索引迁移",
+    "Parsing and index migration"
+  ],
+  [
+    "添加邮箱账户",
+    "Add an email account"
+  ],
+  [
+    "角色可用工具",
+    "Role tools"
+  ],
+  [
+    "观察白名单",
+    "Observation allowlist"
+  ],
+  [
+    "角色授权",
+    "Role permissions"
+  ],
+  [
+    "选择角色",
+    "Choose a role"
+  ],
+  [
+    "为角色授权",
+    "Manage role permissions"
+  ],
+  [
+    "显示内置组件",
+    "Show built-in components"
+  ],
+  [
+    "有运行问题需要查看",
+    "Runtime issues need attention"
+  ],
+  [
+    "当前未检测到组件异常",
+    "No component issues detected"
+  ],
+  [
+    "资源与内建模块",
+    "Resources and built-in modules"
+  ],
+  [
+    "服务提供商",
+    "Service provider"
+  ],
+  [
+    "自定义连接",
+    "Custom connection"
+  ],
+  [
+    "目录为空，可手动填写模型 ID。",
+    "The catalog is empty. Enter a model ID manually."
+  ],
+  [
+    "读取模型列表",
+    "Get model list"
+  ],
+  [
+    "使用此模型",
+    "Use this model"
+  ],
+  [
+    "可选本地聊天模型 Qwen3 4B，下载约 2.5 GB。建议至少 8 GB 内存，需先启动本机 Ollama。",
+    "Optional local chat model Qwen3 4B. The download is about 2.5 GB. At least 8 GB RAM is recommended. Start Ollama on this computer first."
+  ],
+  [
+    "获取 Ollama",
+    "Get Ollama"
+  ],
+  [
+    "下载并使用",
+    "Download and use"
+  ],
+  [
+    "正在处理…",
+    "Working…"
+  ],
+  [
+    "主会话尚未授权",
+    "No main-session tools granted"
+  ],
+  [
+    "高级设置",
+    "Advanced settings"
+  ],
+  [
+    "选择聊天伙伴",
+    "Choose a chat companion"
+  ],
+  [
+    "开始聊天",
+    "Start chatting"
+  ],
+  [
+    "打开知识库",
+    "Open knowledge library"
+  ],
+  [
+    "本机可用",
+    "Available locally"
+  ],
+  [
+    "已登记",
+    "Registered"
+  ],
+  [
+    "快速连接",
+    "Quick setup"
+  ],
+  [
+    "输入模型 ID",
+    "Enter a model ID"
+  ],
+  [
+    "权限范围",
+    "Permission scope"
+  ],
+  [
+    "编辑设置",
+    "Edit settings"
+  ],
+  [
+    "修复连接",
+    "Fix connection"
+  ],
+  [
+    "模型已配置",
+    "Model configured"
+  ],
+  [
+    "正在下载并校验本地模型…",
+    "Downloading and checking the local model…"
+  ]
 ]

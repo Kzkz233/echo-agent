@@ -9,7 +9,7 @@ export type TaskResultInput = {
   task: string; report: boolean; delivery?: DeliveryPlan; reportPrompt?: string;
   reasoning?: import('../contracts/index.ts').Reasoning; expiresAt?: number;
   bubble?: boolean; localOnly?: boolean; triggerKind?: string;
-  context?: { tasks?: {type:string; id:string}[]; outputId?: string; executionState?: string; workSessionId?: string; evidenceIds?: string[]; reviewable?: boolean };
+  context?: { tasks?: {type:string; id:string}[]; outputId?: string; executionState?: string; executionRunId?: string; workSessionId?: string; evidenceIds?: string[]; reviewable?: boolean };
 };
 /** One durable, model-visible result; waking the role is a separate decision. */
 export class TaskResults {

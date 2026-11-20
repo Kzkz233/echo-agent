@@ -7,6 +7,15 @@ registries, lifecycle scopes, and plugin dependency graph.
 
 ## Model services and executors
 
+Settings → General → Network proxy selects one route for built-in model services. It applies
+to model discovery, generation, context compaction and remote embeddings. **Use system settings**
+honors HTTP(S) proxy environment variables and otherwise uses Windows system proxy rules,
+including PAC. **Direct connection** bypasses the proxy. **Manual proxy** accepts an HTTP or
+HTTPS proxy address and port. Loopback services always connect directly. Saving takes effect
+on the next request. **Test connection** reads the selected service's model catalog.
+
+External worker processes and mail accounts retain their own network configuration.
+
 The workbench presents a service card with credentials, model discovery, and its enabled model
 profiles. Internal connection/profile IDs remain stable; credentials are referenced rather than
 copied into characters or tasks. Online APIs and existing local API services share this editor.
@@ -63,6 +72,15 @@ appear inside their owner's extension details and do not add sidebar entries. Fo
 pages retain the same operation grants, owner checks, cancellation, and unload behavior as other
 extension pages. Extensions may still register workspace pages and character pages.
 
+A library browser registers a workspace page in the `knowledge` section with a
+`catalog` view. Its manifest declares the columns, read operation and optional
+row action. The operation returns groups, an optional scope selector, and one
+page of rows using the shared library catalog contract. The workbench owns the
+tabs, search, tree, pagination and document reader. Providers own membership,
+authority and source-specific metadata. Bibliographic records can appear before
+they have a corresponding Echo document. Browsing queries index coverage for
+linked documents through `knowledge.index-coverage@1` and never starts a job.
+
 Inference task ownership comes from the registered provider, not a guessed ID prefix. Plugin
 management provides functional categories and a dependency-order view. Runtime dependency order,
 frontend placement, and context block ordering are distinct contracts.
@@ -74,6 +92,18 @@ enabled intent. Re-enabling restores that intent. Explicitly removing a task rem
 operation. Editing other character fields while a plugin is absent retains its role association,
 task IDs, and inactive settings. Native application paths, role IDs, and persisted messages are
 independent of the Echo Agent display name.
+
+## First use and existing installations
+
+A new desktop library registers the bundled offline BGE text encoder and uses hybrid search.
+Existing installations retain their embedding route and retrieval strategy. The model-service
+overview can register the bundled encoder again without changing an existing embedding route.
+A single starter role can be created from the chat entry. The two-role studio is optional.
+Chat connections use the normal model catalog and credential store. Local Ollama downloads
+require a running local service and an explicit download action.
+
+Plugins may declare a settings field as `advanced`. The shared renderer groups these fields
+without changing their values. The role editor persists only explicit changes.
 
 ## Verification
 

@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { providerSnapshot } from './provider-snapshot.ts';
 import { z } from 'zod';
 import { id, invariant } from '../contracts/index.ts';
@@ -16,6 +17,7 @@ const condition = z.object({ key: id, value: z.union([z.string(), z.boolean()]) 
 const field = z.object({
   key: id,
   label: z.string(),
+  advanced: z.boolean().optional(),
   kind: z.enum([
     'text',
     'datetime',
@@ -84,12 +86,15 @@ const descriptor = z.object({
   page: id.optional(),
   statusPage: id.optional(),
   previewOperation: id.optional(),
+  // Optional read-only projection of failed jobs with provider-owned checkpoints.
+  failuresOperation: id.optional(),
+  supportsPatch: z.boolean().optional(),
   canRun: z.boolean().default(false),
   canRemove: z.boolean().default(false),
 });
 const request = z.discriminatedUnion('action', [
   z.object({ action: z.literal('catalog'), view: z.enum(['definition','instances']).optional() }),
-  z.object({ action: z.literal('save'), id, settings: value,
+  z.object({ action: z.literal('save'), id, settings: value, patch: z.boolean().optional(), requireExisting: z.boolean().optional(), expected: value.optional(),
     actor: z.object({ personaId: id, conversationId: id, permissions: z.array(z.string()) }).optional() }),
   z.object({ action: z.literal('remove'), id }),
   z.object({ action: z.literal('run'), id, requestId: id }),
@@ -112,12 +117,23 @@ type Handler = {
   run?: (id: string, requestId: string, signal: AbortSignal) => unknown;
 };
 
+export function mergeTaskSettings(current: Record<string, unknown>, changes: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...current };
+  for (const [key, next] of Object.entries(changes)) {
+    invariant(!['__proto__', 'prototype', 'constructor'].includes(key), 'task_field', '任务字段无效。');
+    const old = current[key];
+    result[key] = next && typeof next === 'object' && !Array.isArray(next) && old && typeof old === 'object' && !Array.isArray(old)
+      ? mergeTaskSettings(old as Record<string, unknown>, next as Record<string, unknown>) : next;
+  }
+  return result;
+}
+
 export function defineAutomation(scope: Scope) {
   scope.define({
     id: point,
     description: '自动化任务类型及其配置、启停和执行入口',
     input: request,
-    output: z.object({ catalog: descriptor.optional() }),
+    output: z.object({ catalog: descriptor.optional(), saved: value.optional() }),
     providePermission: 'automation.contribute',
     consumePermission: 'automation.invoke',
     cardinality: 'many',
@@ -130,26 +146,55 @@ export function contributeAutomation(
   label: string,
   handler: Handler,
 ) {
+  const pending = new Map<string, Promise<unknown>>();
   ctx.capabilities.provide(point, type, label, async (input: z.infer<typeof request>, signal) => {
     if (input.action === 'catalog') {
       if (input.view === 'instances' && handler.items) return { catalog: { items:await handler.items(signal) } };
       const catalog = await handler.describe(signal);
       return catalog
-        ? { catalog: { ...catalog, items:input.view === 'definition' ? [] : handler.items ? await handler.items(signal) : catalog.items ?? [], canRun: !!handler.run, canRemove: !!handler.remove } }
+        ? { catalog: { ...catalog, supportsPatch:true, items:input.view === 'definition' ? [] : handler.items ? await handler.items(signal) : catalog.items ?? [], canRun: !!handler.run, canRemove: !!handler.remove } }
         : {};
     }
     signal.throwIfAborted();
-    if (input.action === 'save') {
-      invariant(handler.save, 'automation_unsupported', '请打开专用页面配置此任务。');
-      await handler.save(input.id, input.settings, input.actor);
-    } else if (input.action === 'remove') {
-      invariant(handler.remove, 'automation_unsupported', '此任务不支持移除。');
-      await handler.remove(input.id);
-    } else {
+    if (input.action === 'run') {
       invariant(handler.run, 'automation_unsupported', '此任务不支持手动触发。');
       await handler.run(input.id, input.requestId, signal);
+      return {};
     }
-    return {};
+    const change = async () => {
+      signal.throwIfAborted();
+      if (input.action === 'remove') {
+        invariant(handler.remove, 'automation_unsupported', '此任务不支持移除。');
+        await handler.remove(input.id);
+        return {};
+      }
+      invariant(handler.save, 'automation_unsupported', '请打开专用页面配置此任务。');
+      if (!input.patch) {
+        await handler.save(input.id, input.settings, input.actor);
+        return {};
+      }
+      const readItem = async () => {
+        const items = handler.items ? await handler.items(signal) : (await handler.describe(signal))?.items;
+        return items?.find(row => row.id === input.id);
+      };
+      const item = await readItem();
+      invariant(item || !input.requireExisting, 'task_missing', '任务不存在。');
+      const current = item?.persistedSettings ?? item?.settings ?? {};
+      invariant(!item || !input.actor || (item.personaId ?? current.personaId) === input.actor.personaId,
+        'task_owner', '不能编辑其他角色的任务。');
+      const expected = input.expected ?? {};
+      for (const key of Object.keys(expected))
+        invariant(isDeepStrictEqual(current[key], expected[key]) || isDeepStrictEqual(current[key], input.settings[key]),
+          'revision_conflict', '任务字段已变化：' + key);
+      await handler.save(input.id, mergeTaskSettings(current, input.settings), input.actor);
+      const saved = await readItem();
+      invariant(saved, 'task_missing', '无法核对已保存的任务。');
+      return { saved: saved.persistedSettings ?? saved.settings };
+    };
+    const work = (pending.get(input.id) ?? Promise.resolve()).catch(() => {}).then(change);
+    pending.set(input.id, work);
+    try { return await work; }
+    finally { if (pending.get(input.id) === work) pending.delete(input.id); }
   });
 }
 
@@ -184,7 +229,7 @@ export class Automation {
     input: Exclude<z.infer<typeof request>, { action: 'catalog' }>,
     signal: AbortSignal,
   ) {
-    await this.scope.invoke(point, type, input, signal);
-    return { accepted: true };
+    const result = await this.scope.invoke(point, type, input, signal) as { saved?: Record<string, unknown> };
+    return { accepted: true, ...result };
   }
 }

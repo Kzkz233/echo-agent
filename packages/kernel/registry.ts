@@ -21,6 +21,9 @@ export type Operation = {
   permission: string;
   mcp: boolean;
   roleOnly?: boolean;
+  mainOnly?: boolean;
+  /** Optional plugin projection for the current agent tool catalog. Domain handlers still validate writes. */
+  offerToAgent?: (caller: Caller) => boolean;
   toolInputSchema?: Record<string, unknown>;
   owner: string;
   run: (input: any, caller: Caller, signal: AbortSignal) => unknown | Promise<unknown>;
@@ -143,7 +146,8 @@ export class Registry {
         this.inScope(op, caller) &&
         this.allowed(caller, op.permission) &&
         !this.owners.get(op.owner)?.closing &&
-        (this.owners.get(op.owner)?.active ?? true),
+        (this.owners.get(op.owner)?.active ?? true) &&
+        (caller.kind !== 'mcp' || !op.offerToAgent || op.offerToAgent(caller)),
     );
   }
   allowed(caller: Caller, permission: string) {
@@ -229,6 +233,7 @@ export type Field = {
   label: string;
   /** Shown beside the plugin's tools when this setting has no usable value. */
   toolSetupHint?: string;
+  advanced?: boolean;
   type: 'boolean' | 'number' | 'text' | 'textarea' | 'select' | 'path' | 'multi' | 'records';
   rowFields?: Field[];
   rowTitleKey?: string;
@@ -260,6 +265,7 @@ export type Manifest = {
   enhances?: string[];
   permissions: string[];
   characterPermissions?: string[];
+  agentTasks?: Record<string, { permission: string; fields?: string[]; editOnly?: boolean }>;
   characterSettings?: { section: string; title: string; order?: number; editor?: string };
   category?: string;
   settings: Field[];
@@ -282,6 +288,9 @@ export const manifestSchema = z
       .max(20)
       .default([]),
     permissions: z.array(z.string()).default([]),
+    agentTasks: z.record(z.string(), z.object({
+      permission: z.string(), fields: z.array(z.string()).optional(), editOnly: z.boolean().optional(),
+    })).optional(),
     characterPermissions: z.array(z.string()).max(100).default([]),
     category: z.string().min(1).max(80).default('Other extensions'),
     characterSettings: z
@@ -300,6 +309,7 @@ export const manifestSchema = z
         z.object({
           key: z.string().regex(/^[\w.-]{1,80}$/),
           label: z.string().min(1).max(200),
+          advanced: z.boolean().optional(),
           toolSetupHint: z.string().min(1).max(200).optional(),
           type: z.enum([
             'boolean',
@@ -334,6 +344,11 @@ export const manifestSchema = z
     pages: z.array(frontendPageSchema).max(30).default([]),
   })
   .superRefine((manifest, context) => {
+    for (const [type, access] of Object.entries(manifest.agentTasks ?? {})) {
+      if (!type.startsWith(manifest.id + '.') || !access.permission.startsWith(manifest.id + '.') ||
+          !manifest.permissions.includes(access.permission))
+        context.addIssue({ code: 'custom', path: ['agentTasks', type], message: 'Task access must belong to its provider.' });
+    }
     for (const permission of manifest.characterPermissions) {
       if (!manifest.permissions.includes(permission))
         context.addIssue({
@@ -401,7 +416,14 @@ export class PluginManager {
   characterPermissions() {
     // Resource ownership and permission to use a tool are independent. Every
     // active model-facing operation can be granted, including shared modules.
-    return new Set(this.registry.list(internal, true).map((operation) => operation.permission));
+    return new Set([
+      ...this.registry.list(internal, true).map(operation => operation.permission),
+      ...this.taskGrants().map(grant => grant.permission),
+    ]);
+  }
+  taskGrants() {
+    return [...this.plugins.values()].filter(p => this.active.has(p.manifest.id))
+      .flatMap(p => Object.values(p.manifest.agentTasks ?? {}).map(access => ({ owner: p.manifest.id, permission: access.permission })));
   }
   addBuiltin(plugin: Plugin) {
     invariant(

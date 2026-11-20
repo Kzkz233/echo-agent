@@ -48,6 +48,7 @@
     },
     {
       "key": "bubbleSeconds",
+      "advanced": true,
       "label": "气泡停留时间（秒）",
       "type": "number",
       "min": 5,
@@ -55,6 +56,7 @@
     },
     {
       "key": "fps",
+      "advanced": true,
       "label": "桌宠帧率",
       "type": "number",
       "min": 1,

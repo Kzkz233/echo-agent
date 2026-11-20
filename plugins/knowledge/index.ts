@@ -1,3 +1,4 @@
+import { indexCoverageRequest, indexCoverageResult } from '../../packages/contracts/library-catalog.ts';
 import { Events } from '../../packages/kernel/events.ts';
 import packageManifest from './echo-plugin.json' with { type: 'json' };
 import { defineManifest } from '../../packages/kernel/registry.ts';
@@ -89,6 +90,17 @@ export class Knowledge {
       nodes: responses.flatMap((result) => result.nodes),
       documentIds: collectionId ? matching[0].documentIds : undefined,
     };
+  }
+  async indexCoverage(vaultId: string, documentIds: string[], signal: AbortSignal) {
+    const point = 'knowledge.index-coverage@1';
+    const provider = this.scope?.list(point).find(p => p.state === 'active');
+    if (!this.scope || !provider) return {};
+    const result: Record<string, 'ready' | 'partial' | 'missing'> = {};
+    for (let start = 0; start < documentIds.length; start += 200) {
+      const batch = documentIds.slice(start, start + 200);
+      Object.assign(result, indexCoverageResult.parse(await this.scope.invoke(point, provider.id, { vaultId, documentIds: batch }, signal)));
+    }
+    return result;
   }
   private async collectionScope<T extends KnowledgeScope>(
     filter: T,
@@ -754,6 +766,11 @@ export class Knowledge {
           else void this.executeImport(id);
         });
         registerRetrievalOptions(capabilities);
+        capabilities.define({
+          id: 'knowledge.index-coverage@1', description: '读取当前文档的向量覆盖状态',
+          input: indexCoverageRequest, output: indexCoverageResult, cardinality: 'one',
+          providePermission: 'knowledge.enhance', consumePermission: 'knowledge.read',
+        });
         dispose(() => {
           this.scope = undefined;
         });

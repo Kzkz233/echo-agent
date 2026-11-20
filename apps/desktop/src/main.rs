@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod auth;
+mod login_startup;
 mod window_icon;
 mod window_chrome;
 use serde::{Deserialize, Serialize};
@@ -117,8 +118,8 @@ fn read_connection(root: &Path) -> Option<Connection> {
     }
 }
 fn data_directory() -> PathBuf {
-    std::env::var_os("ECHO_DATA_DIR")
-        .map(PathBuf::from)
+    login_startup::login_directory(std::env::args_os())
+        .or_else(|| std::env::var_os("ECHO_DATA_DIR").map(PathBuf::from))
         .unwrap_or_else(|| {
             std::env::var_os("LOCALAPPDATA")
                 .map(PathBuf::from)
@@ -432,7 +433,8 @@ fn main() {
     context.config_mut().identifier = instance_identifier(&data);
     let app = tauri::Builder::default()
         .manage(SettingsWindowState::default())
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            if login_startup::login_directory(args.into_iter().map(Into::into)).is_some() { return; }
             let app = app.clone();
             std::thread::spawn(move || {
                 let _ = show_main(&app);
@@ -442,6 +444,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             connection,
             desktop_info,
+            login_startup::login_startup,
             desktop_ready,
             install_update,
             report_dirty,
@@ -515,7 +518,10 @@ fn main() {
                     }
                 })
                 .build(app)?;
-            show_main(app.handle()).map_err(std::io::Error::other)?;
+            if login_startup::login_directory(std::env::args_os()).is_none()
+                || std::env::var_os("ECHO_UPDATE_TOKEN").is_some() {
+                show_main(app.handle()).map_err(std::io::Error::other)?;
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

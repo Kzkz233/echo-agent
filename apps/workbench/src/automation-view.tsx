@@ -1,4 +1,6 @@
+import { SettingsFields } from './settings-fields.tsx';
 import { useTaskCatalog } from './use-task-catalog.ts';
+import { TaskCheckpoints } from './task-failure.tsx';
 import { TaskHistory } from './task-history.tsx';
 import { OutputTargetsField, OutputHistory } from './output-targets.tsx';
 import { useEffect, useRef, useState } from 'react';
@@ -32,6 +34,15 @@ const stateLabels: Record<AutomationItem['state'], string> = {
   completed: '已完成',
   unavailable: '当前不可用',
 };
+
+export function TaskFieldGroups({ fields, render }: {
+  fields: AutomationField[];
+  render: (field: AutomationField) => React.ReactNode;
+}) {
+  const advanced = (field: AutomationField) => field.advanced ??
+    ['reasoning', 'model', 'executor', 'execution', 'work-context', 'json'].includes(field.kind);
+  return <SettingsFields fields={fields} render={render} advanced={advanced} title="高级任务设置" />;
+}
 
 export function TaskField({
   field,
@@ -428,6 +439,9 @@ export function AutomationView({
               {t(activityItem.suspendedByCharacter ? '角色已停用' : stateLabels[activityItem.state])}
             </span>
           </div>
+          {activityType.failuresOperation && <TaskCheckpoints key={activityType.id + ':' + activityItem.id}
+            owner={activityType.owner} operation={activityType.failuresOperation} taskId={activityItem.id}
+            personaId={personaId ?? activityItem.personaId}/>}
           <TaskHistory {...{act}} personaId={personaId ?? activityItem.personaId ?? activityItem.settings?.personaId as string | undefined} type={activityType.id} id={activityItem.id}/>
           <dl className="automation-status-grid">
             <div>
@@ -534,11 +548,9 @@ export function AutomationView({
             />
             {t('启用任务')}
           </label>
-          <div className="form-grid">
-            {type.fields.map((field) => (
-              <TaskField key={draft.id + ':' + field.key} {...{ field, draft }} onChange={change} />
-            ))}
-          </div>
+          <TaskFieldGroups fields={type.fields} render={field => (
+            <TaskField key={draft.id + ':' + field.key} {...{ field, draft }} onChange={change} />
+          )} />
           <div className="row wrap">
             <Button
               onClick={() =>

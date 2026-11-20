@@ -30,6 +30,7 @@ export function KnowledgeTree({
   grouped = false,
   leafLabel,
   rootEntry = true,
+  rootLabel,
   heading,
 }: {
   folders: string[];
@@ -40,6 +41,7 @@ export function KnowledgeTree({
   grouped?: boolean;
   leafLabel?: (path: string) => string;
   rootEntry?: boolean;
+  rootLabel?: string;
   heading?: string;
 }) {
   const [expanded, setExpanded] = useState(new Set<string>());
@@ -113,7 +115,7 @@ export function KnowledgeTree({
       {rootEntry && (
         <button className={!selected ? 'selected' : ''} onClick={() => onSelect('')}>
           <Icon name="knowledge" size={15} />
-          {t(grouped ? '全部文献' : '全部目录')}
+          {rootLabel ?? t(grouped ? '全部文献' : '全部目录')}
         </button>
       )}
       <div className="folder-nodes" role="tree" aria-label={heading ?? t('知识目录树')}>

@@ -55,7 +55,7 @@ test('memory maintenance advances only after success, covers batches, and leaves
   const original = app.store.documents('memories');
   let fail = true;
   fake.responder = async request => {
-    if (fail) throw Error('Synthetic stop');
+    if (fail) throw Error('上下文压缩失败：ECONNRESET');
     const job = app.reviews.jobs().find(row => row.state === 'running')!;
     const caller = { kind: 'mcp' as const, ...request.principal!, permissions: new Set(['review.read', 'review.write']) };
     for (let i = 0; i < job.packets.length; i++) {
@@ -68,9 +68,23 @@ test('memory maintenance advances only after success, covers batches, and leaves
   const first = await app.reviews.start(parent.personaId, 'first');
   await until(() => app.reviews.jobs().find(row => row.id === first.id)?.state === 'paused');
   assert.equal(app.store.get('review.maintenanceCursor.maintenance', ''), '');
+  const type = (await app.automation.catalog(new AbortController().signal,'definition','review.policies')).types[0]!;
+  assert.equal(type.failuresOperation, 'review.failures');
+  const failures = () => app.registry.call(type.failuresOperation!, {taskId:'maintenance',personaId:parent.personaId},internal) as Promise<any[]>;
+  const [record] = await failures();
+  assert.equal(record.id,first.id);
+  assert.equal(record.failure.stage,'compaction');
+  assert.equal(record.failure.category,'network');
+  assert.equal(record.checkpoint.completed,0);
+  assert.deepEqual(await app.registry.call(type.failuresOperation!,{taskId:'other'},internal),[]);
+  assert.deepEqual(await app.registry.call(type.failuresOperation!,{taskId:'maintenance',personaId:'other'},internal),[]);
+  const resume = (expectedProfileId:string) => app.registry.call(record.checkpoint.resumeOperation,
+    {id:record.id,confirmed:true,expectedProfileId},internal);
+  await assert.rejects(resume('changed-model'),/续跑模型已改变/);
   fail = false;
-  await app.registry.call('review.resume', { id: first.id, confirmed: true }, internal);
+  await resume(record.checkpoint.expectedProfileId);
   await until(() => app.reviews.jobs().find(row => row.id === first.id)?.state === 'completed');
+  assert.deepEqual(await failures(),[]);
   assert.equal(app.store.get('review.maintenanceCursor.maintenance', ''), 'batch-1');
   const next = await app.reviews.start(parent.personaId, 'second');
   await until(() => app.reviews.jobs().find(row => row.id === next.id)?.state === 'completed');
@@ -118,6 +132,9 @@ test('Review checkpoints survive a failed attempt, preserve candidate evidence a
     assert.equal(full.text, 'KEEP_NARRATIVE');
     await assert.rejects(call('review.finish', { jobId: job.id, report: 'Done' }), /未处理候选/);
     await assert.rejects(call('review.resolveCandidate', { jobId: job.id, id: candidateId, state: 'changed', reason: 'Saved', receipts: ['nonexistent'] }), /回执/);
+    assert.equal(candidates.mode,'apply');
+    assert(!app.registry.list(caller,true).some(op=>op.name==='review.stageChange'));
+    await assert.rejects(call('review.stageChange',{jobId:job.id,change:{operation:'add',title:full.title,text:full.text,sources:full.sources}}),/memory_change/);
     await call('memory.change', { requestId: 'candidate-save', change: { operation: 'add', title: full.title, text: full.text, sources: full.sources } });
     await call('review.resolveCandidate', { jobId: job.id, id: candidateId, state: 'changed', reason: 'Saved', receipts: ['candidate-save'] });
     await call('review.finish', { jobId: job.id, report: 'Saved one memory', notes: 'Complete' });
@@ -169,4 +186,40 @@ test('Review resumes a saved finish receipt without submitting another worker re
   await until(() => app.reviews.jobs().find(job => job.id === paused.id)?.state === 'completed');
   assert.equal(requests, 1);
   assert.equal(app.reviews.jobs().find(job => job.id === paused.id)?.notes, 'Preserved finish receipt.');
+});
+
+test('proposal-only review can finish with verified drafts before the user applies them', async t => {
+  const app = await setup(t), fake = new FakeBackend();
+  app.router.backends.set('api',fake);
+  const parent=conversation(app,{kind:'main'});
+  app.store.append(parent.id,'user','human','Fixture material.');
+  await app.registry.call('automation.save',{type:'review.policies',id:'propose-test',settings:{
+    personaId:parent.personaId,enabled:false,report:false,autoApply:false,memoryOperations:['add'],
+    conversationScope:'selected',conversationIds:[parent.id],sourceIds:[],targetIds:[],
+  }},internal);
+  let proposalId='';
+  fake.responder=async request=>{
+    const job=app.reviews.jobs().find(j=>j.state==='running')!;
+    const caller={kind:'mcp' as const,...request.principal!,permissions:new Set(['memory.read','review.read','review.write'])};
+    const call=(name:string,args:any)=>app.registry.call(name,{jobId:job.id,...args},caller);
+    assert(app.registry.list(caller,true).some(op=>op.name==='review.stageChange'));
+    const p=await call('review.readMaterial',{});
+    const draft={operation:'add',title:'Draft',text:'Draft content',sources:p.sources};
+    const {candidateIds:[cid]}=await call('review.checkpoint',{packetIndex:p.index,candidates:[draft]});
+    assert.equal((await call('review.candidates',{})).mode,'propose');
+    const staged=await call('review.stageChange',{change:draft}); proposalId=staged.proposalId;
+    assert.deepEqual(await call('review.stageChange',{change:draft}),staged);
+    assert.equal((await call('review.readCandidate',{id:cid})).stagedProposals[0].proposalId,proposalId);
+    await assert.rejects(call('review.resolveCandidate',{id:cid,state:'staged',reason:'Awaiting user',receipts:['unknown']}),/回执/);
+    await assert.rejects(call('review.resolveCandidate',{id:cid,state:'changed',reason:'Saved',receipts:[proposalId]}),/回执/);
+    await call('review.resolveCandidate',{id:cid,state:'staged',reason:'Review requested',receipts:[proposalId]});
+    await call('review.finish',{report:'One proposal'});
+    return {text:'Finished'};
+  };
+  const job=await app.reviews.start(parent.personaId,'propose-fixture');
+  await until(()=>app.reviews.jobs().find(j=>j.id===job.id)?.state==='completed');
+  assert(proposalId);
+  assert.equal(app.reviews.jobs().find(j=>j.id===job.id)!.drafts.length,1);
+  assert.equal(app.reviews.jobs().find(j=>j.id===job.id)!.applied,false);
+  assert.equal(app.store.documents('memories').length,0);
 });

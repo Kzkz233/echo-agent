@@ -14,7 +14,7 @@ export function ModelChoice({
   inherit = true,
   inheritLabel = '跟随角色默认',
   inheritValue,
-  showInheritedModel = false,
+  showInheritedModel = true,
   personaId,
   backendKinds,
   disabled = false,

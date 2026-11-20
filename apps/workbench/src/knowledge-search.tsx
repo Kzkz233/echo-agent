@@ -13,6 +13,7 @@ export function KnowledgeSearch({
   kinds,
   setPage,
   grouped,
+  managing,
 }: any) {
   const [open, setOpen] = useState(false),
     [indexOpen, setIndexOpen] = useState(false),
@@ -75,13 +76,13 @@ export function KnowledgeSearch({
         <button className="text-button" aria-expanded={open} onClick={() => setOpen(!open)}>
           {t('高级搜索')}
         </button>
-        <button
+        {managing && <button
           className="text-button"
           aria-expanded={indexOpen}
           onClick={() => setIndexOpen(!indexOpen)}
         >
           {t('向量索引')}
-        </button>
+        </button>}
       </div>
       {open && (
         <div className="card operation-panel advanced-search">
@@ -242,7 +243,7 @@ export function KnowledgeSearch({
           )}
         </div>
       )}
-      {indexOpen && (
+      {managing && indexOpen && (
         <div className="card operation-panel index-panel">
           <div className="row between">
             <h2>{t('当前库的向量索引')}</h2>
@@ -307,7 +308,7 @@ export function KnowledgeSearch({
                     {t('暂停向量化')}
                   </Button>
                 )}
-                <button className="text-button" onClick={() => setPage('plugins')}>
+                <button className="text-button" onClick={() => setPage('plugins', 'semantic')}>
                   {t('配置语义检索增强')}
                 </button>
               </div>

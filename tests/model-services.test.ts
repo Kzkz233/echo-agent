@@ -7,7 +7,7 @@ import {
   modelProfileSchema,
 } from '../packages/contracts/inference.ts';
 import { setup } from './helpers.ts';
-import { ensureStarterModels } from '../apps/server/bundled-models.ts';
+import { ensureBundledEmbedding } from '../apps/server/bundled-models.ts';
 
 test('adapter classification corrects legacy API harness labels without replacing connection settings', async t => {
   const app = await setup(t, []);
@@ -75,7 +75,7 @@ test('new and legacy model services do not leak empty connections into unrelated
   assert(!connectionForPurpose(legacy, adapter, [embedding], 'generation'));
 });
 test('starter setup reuses an existing local BGE directory instead of creating a duplicate', async (t) => {
-  const app = await setup(t);
+  const app = await setup(t, ['local-models']);
   await app.router.inference.refresh();
   await app.router.inference.saveConnection({
     id: 'existing-local',
@@ -92,6 +92,6 @@ test('starter setup reuses an existing local BGE directory instead of creating a
     generation: { enabled: false },
     embedding: { enabled: true, dimensions: 512 },
   });
-  assert.equal(await ensureStarterModels(app, 'test'), 'existing-vector');
+  assert.equal(await ensureBundledEmbedding(app), 'existing-vector');
   assert(!app.router.inference.models().some((m) => m.id === 'echo-bge-small-zh'));
 });

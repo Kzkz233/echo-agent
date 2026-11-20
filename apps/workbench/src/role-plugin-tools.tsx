@@ -4,6 +4,7 @@ import { t } from './i18n.ts';
 type Grant = {
   permission: string;
   scope: string;
+  mainOnly?:boolean;
   owners: string[];
   tools: string[];
   external?: { serverId: string; server: string; tool: string; available: boolean };
@@ -16,6 +17,9 @@ type Plugin = {
 type Group = { name: string; owners: Plugin[]; serverId?: string; rows: Grant[] };
 
 export function grantAction(permission: string) {
+  if (permission === 'persona.expression.write') return t('调整渠道表达');
+  if (permission === 'persona.identity.propose') return t('提议修改长期人设');
+  if (permission.endsWith('.task-edit')) return t('调整已有任务');
   if (permission.endsWith('.read')) return t('读取');
   if (permission.endsWith('.write')) return t('修改');
   if (permission.endsWith('.interact')) return t('交互操作');
@@ -23,7 +27,8 @@ export function grantAction(permission: string) {
   return t('调用');
 }
 
-export function RolePluginTools({ catalog, plugins, main, workers, onMain, onWorkers, configure }: {
+export function RolePluginTools({ catalog, plugins, main, workers, onMain, onWorkers, configure, features = [], selectedFeatures = [], toggleFeature }: {
+  features?: {id:string; name:string}[]; selectedFeatures?: string[]; toggleFeature?: (id:string, enabled:boolean) => void;
   catalog: Grant[]; plugins: Plugin[]; main: string[]; workers?: string[];
   onMain: (permissions: string[]) => void; onWorkers: (permissions: string[]) => void;
   configure: (target: string) => void;
@@ -43,6 +48,12 @@ export function RolePluginTools({ catalog, plugins, main, workers, onMain, onWor
     group.rows.push(row);
     groups.set(key, group);
   }
+  const grouped = new Set([...groups.keys()]);
+  for (const f of features) {
+    if (grouped.has(f.id) || filter && !t(f.name).toLowerCase().includes(filter)) continue;
+    const owner = plugins.find(p => p.id === f.id);
+    groups.set(f.id, { name: t(f.name), owners: owner ? [owner] : [], rows: [] });
+  }
   const toggle = (current: string[], permission: string, checked: boolean) =>
     checked ? [...new Set([...current, permission])] : current.filter((p) => p !== permission);
   return (
@@ -55,7 +66,9 @@ export function RolePluginTools({ catalog, plugins, main, workers, onMain, onWor
       <div className="role-permission-list">
         {[...groups.entries()].sort((a,b) => a[1].name.localeCompare(b[1].name)).map(([id, group]) => (
           <section key={id} className="role-grant-group" aria-label={group.name}>
-            <h4>{group.name}</h4>
+            {features.some(f => f.id === id) ? <label className="role-feature-title"><input type="checkbox"
+              checked={selectedFeatures.includes(id)} disabled={id === 'delegation'} onChange={e => toggleFeature?.(id,e.target.checked)} />
+              <strong>{group.name}</strong></label> : <h4>{group.name}</h4>}
             {group.serverId ? (
               <div className="role-grant-setup">
                 <small>{t(group.rows.every((row) => row.external?.available) ? '工具已注册' : '待配置')}</small>
@@ -69,6 +82,11 @@ export function RolePluginTools({ catalog, plugins, main, workers, onMain, onWor
                   onClick={() => configure(p.id)}>{t('插件设置')}</button>}
               </div>
             ))}
+            {group.rows.length > 0 && <small>{[...new Set(group.rows.filter(r => main.includes(r.permission)).map(r => r.external ? r.external.tool : grantAction(r.permission)))].join(' · ') || t('主会话尚未授权')}</small>}
+            {group.rows.length > 0 && <details key={filter ? 'search' : 'browse'} open={filter ? true : undefined}>
+              <summary>{t('工具授权')} · {t('主会话')} {group.rows.filter(row => main.includes(row.permission)).length}/{group.rows.length}
+                {workers && <> · {t('子任务')} {group.rows.filter(row => !row.mainOnly && workers.includes(row.permission)).length}/{group.rows.filter(row=>!row.mainOnly).length}</>}
+              </summary>
             {group.rows.map((row) => {
               const action = row.external ? t(row.external.tool) : grantAction(row.permission);
               return (
@@ -82,7 +100,7 @@ export function RolePluginTools({ catalog, plugins, main, workers, onMain, onWor
                       onChange={(e) => onMain(toggle(main, row.permission, e.target.checked))} />
                     {t('主会话')}
                   </label>
-                  {workers && <label className="inline-toggle">
+                  {workers && !row.mainOnly && <label className="inline-toggle">
                     <input type="checkbox" checked={workers.includes(row.permission)}
                       onChange={(e) => onWorkers(toggle(workers, row.permission, e.target.checked))} />
                     {t('子任务')}
@@ -90,6 +108,7 @@ export function RolePluginTools({ catalog, plugins, main, workers, onMain, onWor
                 </div>
               );
             })}
+            </details>}
           </section>
         ))}
       </div>

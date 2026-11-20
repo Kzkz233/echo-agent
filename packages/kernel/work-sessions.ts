@@ -1,3 +1,4 @@
+import { describeFailure } from './task-failure.ts';
 import { randomUUID } from 'node:crypto';
 import { invariant, type Conversation, type Run, type Reasoning, type ModelInput, type GenerateResult } from '../contracts/index.ts';
 import type { Task } from '../contracts/index.ts';
@@ -44,6 +45,7 @@ export class WorkSessions {
         const conversation = this.router.store.conversation(row.conversationId);
         const pending = this.router.interactions.list(row.conversationId);
         return { ...row, state: row.state === 'running' && pending.length ? 'waiting' : row.state,
+          failure: row.error ? describeFailure(this.router.store, row.error, 'execution',row.profileId) : undefined,
           compaction: conversation ? conversationCompaction(this.router.store, conversation) : undefined,
           permissions: conversation?.permissions };
       })

@@ -15,7 +15,8 @@
     "character.contribute",
     "review.contribute",
     "avatar.state",
-    "automation.contribute"
+    "automation.contribute",
+    "automation.invoke"
   ],
   "settings": [],
   "views": [
@@ -27,5 +28,10 @@
     "order": 20
   },
   "category": "Built-in components",
-  "optionalDependencies": []
+  "optionalDependencies": [],
+  "agentTasks": {
+    "delegation.automations": {
+      "permission": "delegation.write"
+    }
+  }
 }

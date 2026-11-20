@@ -1,20 +1,13 @@
+import { isBundledEmbedding } from '../../packages/contracts/model-services.ts';
 import type { Application } from './application.ts';
 import { inferenceTasks } from '../../packages/contracts/inference.ts';
 
 /** Register the offline model without replacing a user's shared embedding space. */
-export async function ensureStarterModels(app: Application, languageModel: string) {
+export async function ensureBundledEmbedding(app: Application) {
   const catalog = app.router.inference;
   await catalog.refresh();
-  let model = catalog
-    .models()
-    .find(
-      (m) =>
-        (m.model === 'Xenova/bge-small-zh-v1.5' || m.model.replaceAll('\\', '/').endsWith('/Xenova/bge-small-zh-v1.5')) &&
-        m.embedding.enabled &&
-        catalog
-          .connections()
-          .some((c) => c.id === m.connectionId && c.adapterId === 'local-models.onnx'),
-    );
+  const connections = catalog.connections();
+  let model = catalog.models().find(entry => isBundledEmbedding(entry, connections));
   if (!model) {
     const connectionId = 'echo-bundled-onnx',
       id = 'echo-bge-small-zh';
@@ -41,8 +34,6 @@ export async function ensureStarterModels(app: Application, languageModel: strin
   const routes = app.store.get<Record<string, string>>('routes', {});
   const next = { ...routes };
   next[inferenceTasks.embedding] ??= model.id;
-  next[inferenceTasks.semanticQuery] ??= languageModel;
-  next[inferenceTasks.rerankLanguage] ??= languageModel;
   if (JSON.stringify(next) !== JSON.stringify(routes)) app.store.set('routes', next);
   return model.id;
 }

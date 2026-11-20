@@ -364,7 +364,7 @@ export function MailView({ data, act, setPage }: any) {
                 >
                   {rows.accounts.length
                     ? t('选择账户同步元数据，或换个检索词。')
-                    : t('在“账户设置”添加一个账户。')}
+                    : <Button onClick={() => leave(() => { setTab('accounts'); beginAccount(); })}>{t('添加邮箱账户')}</Button>}
                 </EmptyState>
               )}
               {loading && (

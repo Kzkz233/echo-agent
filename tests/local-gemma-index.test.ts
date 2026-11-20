@@ -241,6 +241,8 @@ test('migrated structural vectors return original evidence, respect filters and 
     db.close();
   }
   assert.equal((await app.semantic.indexStatus({ vaultId: 'local' })).missing, 0);
+  assert.deepEqual(await app.knowledge.indexCoverage('local', [a.id, b.id], new AbortController().signal),
+    { [a.id]: 'ready', [b.id]: 'ready' });
   const hits = await app.knowledge.search('unrelated', new AbortController().signal, 10, {
     vaultId: 'local',
     folder: 'scope',

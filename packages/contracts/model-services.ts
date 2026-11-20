@@ -12,6 +12,11 @@ export function connectionDeployment(connection: Connection, adapter?: Pick<Adap
   }
   return connection.deployment;
 }
+export function isBundledEmbedding(model: ModelProfile, connections: Connection[]) {
+  const path = model.model.replaceAll('\\', '/');
+  return model.embedding.enabled && (path === 'Xenova/bge-small-zh-v1.5' || path.endsWith('/Xenova/bge-small-zh-v1.5')) &&
+    connections.some(connection => connection.id === model.connectionId && connection.adapterId === 'local-models.onnx');
+}
 export function modelDisplayName(model: { name?: string; model?: string }) {
   if (model.name && !['New model', '新的模型'].includes(model.name)) return model.name;
   return model.model?.replaceAll('\\', '/').split('/').filter(Boolean).at(-1) || model.name || '';

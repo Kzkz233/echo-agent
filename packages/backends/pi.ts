@@ -72,9 +72,10 @@ export class PiBackend implements Backend {
     readonly toolPermissions: (principal?: AgentPrincipal) => Set<string> = () =>
       new Set(['memory.read', 'knowledge.read', 'system.read']),
     readonly dataRoot?: string,
+    readonly fetcher: typeof fetch = (...args) => fetch(...args),
   ) {}
   listModels(profile: GenerateRequest['profile']) {
-    return new ApiBackend(this.secrets).listModels(profile);
+    return new ApiBackend(this.secrets, this.fetcher).listModels(profile);
   }
   toolCatalog(request: Pick<GenerateRequest, 'principal' | 'permissions' | 'toolPolicy'>) {
     const mode = echoMode(request);
@@ -384,7 +385,7 @@ export class PiBackend implements Backend {
           timeoutMs: request.profile.timeoutMs,
           fetch: async (input, init) => {
             try {
-              const response = await globalThis.fetch(input, { ...init, redirect: 'error' });
+              const response = await this.fetcher(input, { ...init, redirect: 'error' });
               Object.assign(diagnostic!, { httpStatus: response.status,
                 responseHeaders: transportHeaders(response.headers) });
               return response;

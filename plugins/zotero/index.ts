@@ -1,3 +1,5 @@
+import { browseLibrary } from '../../packages/contracts/library-catalog.ts';
+import { buildCatalog, browseCatalog, type Item, type Reference } from './catalog.ts';
 import { z } from 'zod';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -23,8 +25,7 @@ const reference = z.object({
   documentId: id,
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
 });
-type Reference = z.infer<typeof reference>;
-type Item = { key: string; version: number; data: Record<string, any> };
+
 type Collection = { key: string; name: string; parentCollection: string | false };
 type Catalog = { collections: Collection[]; members: Record<string, string[]> };
 
@@ -74,14 +75,18 @@ export function zoteroPlugin(
   }
   async function all(path: string, signal: AbortSignal) {
     const rows: Item[] = [];
+    const separator = path.includes('?') ? '&' : '?';
     for (let start = 0; ; start += 100) {
       const page = z
         .array(z.object({ key, version: z.number(), data: z.record(z.string(), z.any()) }))
-        .parse(await call(path + '?limit=100&start=' + start, signal));
+        .parse(await call(path + separator + 'limit=100&start=' + start, signal));
       rows.push(...page);
       if (page.length < 100) return rows;
     }
   }
+  let snapshot: {scope: string; expires: number; data: ReturnType<typeof buildCatalog>} | undefined;
+  let epoch = 0;
+  function invalidate() { snapshot = undefined; epoch++; }
   async function refresh(signal: AbortSignal) {
     const serverId = scope();
     const [collections, items] = await Promise.all([
@@ -98,6 +103,7 @@ export function zoteroPlugin(
       members: Object.fromEntries(items.map((i) => [i.key, i.data.collections || []])),
     };
     store.put('zotero-catalog', serverId, catalog);
+    invalidate();
     return { collections: collections.length, items: items.length };
   }
   return {
@@ -105,6 +111,28 @@ export function zoteroPlugin(
     config: { schema: config },
     activate(ctx) {
       const op = operations(ctx, 'zotero');
+      ctx.dispose(invalidate);
+      op('browse', '按分组浏览和搜索文献库', browseLibrary, 'zotero.read', async (v, signal) => {
+        const server = scope();
+        if (v.refresh) invalidate();
+        let data = snapshot?.scope === server && snapshot.expires > Date.now() ? snapshot.data : undefined;
+        if (!data) {
+          const generation = epoch;
+          const [collections, items, attachments] = await Promise.all([
+            all('collections', signal), all('items/top', signal), all('items?itemType=attachment', signal),
+          ]);
+          invariant(scope() === server,'zotero_changed','文献库连接已改变');
+          data = buildCatalog(collections, items, attachments);
+          if (generation === epoch) snapshot = {scope:server, expires:Date.now()+60000, data};
+        }
+        const links = store.documents<Reference & {serverId:string}>('zotero-references')
+          .filter(r => r.serverId === server)
+          .map(r => ({...r,state:r.jobId ? store.document<{state:string}>('knowledge-jobs',r.jobId)?.state : 'completed'}));
+        return browseCatalog(data, v, links, async (vault, ids) => {
+          try { return await knowledge.indexCoverage(vault, ids, signal); }
+          catch (error) { signal.throwIfAborted(); return {}; }
+        });
+      }, false);
       op(
         'importAttachment',
         '按原件哈希复用已解析的 PDF，或交给选定知识库的入库流程',
@@ -167,8 +195,7 @@ export function zoteroPlugin(
           };
         },
       );
-      const page = manifest.pages[0];
-      ctx.capabilities.provide('core.ui.pages@1', page.id, page.title, () => page);
+      for (const page of manifest.pages) ctx.capabilities.provide('core.ui.pages@1', page.id, page.title, () => page);
       op(
         'status',
         '读取本机文献库连接状态',

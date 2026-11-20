@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { localChatModel } from '../../packages/contracts/chat-setup.ts';
 import { LocalModelPool } from '../../packages/kernel/local-model-pool.ts';
 import { checkLocalCommand } from '../../packages/kernel/local-command.ts';
 import { Worker } from 'node:worker_threads';
@@ -447,6 +448,23 @@ export class LocalModels {
         ctx.capabilities.provide('embeddings.encode@1', gguf.id, gguf.label, (v, s) =>
           this.encodeGguf(v, s),
         );
+        ctx.registry.register({
+          name: 'local-models.installChat', owner: 'local-models', description: '通过本机 Ollama 下载聊天模型',
+          permission: 'local-models.write', mcp: false, input: z.object({ confirmed: z.literal(true) }), output: z.object({ model: z.string() }),
+          run: async (_value, _caller, signal) => {
+            const url = 'http://127.0.0.1:11434/api/';
+            let response: Response;
+            try {
+              response = await fetch(url + 'pull', { method: 'POST', redirect: 'error', signal,
+                headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: localChatModel, stream: false }) });
+            } catch (error) { signal.throwIfAborted(); throw Error('无法连接本机 Ollama，请先安装并启动 Ollama。', { cause: error }); }
+            if (!response.ok || (await response.json()).status !== 'success') throw Error('本地模型下载未完成。');
+            const info = await fetch(url + 'show', { method: 'POST', redirect: 'error', signal,
+              headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: localChatModel }) });
+            if (!info.ok || !(await info.json()).capabilities?.includes('tools')) throw Error('本地模型尚未就绪或不支持工具调用。');
+            return { model: localChatModel };
+          },
+        });
         ctx.registry.register({
           name: 'local-models.status',
           owner: 'local-models',

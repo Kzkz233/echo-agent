@@ -1,5 +1,7 @@
+import { SettingsFields } from './settings-fields.tsx';
 import { useEffect, useRef, useState } from 'react';
 import type { FrontendPageEntry } from '../../../packages/contracts/frontend.ts';
+import { LibraryCatalog } from './library-catalog.tsx';
 import { rpc, extensionURL } from './client.ts';
 import { Button, EmptyState, sameData, useUnsavedChanges, requestNavigation } from './ui.tsx';
 import { t, currentAppearance, usePreferences } from './i18n.ts';
@@ -19,6 +21,11 @@ export function PluginPage({
   popout?: () => void;
   embedded?: boolean;
 }) {
+  if (page.view.type === 'catalog') return <LibraryCatalog page={page} view={page.view} navigate={navigate} />;
+  return <ExtensionContent {...{page, personaId, act, popout, navigate, embedded}} />;
+}
+
+function ExtensionContent({page,personaId,act,popout,navigate,embedded}: Parameters<typeof PluginPage>[0]) {
   const preferences = usePreferences();
   const navigation = useRef(navigate);
   navigation.current = navigate;
@@ -245,7 +252,7 @@ export function PluginPage({
         </p>
       ) : !view ? (
         <EmptyState>{t('正在打开…')}</EmptyState>
-      ) : view.type === 'webview' ? (
+      ) : view.type === 'catalog' ? null : view.type === 'webview' ? (
         <iframe
           key={contextKey}
           ref={frame}
@@ -274,8 +281,7 @@ export function PluginPage({
               });
           }}
         >
-          <div className="form-grid">
-            {view.fields.map((field) => (
+          <SettingsFields fields={view.fields} advanced={field => field.advanced === true} render={field => (
               <label
                 className={field.type === 'boolean' ? 'inline-toggle' : 'field'}
                 key={field.key}
@@ -327,8 +333,7 @@ export function PluginPage({
                   />
                 )}
               </label>
-            ))}
-          </div>
+            )} />
           {view.save && (
             <div className="form-actions">
               <Button type="submit">{t(view.submitLabel ?? '保存')}</Button>

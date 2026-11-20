@@ -209,7 +209,22 @@ for (const [file, url] of Object.entries({
   'ONNX_THIRD_PARTY_NOTICES.txt':
     'https://raw.githubusercontent.com/microsoft/onnxruntime/main/ThirdPartyNotices.txt',
 })) {
-  await writeFile(join(supplemental, file), await readUpstreamText(url));
+  let text: string;
+  try {
+    text = await readUpstreamText(url);
+  } catch (error) {
+    // These copies were verified for the ONNX 1.30.0 desktop distribution.
+    const digests: Record<string, string> = {
+      ONNX_LICENSE: '2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c',
+      'ONNX_THIRD_PARTY_NOTICES.txt': 'd8696258afcf9df7827a5e01d6b6d55ee9b461b4e82020f5f48242deb9cc2270',
+    };
+    const cached = await readFile(join(root, 'dist/verified-license-inputs', file)).catch(() => null);
+    if (!cached || createHash('sha256').update(cached).digest('hex') !== digests[file]) throw error;
+    const manifest = JSON.parse(await readFile(join(root, 'dist/runtime/node_modules/onnxruntime-node/package.json'), 'utf8'));
+    if (manifest.version !== '1.30.0') throw error;
+    text = cached.toString('utf8');
+  }
+  await writeFile(join(supplemental, file), text);
 }
 await cp(
   join(root, 'dist/runtime/node_modules/@img/sharp-win32-x64/versions.json'),

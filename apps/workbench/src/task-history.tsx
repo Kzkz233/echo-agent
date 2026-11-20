@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { rpc } from './client.ts';
 import { locale, t } from './i18n.ts';
+import { FailurePanel } from './task-failure.tsx';
 import { OutputRecord } from './output-targets.tsx';
 
 const handoff: Record<string, string> = {
@@ -82,7 +83,8 @@ export function TaskHistory({
               {t('执行状态')} · {t(r.executionState)}
             </p>
           )}
-          {r.error && <p role="alert">{r.error}</p>}
+          {r.executionFailure && <FailurePanel failure={r.executionFailure}/>}
+          {r.handoffFailure && <FailurePanel failure={r.handoffFailure}/>}
           {r.outputs.map((out: any) => (
             <OutputRecord key={out.id} row={out} act={act} />
           ))}

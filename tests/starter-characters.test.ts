@@ -6,6 +6,12 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setup, FakeBackend } from './helpers.ts';
 import { internal } from '../packages/kernel/registry.ts';
+async function fullStudio(t: import('node:test').TestContext) {
+  const app = await setup(t);
+  for (const id of ['care','agenda','chatstick','mail-triggers','reflections','mail'])
+    await app.plugins.enable(id);
+  return app;
+}
 import { starterCharacters, starterStudio } from '../apps/server/starter-content.ts';
 import {
   starterCharacters as legacyCharacters,
@@ -14,12 +20,12 @@ import {
 import { refreshStarterDraft } from '../apps/server/starter-refresh.ts';
 
 test('starter studio creates two editable roles with licensed assets, inactive task templates and an isolated group, exactly once', async (t) => {
-  const app = await setup(t),
+  const app = await fullStudio(t),
     backend = new FakeBackend();
   app.router.backends.set('api', backend);
   const call = (name: string, value: any = {}) => app.registry.call(name, value, internal);
   const routes = app.store.get<Record<string, string>>('routes', {});
-  delete routes['embeddings.encode'];
+  routes['embeddings.encode'] = 'echo-bge-small-zh';
   app.store.set('routes', routes);
   assert.equal(app.store.documents('groups').length, 0);
   const result = await call('characters.examples.create', {
@@ -129,7 +135,7 @@ test('starter studio creates two editable roles with licensed assets, inactive t
 });
 
 test('starter updates require explicit action and preserve histories, activity and existing shared models', async (t) => {
-  const app = await setup(t);
+  const app = await fullStudio(t);
   const call = (n: string, p: any = {}) => app.registry.call(n, p, internal);
   await call('characters.examples.create', { profileId: 'test', requestId: 'create' });
   const before = await call('persona.character.read', { id: 'example-hina' });
@@ -167,7 +173,7 @@ test('starter updates require explicit action and preserve histories, activity a
 });
 
 test('v2 example refresh upgrades untouched text while preserving local prompts, tasks, authorization and assets', async (t) => {
-  const app = await setup(t),
+  const app = await fullStudio(t),
     backend = new FakeBackend();
   app.router.backends.set('api', backend);
   const call = (name: string, input: any = {}) =>

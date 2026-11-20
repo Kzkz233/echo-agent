@@ -365,7 +365,7 @@ export function KnowledgeView({
         </div>
       )}
       <div className="library-toolbar">
-        {!fixedSelection && (
+        {!fixedSelection && data.vaults.filter((v: any) => !v.owner || v.id === vault).length > 1 && (
           <select
             aria-label={t('当前知识库')}
             value={vault}
@@ -466,6 +466,7 @@ export function KnowledgeView({
         </button>
       </div>
       <KnowledgeSearch
+        managing={fixedSelection || panel === 'libraries'}
         data={data}
         scope={scope}
         grouped={grouped}
@@ -629,7 +630,7 @@ export function KnowledgeView({
               {t('注册目录')}
             </Button>
           </div>
-          <p className="muted">{t('默认解析与索引流程在知识系统设置中统一配置。')}</p>
+          <Button secondary onClick={() => setPage('plugins', 'knowledge')}>{t('解析与索引迁移')}</Button>
         </div>
       )}
       {panel === 'export' && (

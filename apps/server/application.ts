@@ -2,6 +2,8 @@ import { Maintenance, contributeMaintenance } from '../../packages/kernel/mainte
 import { recordedTasks, taskHistory } from '../../packages/kernel/task-history.ts';
 import { Deliveries } from '../../packages/kernel/delivery.ts';
 import { characterActive, characterEnabled } from '../../packages/kernel/characters.ts';
+import { ensureBundledEmbedding } from './bundled-models.ts';
+import { registerChatSetup } from './chat-setup.ts';
 import { registerStarterCharacters } from './starter-characters.ts';
 import {
   clockComponent,
@@ -21,6 +23,7 @@ import { QQ } from '../../plugins/qq/index.ts';
 import { version } from '../../packages/contracts/version.ts';
 import { Updates } from '../../packages/kernel/updates.ts';
 import { attachmentInput } from '../../packages/contracts/execution.ts';
+import { isDeepStrictEqual } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -48,9 +51,11 @@ import { FrontendCatalog } from '../../packages/kernel/frontend.ts';
 import { Router } from '../../packages/kernel/router.ts';
 import { Secrets } from '../../packages/kernel/secrets.ts';
 import { MaterialSources } from '../../packages/kernel/materials.ts';
+import { defaultNetworkSettings, networkSettings, type NetworkSettings } from '../../packages/contracts/network-settings.ts';
+import { createModelNetwork } from '../../packages/backends/model-network.ts';
 import { configureNetwork } from '../../packages/kernel/network.ts';
 import { Retrieval } from '../../packages/kernel/retrieval.ts';
-import { Automation, defineAutomation } from '../../packages/kernel/automation.ts';
+import { Automation, defineAutomation, mergeTaskSettings } from '../../packages/kernel/automation.ts';
 import { TriggerActions, triggerAction } from '../../packages/kernel/trigger-actions.ts';
 import { Capabilities } from '../../packages/kernel/capabilities.ts';
 import { Clock } from '../../packages/kernel/clock.ts';
@@ -145,6 +150,7 @@ export class Application {
   readonly channels: Channels;
   readonly qq: QQ;
   readonly updates: Updates;
+  readonly modelNetwork: ReturnType<typeof createModelNetwork>;
   private closing = false;
   private harnessMcp?: (principal: { conversationId: string; personaId: string }) => HarnessMcp;
   private constructor(
@@ -158,7 +164,8 @@ export class Application {
     this.updates.register(this.registry, () => this.lifecycle.freeze(),
       () => this.lifecycle.restore(), () => { void this.lifecycle.resumeSaved(); });
     this.secrets = new Secrets(join(runtime, 'credentials'));
-    this.api = new ApiBackend((ref) => this.secrets.get(ref));
+    this.modelNetwork = createModelNetwork(() => this.store.get<NetworkSettings>('network.models', defaultNetworkSettings));
+    this.api = new ApiBackend((ref) => this.secrets.get(ref), this.modelNetwork.fetch);
     this.router.backends.set('api', this.api);
     let pi: Promise<import('../../packages/backends/pi.ts').PiBackend> | undefined;
     const getPi = () =>
@@ -176,12 +183,13 @@ export class Application {
                     this.plugins.characterPermissions(),
                   )
                 : new Set<string>(),
-            this.runtime,
+            this.runtime, this.modelNetwork.fetch,
           ),
       ));
     const piRuntime = {
       kind: 'pi',
       listModels: (profile) => this.api.listModels(profile),
+      checkConnection: async (profile) => ({ ...(await this.api.checkConnection(profile)), kind: 'pi' }),
       capabilities: (profile) => ({
         contextManagement: 'echo',
         outputLimit: true,
@@ -309,7 +317,7 @@ export class Application {
     this.approvals = new Approvals(this.store, this.events);
     this.channels = new Channels(this.store, this.router, this.events, this.triggerActions, this.deliveries);
     this.qq = new QQ(this.store, this.secrets, this.events);
-    this.personas = new Personas(this.store, this.router, this.files);
+    this.personas = new Personas(this.store, this.router, this.files, this.deliveries);
     this.memories = new Memories(this.store, this.router, this.files, this.retrieval);
     this.semantic = new SemanticSearch(
       this.store,
@@ -414,6 +422,7 @@ export class Application {
     );
     this.coreOperations();
     registerStarterCharacters(this);
+    registerChatSetup(this);
   }
   static async create(options: {
     runtime: string;
@@ -428,6 +437,7 @@ export class Application {
       'restore_incomplete',
       '此目录的恢复尚未完成，请使用完整恢复的数据目录。',
     );
+    const fresh = !options.plugins && !existsSync(join(options.runtime, 'echo.sqlite'));
     const app = new Application(
       options.runtime,
       options.project,
@@ -441,9 +451,14 @@ export class Application {
         ),
     );
     try {
+      if (fresh) {
+        app.store.set('setup.bundledEmbedding.pending', true);
+        app.store.set('knowledge.config', { strategy: 'hybrid' });
+      }
       await app.extensions.load();
       const defaults = [
         'knowledge',
+        ...(app.store.get('setup.bundledEmbedding.pending', false) ? ['semantic'] : []),
         'persona',
         'memory',
         'observation',
@@ -516,6 +531,10 @@ export class Application {
         });
       }
       await app.plugins.restore(intent);
+      if (!options.plugins && app.store.get('setup.bundledEmbedding.pending', false)) {
+        await ensureBundledEmbedding(app);
+        app.store.set('setup.bundledEmbedding.pending', false);
+      }
       if (!options.plugins) migrateRoleToolGrants(app.store, app.plugins.characterPermissions());
       if (!options.plugins && !app.store.get('outputs.taskMigration.v1',false)) {
         const catalog=await app.automation.catalog(new AbortController().signal);
@@ -542,6 +561,23 @@ export class Application {
       throw error;
     }
   }
+  private pluginReadiness(plugins: ReturnType<PluginManager['list']>, settings?: Record<string, Record<string, unknown>>) {
+    return plugins.map((plugin) => {
+          const required = plugin.settings.filter((field) => field.toolSetupHint);
+          if (!required.length) return plugin;
+          const validate = this.plugins.plugins.get(plugin.id)?.config?.toolSettingReady;
+          const missing = required.filter(({ key }) => {
+            const saved = this.store.get<Record<string, unknown>>(plugin.id + '.config', {});
+            const effective = this.plugins.plugins.get(plugin.id)?.config?.schema.safeParse(saved);
+            const value = (settings?.[plugin.id] ?? (effective?.success ? effective.data as Record<string, unknown> : saved))[key];
+            if (validate) return !validate(key, value);
+            if (typeof value === 'string') return !value.trim();
+            if (Array.isArray(value)) return !value.length;
+            return value == null || value === false;
+          }).map((field) => field.toolSetupHint!);
+          return { ...plugin, toolSetup: { missing: [...new Set(missing)] } };
+        });
+  }
   private coreOperations() {
     const outputs: Record<string, z.ZodType> = {
       'connections.save': connectionSchema,
@@ -557,7 +593,7 @@ export class Application {
       input: z.ZodType,
       permission: string,
       run: (v: any, c: any, s: AbortSignal) => any,
-      mcp = false,
+      mcp = false, roleOnly = false,
     ) =>
       this.registry.register({
         name,
@@ -566,7 +602,7 @@ export class Application {
         output: outputs[name] ?? z.unknown(),
         permission,
         owner: 'core',
-        mcp,
+        mcp, roleOnly,
         run,
       });
     op(
@@ -642,31 +678,87 @@ export class Application {
       this.router.workSessions.cancel(value.id);
       return { accepted: true };
     });
+    op('role.capabilities', '查询本会话获准的工具、插件配置缺项及可用表达渠道；不更改设置', z.object({ search:z.string().max(120).optional() }), 'persona.read',
+      async (value, caller, signal) => {
+        const conversation = caller.conversationId && this.store.conversation(caller.conversationId);
+        invariant(conversation && caller.personaId === conversation.personaId, 'task_owner', '需要当前角色会话。');
+        const query = value.search?.trim().toLowerCase() ?? '';
+        const role = this.store.document<{mainConversationId:string}>('characters', conversation.personaId);
+        const tools = this.registry.list(internal, true);
+        const effective = echoToolPermissions(this.store, false, { conversationId:conversation.id, personaId:conversation.personaId }, this.plugins.characterPermissions());
+        const allowed = (permission:string) => effective.has(permission) && caller.permissions.has(permission);
+        const autonomous = this.store.document<{autonomous?:boolean}>('character-settings.delegation',conversation.personaId)?.autonomous !== false;
+        const plugins = this.pluginReadiness(this.plugins.list()).map(plugin => {
+          const owned = tools.filter(tool => tool.owner === plugin.id);
+          return { id:plugin.id, name:plugin.name, enabled:plugin.enabled,
+            roleFeature:plugin.characterConfigurable ? characterEnabled(this.store, conversation.personaId, plugin.id) : undefined,
+            missing:'toolSetup' in plugin ? plugin.toolSetup.missing : [], tools:owned.map(tool => ({name:tool.name,granted:allowed(tool.permission) && (!tool.mainOnly || role?.mainConversationId === conversation.id)})),
+            taskAccess:Object.entries(plugin.agentTasks ?? {}).map(([type, access]) => ({type,
+              granted:plugin.enabled && autonomous && characterEnabled(this.store,conversation.personaId,plugin.id) && allowed(access.permission) && allowed('delegation.write') && role?.mainConversationId === conversation.id,
+              fields:access.fields})) };
+        }).filter(plugin => (!plugin.enabled || plugin.tools.length || plugin.roleFeature !== undefined || plugin.taskAccess.length) &&
+          [plugin.id,plugin.name,...plugin.tools.map(tool=>tool.name)].some(text => text.toLowerCase().includes(query)));
+        const binding = this.store.binding(conversation.id);
+        const backend = binding && this.router.executionBackend(this.router.profile(binding.profileId), conversation.id);
+        const available = await backend?.toolCatalog?.({ permissions:conversation.permissions, principal:{conversationId:conversation.id,personaId:conversation.personaId} });
+        const registered = new Set(tools.map(tool => tool.permission));
+        const external = this.externalMcp.list().map(server => ({id:server.id, name:server.name,
+          enabled:server.enabled, missingCredential:server.config.kind === 'deepseek' && !server.hasCredential,
+          tools:server.tools.map(tool => ({name:tool.title,registered:registered.has(tool.permission),granted:allowed(tool.permission)}))}))
+          .filter(server => [server.id,server.name,...server.tools.map(tool=>tool.name)].some(name=>name.toLowerCase().includes(query)));
+        return { plugins, external, available:available?.filter(tool => tool.name.toLowerCase().includes(query)).map(tool=>tool.name),
+          channels:(await this.deliveries.catalog(conversation.id,signal)).map(({id,label,style})=>({id,label,style})) };
+      }, true, true);
     op('automation.manage', '在当前角色下查看、创建、编辑、启停或执行已注册的自动化任务',
       z.object({ action: z.enum(['list', 'save', 'pause', 'resume', 'run', 'remove']), type: id.optional(),
-        id: id.optional(), settings: z.record(z.string(), z.unknown()).optional(), requestId: id.optional() }),
+        id: id.optional(), settings: z.record(z.string(), z.unknown()).optional(), expected:z.record(z.string(),z.unknown()).optional(), requestId: id.optional() }),
       'delegation.write', async (value, caller, signal) => {
         const role = caller.personaId && this.store.document<{ mainConversationId: string }>('characters', caller.personaId);
         invariant(role && role.mainConversationId === caller.conversationId, 'task_owner', '请从角色主工作会话管理自动化任务。');
-        const catalog = await this.automation.catalog(signal);
+        const catalog = await this.automation.catalog(signal, undefined, value.action === 'list' ? undefined : value.type);
+        const accessFor = (type: { id: string; owner: string }) => this.plugins.plugins.get(type.owner)?.manifest.agentTasks?.[type.id];
+        const canManage = (type: { id: string; owner: string }) => {
+          const permission = accessFor(type)?.permission ?? type.owner + '.write';
+          return caller.permissions.has('*') || caller.permissions.has(permission);
+        };
         const types = catalog.types.filter(type => type.scope === 'character' && characterEnabled(this.store, caller.personaId, type.owner));
+        const autonomous = this.store.document<{ autonomous?: boolean }>('character-settings.delegation', caller.personaId)?.autonomous !== false;
         const belongs = (item: any) => (item.personaId ?? item.settings?.personaId) === caller.personaId;
-        if (value.action === 'list') return { types: types.map(type => ({ ...type, items: type.items.filter(belongs) })) };
-        invariant(this.store.document<{ autonomous?: boolean }>('character-settings.delegation', caller.personaId)?.autonomous !== false,
+        if (value.action === 'list') return { types: types.map(type => ({ ...type, canManage: autonomous && canManage(type), editableFields: accessFor(type)?.fields, editOnly: accessFor(type)?.editOnly, items: type.items.filter(belongs) })) };
+        invariant(autonomous,
           'delegation_policy', '角色未获准自主创建或执行子任务。');
         const type = types.find(type => type.id === value.type);
         invariant(type && characterActive(this.store, caller.personaId), 'task_type', '此角色的任务类型当前不可用。');
-        invariant(caller.permissions.has('*') || caller.permissions.has(type.owner + '.write'), 'permission_denied', '没有管理此类任务的权限。');
+        invariant(canManage(type), 'permission_denied', '没有管理此类任务的权限。');
         const item = type.items.find(item => item.id === value.id);
         invariant(!item || belongs(item), 'task_owner', '不能管理其他角色的任务。');
-        const taskId = value.id ?? randomUUID();
+        const access = accessFor(type);
+        if (access?.editOnly)
+          invariant(item && value.action === 'save', 'permission_denied', '当前授权只允许调整已有任务的设置。');
+        const taskId = value.id ?? value.requestId ?? randomUUID();
         if (value.action === 'save' || value.action === 'pause' || value.action === 'resume') {
           invariant(value.action === 'save' || item, 'task_missing', '任务不存在。');
-          const settings = value.action === 'save' ? { ...value.settings, personaId: caller.personaId } :
-            { ...(item?.persistedSettings ?? item?.settings), enabled: value.action === 'resume' };
+          const changes = value.action === 'save' ? { ...value.settings } : { enabled: value.action === 'resume' };
+          for (const key of Object.keys(changes)) {
+            invariant(!access?.fields || access.fields.includes(key), 'permission_denied', '此字段需要在任务页面修改：' + key);
+            if (['conversationId', 'reportConversationId'].includes(key)) invariant(changes[key] === role.mainConversationId, 'task_owner', '只能使用当前角色主会话。');
+            if (key === 'id') invariant(changes.id === taskId, 'task_owner', '任务编号不一致。');
+          }
+          const settings = { ...changes, personaId: caller.personaId };
           invariant(!value.settings?.personaId || value.settings.personaId === caller.personaId, 'task_owner', '不能为其他角色创建任务。');
-          return this.automation.mutate(type.id, { action: 'save', id: taskId, settings,
-            actor: { personaId: caller.personaId, conversationId: caller.conversationId, permissions: [...caller.permissions] } }, signal);
+          const actor = { personaId: caller.personaId, conversationId: caller.conversationId, permissions: [...caller.permissions] };
+          if (type.supportsPatch)
+            return this.automation.mutate(type.id, { action:'save', id:taskId, settings, patch:true,
+              requireExisting:Boolean(item), expected:value.expected, actor }, signal);
+          // Older extension processes only understand a full settings record.
+          const current = item?.persistedSettings ?? item?.settings ?? {};
+          for (const [key,before] of Object.entries(value.expected ?? {}))
+            invariant(isDeepStrictEqual(current[key],before) || isDeepStrictEqual(current[key],changes[key]), 'revision_conflict','任务字段已变化：' + key);
+          await this.automation.mutate(type.id, {action:'save',id:taskId,settings:mergeTaskSettings(current,settings),actor},signal);
+          const refreshed = await this.automation.catalog(signal,'instances',type.id);
+          const saved = refreshed.types[0]?.items.find(row => row.id === taskId && belongs(row));
+          invariant(saved,'task_missing','无法核对已保存的任务。');
+          return {accepted:true,saved:saved.persistedSettings ?? saved.settings};
         }
         invariant(item, 'task_missing', '任务不存在。');
         return this.automation.mutate(type.id, value.action === 'remove' ? { action: 'remove', id: item.id } :
@@ -805,19 +897,7 @@ export class Application {
               : undefined,
           };
         }),
-        plugins: plugins.map((plugin) => {
-          const required = plugin.settings.filter((field) => field.toolSetupHint);
-          if (!required.length) return plugin;
-          const validate = this.plugins.plugins.get(plugin.id)?.config?.toolSettingReady;
-          const missing = required.filter(({ key }) => {
-            const value = pluginSettings[plugin.id][key];
-            if (validate) return !validate(key, value);
-            if (typeof value === 'string') return !value.trim();
-            if (Array.isArray(value)) return !value.length;
-            return value == null || value === false;
-          }).map((field) => field.toolSetupHint!);
-          return { ...plugin, toolSetup: { missing: [...new Set(missing)] } };
-        }),
+        plugins: this.pluginReadiness(plugins, pluginSettings),
         extensionPoints: this.capabilities.points(),
         providers: this.capabilities.list(),
         pluginSettings,
@@ -844,15 +924,19 @@ export class Application {
           ...new Set(this.registry.list(internal, true).filter((op) => !op.roleOnly).map((o) => o.permission)),
         ],
         mcpPermissionCatalog: (() => {
-          const entries = new Map<string, { owners: Set<string>; tools: string[] }>();
+          const entries = new Map<string, { owners: Set<string>; tools: string[]; mainOnly?:boolean }>();
           for (const operation of this.registry.list(internal, true)) {
             const entry = entries.get(operation.permission) ?? {
               owners: new Set<string>(),
               tools: [],
             };
+            entry.mainOnly = (entry.mainOnly ?? true) && Boolean(operation.mainOnly);
             entry.owners.add(operation.owner);
             entry.tools.push(operation.name);
             entries.set(operation.permission, entry);
+          }
+          for (const grant of this.plugins.taskGrants()) {
+            if (!entries.has(grant.permission)) entries.set(grant.permission, { owners: new Set([grant.owner]), tools: ['automation.manage'], mainOnly:true });
           }
           const externalTools = new Map(this.externalMcp.list().flatMap((server) => server.tools.map((tool) => [tool.permission, {
             external: { serverId: server.id, server: server.name, tool: tool.title, available: entries.has(tool.permission) },
@@ -864,6 +948,7 @@ export class Application {
               : 'application',
             owners: [...entry.owners],
             tools: entry.tools,
+            mainOnly:entry.mainOnly,
             ...externalTools.get(permission),
           })), ...this.externalMcp.pendingPermissions().map((tool) => ({
             permission: tool.permission, scope: 'character', owners: ['external-mcp'], tools: [tool.name],
@@ -872,11 +957,22 @@ export class Application {
         })(),
       };
     });
+    op('network.settings', '读取应用的模型网络配置', z.object({}), 'system.read', () =>
+      this.store.get('network.models', defaultNetworkSettings));
+    op('network.save', '保存应用的模型网络配置', z.object({ settings: networkSettings, expected: networkSettings }),
+      'system.write', (value) => {
+        const current = this.store.get('network.models', defaultNetworkSettings);
+        invariant(isDeepStrictEqual(value.expected, current) || isDeepStrictEqual(value.settings, current),
+          'revision_conflict', '网络设置已在其他窗口修改，请重新打开后核对。');
+        this.store.set('network.models', value.settings);
+        return value.settings;
+      });
     op('preferences.save', '保存外观与语言', preferencesSchema, 'system.write', (v) => {
       this.store.set('preferences', v);
       this.events.emit('preferences.changed', {});
       return v;
     });
+    op('models.restoreBundled', '恢复内置文本索引模型', z.object({}), 'system.write', () => ensureBundledEmbedding(this));
     op('connections.save', '保存推理连接', connectionSchema, 'system.write', async (v) => {
       const saved = await this.router.inference.saveConnection(v);
       this.events.emit('connections.changed', {});
@@ -1687,6 +1783,7 @@ export class Application {
       () => this.plugins.close(),
       () => this.router.close(),
       () => this.externalMcp.close(),
+      () => this.modelNetwork.close(),
       () => this.clock.close(),
     ])
       try {

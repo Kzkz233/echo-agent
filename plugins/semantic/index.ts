@@ -89,16 +89,18 @@ export class SemanticSearch {
         .digest('hex')
     );
   }
-  async indexStatus(filter: KnowledgeScope) {
+  private async coverage(filter: KnowledgeScope) {
     const records = await this.records(filter),
       fingerprint = this.fingerprint('knowledge');
     const generated = await this.generations?.coverage(records) ?? new Set<string>();
     const covered = portableCoverage(this.portableIndexPath, fingerprint, records);
-    const indexed = records.filter(
-      (r) =>
-        generated.has(r.id) || covered.has(documentKey(r)) ||
-        this.store.document('vectors', this.vectorKey(fingerprint, r)),
-    ).length;
+    const isIndexed = (r: SearchRecord) => generated.has(r.id) || covered.has(documentKey(r)) ||
+      Boolean(this.store.document('vectors', this.vectorKey(fingerprint, r)));
+    return { records, fingerprint, generated, covered, isIndexed };
+  }
+  async indexStatus(filter: KnowledgeScope) {
+    const { records, fingerprint, generated, covered, isIndexed } = await this.coverage(filter);
+    const indexed = records.filter(isIndexed).length;
     return {
       chunks: records.length,
       indexed,
@@ -349,6 +351,21 @@ export class SemanticSearch {
       activate: (ctx) => {
         const { registry, dispose, capabilities, signal: life } = ctx;
         this.generations?.register(ctx);
+        capabilities.provide('knowledge.index-coverage@1', 'semantic.coverage', '向量覆盖状态', async ({vaultId, documentIds}, signal) => {
+          const {records, isIndexed} = await this.coverage({vaultId, documentIds});
+          const counts = new Map<string, {total: number; indexed: number}>();
+          for (const record of records) {
+            signal.throwIfAborted();
+            const count = counts.get(record.documentId!) ?? {total: 0, indexed: 0};
+            count.total++;
+            if (isIndexed(record)) count.indexed++;
+            counts.set(record.documentId!, count);
+          }
+          return Object.fromEntries(documentIds.map((id: string) => {
+            const count = counts.get(id);
+            return [id, !count?.indexed ? 'missing' : count.indexed === count.total ? 'ready' : 'partial'];
+          }));
+        });
         capabilities.provide('knowledge.evidence@1', 'semantic.evidence', '语义索引证据', v => {
           if (!existsSync(this.portableIndexPath)) return null;
           const db = new DatabaseSync(this.portableIndexPath, { readOnly: true });

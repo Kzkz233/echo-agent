@@ -1,3 +1,6 @@
+import { revealSetting } from './settings-locator.ts';
+import { QuickModel } from './quick-model.tsx';
+import { SettingsFields } from './settings-fields.tsx';
 import { editedCharacter, mergeCharacter, taskKey } from '../../../plugins/persona/character-edits.ts';
 import { modelDisplayName } from '../../../packages/contracts/model-services.ts';
 import { AvatarBehavior } from './avatar-behavior.tsx';
@@ -10,7 +13,7 @@ import {
 import { rpc } from './client.ts';
 import { t } from './i18n.ts';
 import { Button, PathInput, useConfirm, useUnsavedChanges, sameData, requestNavigation } from './ui.tsx';
-import { TaskField } from './automation-view.tsx';
+import { TaskField, TaskFieldGroups } from './automation-view.tsx';
 import { RolePluginTools, grantAction } from './role-plugin-tools.tsx';
 import { EchoToolSettings, PermissionSettings, SubtaskApprovalSettings } from './host-interactions.tsx';
 import { ReasoningSelect } from './reasoning-select.tsx';
@@ -58,19 +61,23 @@ export function CharacterWizard({
   openTask,
   initialStep = 0,
   initialTaskId,
+  initialField,
 }: any) {
   const [catalog, setCatalog] = useState<any>();
   const [draft, setDraft] = useState<CharacterDraft>();
   const [step, setStep] = useState(0);
   const [editorSection, setEditorSection] = useState(
-    ['profile', 'profile', 'memory', 'model', 'tasks', 'summary', 'appearance', 'expression'][
+    ['profile', 'profile', 'memory', 'model', 'tasks', 'summary', 'appearance', 'expression', 'features'][
       initialStep
     ] ?? 'profile',
   );
+  const [search, setSearch] = useState('');
+  useEffect(() => { if (initialField && catalog) revealSetting(initialField); }, [catalog, initialField]);
   const [issue, setIssue] = useState('');
   const [packages, setPackages] = useState<any>();
   const [savedDrafts, setSavedDrafts] = useState<any[]>([]);
-  const [taskIndex, setTaskIndex] = useState(0);
+  const [taskIndex, setTaskIndex] = useState(-1);
+  const [advancedCreation, setAdvancedCreation] = useState(false);
   const [choosingTask, setChoosingTask] = useState(false);
   const [taskSearch, setTaskSearch] = useState('');
   const [taskPreview, setTaskPreview] = useState('');
@@ -114,6 +121,7 @@ export function CharacterWizard({
             chat: t(initialExpression.chat), external: t(initialExpression.external), bubble: t(initialExpression.bubble),
             ...(Object.keys(initialChannels).length ? { channels: initialChannels } : {}),
           } },
+          profileId: data.profiles.find((p: any) => p.available && p.eligibility?.conversation)?.id,
           features: value.features
             .filter((f: any) => ['memory', 'avatar'].includes(f.id))
             .map((f: any) => f.id),
@@ -133,13 +141,14 @@ export function CharacterWizard({
         setDraft(next);
         if (!saved) setDeliveryTargets(newTargets);
         setSavedDrafts(drafts);
+        if (initialField === t('允许观察的来源') && !next.tasks.some(row => row.type === 'observation.tasks')) { setChoosingTask(true); setTaskSearch(t('实时观察')); }
         setTaskIndex(
           initialTaskId
             ? Math.max(
                 0,
                 next.tasks.findIndex((task) => task.id === initialTaskId),
               )
-            : 0,
+            : initialField === t('允许观察的来源') ? next.tasks.findIndex(row => row.type === 'observation.tasks') : -1,
         );
         baseline.current = next;
         editBase.current = saved ? next : undefined;
@@ -397,6 +406,11 @@ export function CharacterWizard({
       </label>
     </>
   );
+  const chatConnection = !draft.profileId && <details className="setup-capability">
+    <summary>{t('连接聊天模型')}</summary>
+    <QuickModel localRuntime={data.plugins.some((p: any) => p.id === 'local-models' && p.enabled)}
+      onReady={async profileId => { await act(async () => true, ''); change({ profileId }); }} />
+  </details>;
   const modelEditor = (
     <>
       <ModelChoice
@@ -406,13 +420,16 @@ export function CharacterWizard({
         inherit={false}
         onChange={(profileId) => change({ profileId })}
       />
+      {chatConnection}
+      <details className="setup-capability"><summary>{t('思考强度')}</summary>
       <ReasoningSelect
         value={draft.reasoning}
         profileId={draft.profileId || undefined}
         onChange={(value) => change({ reasoning: value as any })}
       />
-      <fieldset>
-        <legend>{t('主会话上下文')}</legend>
+      </details>
+      <details className="setup-capability">
+        <summary>{t('主会话上下文')} · {compaction.triggerTokens?.toLocaleString()} tokens</summary>
         <div className="form-grid">
           <label className="field">
             <span>{t('压缩触发上限（tokens）')}</span>
@@ -426,7 +443,7 @@ export function CharacterWizard({
           </label>
         </div>
         <small>{t('保留比例按有效上下文上限计算，完整聊天记录保留。')}</small>
-      </fieldset>
+      </details>
       <EchoToolSettings permissions={draft.permissions} onSave={(permissions) => change({ permissions })} />
       {model && (
         <details className="setup-capability">
@@ -538,29 +555,7 @@ export function CharacterWizard({
           </select>
         </label>
       )}
-      <div className="role-feature-grid">
-        {[...catalog.features]
-          .sort((a: any, b: any) => (a.presentation?.order ?? 0) - (b.presentation?.order ?? 0))
-          .map((f: any) => (
-            <label
-              className={'role-feature ' + (draft.features.includes(f.id) ? 'selected' : '')}
-              key={f.id}
-            >
-              <input
-                type="checkbox"
-                disabled={f.id === 'delegation'}
-                checked={draft.features.includes(f.id)}
-                onChange={(e) => toggleFeature(f.id, e.target.checked)}
-              />
-              <strong>{t(f.name)}</strong>
-              <span>
-                {data.plugins.find((p: any) => p.id === f.id)?.description &&
-                  t(data.plugins.find((p: any) => p.id === f.id).description)}
-              </span>
-            </label>
-          ))}
-      </div>
-      <RolePluginTools catalog={data.mcpPermissionCatalog ?? []} plugins={data.plugins}
+      <RolePluginTools features={catalog.features} selectedFeatures={draft.features} toggleFeature={toggleFeature} catalog={data.mcpPermissionCatalog ?? []} plugins={data.plugins}
         main={draft.toolPermissions}
         workers={canDelegate ? (delegation?.toolPermissions as string[] | undefined) ?? [] : undefined}
         onMain={(toolPermissions) => change({ independentToolGrants: true, toolPermissions })}
@@ -625,15 +620,20 @@ export function CharacterWizard({
         </section>
       )}
       <div className="task-tabs">
-        {draft.tasks.map((task, i) => (
+        {draft.tasks.map((task, i) => {
+          const registered = catalog.taskTypes.find((v: any) => v.id === task.type)?.items?.find((v: any) => v.id === task.id);
+          return (
           <button
             key={task.id}
             className={i === taskIndex ? 'active' : ''}
-            onClick={() => setTaskIndex(i)}
+            aria-expanded={taskIndex === i}
+            onClick={() => setTaskIndex(taskIndex === i ? -1 : i)}
           >
-            {String(task.settings.name ?? task.type)}
+            {String(task.settings.name ?? task.type)} · {t(task.settings.enabled ? '已启用' : '已暂停')}
+            {registered?.state === 'failed' && ' · ' + t('需要检查')}
+            {registered?.nextAt && task.settings.enabled && <small>{t('下次运行')} · {new Date(registered.nextAt).toLocaleString()}</small>}
           </button>
-        ))}
+        ); })}
       </div>
       {task && type && (
         <div className="task-configuration">
@@ -685,10 +685,9 @@ export function CharacterWizard({
               />
               {t('启用任务')}
             </label>
-            <div className="form-grid">
-              {type.fields.filter(
+            <TaskFieldGroups fields={type.fields.filter(
                 (f: any) => !['personaId', 'conversationId', 'reportConversationId'].includes(f.key),
-              ).map((f: import('../../../packages/kernel/automation.ts').AutomationField) => (
+              )} render={f => (
                 <TaskField
                   plugins={data.plugins}
                   workPolicy={draft.configurations.delegation}
@@ -720,8 +719,7 @@ export function CharacterWizard({
                     })
                   }
                 />
-              ))}
-            </div>
+              )} />
           </fieldset>
           {type.previewOperation && (
             <section className="task-prompt-preview">
@@ -747,7 +745,7 @@ export function CharacterWizard({
             onClick={() => {
               removals.current.add(taskKey(task));
               change({ tasks: draft.tasks.filter((_, i) => i !== taskIndex) });
-              setTaskIndex(0);
+              setTaskIndex(-1);
             }}
           >
             {t('移除任务')}
@@ -778,12 +776,7 @@ export function CharacterWizard({
       </dl>
     </div>
   );
-  const expressionEditor = (
-    <>
-      <details className="card" open>
-        <summary>{t('表达风格')}</summary>
-        <div className="form-grid">
-          {expressionFields.map(([key, label]) => (
+  const expressionField = ([key,label]: typeof expressionFields[number]) => (
             <label className="field" key={key}>
               <span>{t(label)}</span>
               <textarea
@@ -805,8 +798,21 @@ export function CharacterWizard({
                 }
               />
             </label>
-          ))}
-          {channelStyles.map(({ style, label, presentation }) => <label className="field" key={style}>
+  );
+  const expressionEditor = (
+    <>
+      <details className="card" open>
+        <summary>{t('表达风格')}</summary>
+        <div className="form-grid">
+          {expressionFields.filter(([key]) => key === 'chat' || deliveryTargets.some(target => target.ready && target.style === key)).map(row =>
+            <details className="setup-capability" key={row[0]}><summary>{t(row[1])}</summary>{expressionField(row)}</details>)}
+          {channelStyles.filter(entry => deliveryTargets.some(target => target.style === entry.style && target.ready)).map(entry => <details key={entry.style} className="setup-capability"><summary>{t(entry.label)}</summary>
+            <label className="field"><span>{t('回复风格')}</span><textarea rows={3} maxLength={600} value={draft.persona.expression?.channels?.[entry.style] ?? (entry.presentation === 'external' ? draft.persona.expression?.external : '') ?? ''}
+              onChange={e => change({persona:{...draft.persona,expression:{...draft.persona.expression, channels:{...draft.persona.expression?.channels,[entry.style]:e.target.value}}}})} /></label></details>)}
+          <details className="setup-capability">
+            <summary>{t('其他渠道的表达风格')}</summary>
+            {expressionFields.filter(([key]) => key !== 'chat' && !deliveryTargets.some(target => target.ready && target.style === key)).map(expressionField)}
+          {channelStyles.filter(entry => !deliveryTargets.some(target => target.style === entry.style && target.ready)).map(({ style, label, presentation }) => <label className="field" key={style}>
             <span>{t('{channel} 回复风格', { channel: t(label) })}</span>
             <textarea rows={3} maxLength={600} aria-label={t('{channel} 回复风格', { channel: t(label) })} placeholder={t('留空沿用角色人设')}
               value={draft.persona.expression?.channels?.[style] ?? (presentation === 'external' ? draft.persona.expression?.external : undefined) ?? ''}
@@ -814,6 +820,7 @@ export function CharacterWizard({
                 channels: { ...draft.persona.expression?.channels, [style]: event.target.value },
               } } })} />
           </label>)}
+          </details>
         </div>
       </details>
       {personaId &&
@@ -883,6 +890,7 @@ export function CharacterWizard({
         .map((item: any) => (
           <section key={item.id} className="role-settings-block" data-role-feature={item.id}>
             <h2>{t(item.name)}</h2>
+            {item.id === 'memory' && <p>{t('角色记忆已启用。可在角色资料中查看和纠正记忆。')}</p>}
             {item.presentation?.editor === 'chatstick' && (
               <>
                 <label className="field">
@@ -947,6 +955,7 @@ export function CharacterWizard({
                       });
                     }}
                   />
+                  <details className="setup-capability"><summary>{t('状态动画')}</summary>
                   <AvatarBehavior
                     personaId={personaId}
                     config={draft.configurations.avatar ?? {}}
@@ -960,21 +969,14 @@ export function CharacterWizard({
                       })
                     }
                   />
-                  <div className="form-grid">
-                    {feature('avatar')
-                      ?.fields.filter((f: any) => f.key !== 'assetDirectory')
-                      .map((f: any) => field('avatar', f))}
-                  </div>
+                  </details>
+                  <SettingsFields fields={feature('avatar')?.fields.filter((f: any) => f.key !== 'assetDirectory') ?? []}
+                    render={(f: any) => field('avatar', f)} advanced={(f: any) => f.advanced === true} />
                 </section>
               )
             ) : (
-              <div className="form-grid">
-                {item.fields
-                  .filter(
-                    (field: any) => item.id !== 'delegation' || !delegationPermissionFields.includes(field.key),
-                  )
-                  .map((f: any) => field(item.id, f))}
-              </div>
+              <SettingsFields fields={item.fields.filter((f: any) => item.id !== 'delegation' || !delegationPermissionFields.includes(f.key))}
+                render={(f: any) => field(item.id, f)} advanced={(f: any) => f.advanced === true} />
             )}
             {data.inference.tasks
               .filter(
@@ -982,8 +984,8 @@ export function CharacterWizard({
                   task.owner === item.id && task.scope === 'character' && !item.taskTypes?.length,
               )
               .map((task: any) => (
+                <details className="setup-capability" key={task.id}><summary>{t(task.label)}</summary>
                 <ModelChoice
-                  key={task.id}
                   data={data}
                   taskId={task.id}
                   inheritLabel="使用主会话模型"
@@ -998,7 +1000,7 @@ export function CharacterWizard({
                     else delete routes[task.id];
                     change({ routes });
                   }}
-                />
+                /></details>
               ))}
             {!item.fields.length &&
               !data.inference.tasks.some((task: any) => task.owner === item.id) &&
@@ -1029,6 +1031,14 @@ export function CharacterWizard({
       <div className="role-editor-layout">
         {personaId ? (
           <nav className="role-editor-nav" aria-label={t('角色设置分类')}>
+            <input type="search" aria-label={t('查找角色设置')} placeholder={t('查找角色设置')} value={search} onChange={e => setSearch(e.target.value)} />
+            {search.trim() && [...new Map([
+              ...catalog.features.filter((f: any) => draft.features.includes(f.id)).flatMap((f: any) => f.fields.map((v: any) => ({label:t(v.label), section:f.presentation?.section ?? 'extensions', task:-1}))),
+              ...draft.tasks.flatMap((row, index) => (catalog.taskTypes.find((type: any) => type.id === row.type)?.fields ?? []).map((f: any) => ({label:t(f.label),section:'tasks',task:index}))),
+              ...['主会话模型','思考强度','压缩触发上限（tokens）','工作目录与文件权限','子任务权限'].map(label => ({label:t(label),section:'model',task:-1})),
+            ].map((entry: {label:string;section:string;task:number}) => [entry.section + entry.task + entry.label,entry] as const)).values()].filter(entry => entry.label.toLowerCase().includes(search.trim().toLowerCase())).slice(0,12).map(entry =>
+              <button key={entry.section + entry.task + entry.label} onClick={() => { setEditorSection(entry.section); if (entry.task >= 0) setTaskIndex(entry.task); setSearch(''); requestAnimationFrame(() => revealSetting(entry.label)); }}>
+                {entry.label}{entry.task >= 0 && ' · ' + draft.tasks[entry.task].settings.name}</button>)}
             {sections.map((section) => (
               <button
                 key={section.id}
@@ -1041,7 +1051,7 @@ export function CharacterWizard({
             ))}
           </nav>
         ) : (
-          <nav className="wizard-steps" aria-label={t('角色配置步骤')}>
+          <nav className="wizard-steps" hidden={!advancedCreation} aria-label={t('角色配置步骤')}>
             {steps.map((label, i) => (
               <button
                 key={label}
@@ -1079,7 +1089,8 @@ export function CharacterWizard({
                 </>
               )
             ) : step === 0 ? (
-              profileEditor
+              <>{profileEditor}<ModelChoice label="主会话模型" data={data} value={draft.profileId} inherit={false} onChange={(profileId) => change({ profileId })} />
+              {chatConnection}</>
             ) : step === 1 ? (
               <>
                 {featureEditor}
@@ -1105,7 +1116,7 @@ export function CharacterWizard({
         </div>
       </div>
       <footer className="wizard-actions">
-        <Button
+        <details><summary>{t('草稿')}</summary><Button
           secondary
           onClick={() =>
             act(async () => {
@@ -1115,16 +1126,17 @@ export function CharacterWizard({
           }
         >
           {t('保存草稿')}
-        </Button>
+        </Button></details>
         <span className="spacer" />
         {!personaId && step > 0 && (
           <Button secondary onClick={() => setStep(step - 1)}>
             {t('上一步')}
           </Button>
         )}
-        {!personaId && step < steps.length - 1 ? (
-          <Button onClick={() => setStep(step + 1)}>{t('下一步')}</Button>
-        ) : (
+        {!personaId && step < steps.length - 1 && (
+          <Button secondary onClick={() => { setAdvancedCreation(true); setStep(step + 1); }}>{t('更多设置')}</Button>
+        )}
+        {(
           <Button
             disabled={!draft.persona.name.trim()}
             onClick={() =>

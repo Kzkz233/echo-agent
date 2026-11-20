@@ -220,6 +220,7 @@ test('API connections hold multiple models with independent capabilities and rou
     connectionId: 'shared',
     model: 'language',
   });
+  await app.plugins.disable('semantic');
   assert(!(await catalog.kinds()).some(kind=>kind.capability==='embedding'));
   await app.plugins.enable('semantic');
   await app.plugins.enable('embeddings');

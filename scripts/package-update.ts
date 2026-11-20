@@ -25,15 +25,13 @@ try {
     scratch,
     join(output, `Echo-${info.version}-public-win-x64.echo-update`),
   );
-  await cp(
-    join(
-      root,
-      'apps/desktop/target/release/bundle/nsis',
-      `Echo Agent_${info.version}_x64-setup.exe`,
-    ),
-    join(output, `Echo-Agent_${info.version}_x64-setup.exe`),
-  );
-  console.log('Prepared public installer and update package.');
+  if (!process.argv.includes('--update-only')) {
+    await cp(
+      join(root, 'apps/desktop/target/release/bundle/nsis', `Echo Agent_${info.version}_x64-setup.exe`),
+      join(output, `Echo-Agent_${info.version}_x64-setup.exe`),
+    );
+  }
+  console.log('Prepared verified update package.');
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }

@@ -2,6 +2,7 @@ import { buildLocalQuery, naturalHistory } from '../../packages/kernel/search-qu
 import { characterFeature, characterSettings } from '../../packages/kernel/characters.ts';
 import { contributeInferenceTask } from '../../packages/kernel/inference.ts';
 import { inferenceTasks } from '../../packages/contracts/inference.ts';
+import { browseLibrary, type CatalogResult } from '../../packages/contracts/library-catalog.ts';
 import packageManifest from './echo-plugin.json' with { type: 'json' };
 import { defineManifest } from '../../packages/kernel/registry.ts';
 import { createHash, randomUUID } from 'node:crypto';
@@ -458,6 +459,7 @@ export class Memories {
           return [
             {
               key: 'queryMethod',
+              advanced: true,
               label: '召回查询方式',
               type: 'select' as const,
               options: Object.keys(queries),
@@ -465,17 +467,20 @@ export class Memories {
             },
             {
               key: 'retrievalMethod',
+              advanced: true,
               label: '记忆检索方式',
               type: 'select' as const,
               options: Object.keys(retrieval),
               optionLabels: retrieval,
             },
-            ...memoryFields,
+            ...memoryFields.map(field => ({ ...field, advanced: true })),
           ];
         },
       },
       config: { schema: memoryConfigSchema },
       activate: (ctx) => {
+        for (const page of packageManifest.pages)
+          ctx.capabilities.provide('core.ui.pages@1', page.id, page.title, () => page);
         const { registry, dispose, capabilities } = ctx;
         this.scope = capabilities;
         const corePayload = z.object({ personaId: id, change: memoryChange });
@@ -607,6 +612,22 @@ export class Memories {
             mcp,
             run,
           });
+        op('memory.browse', '浏览所选角色的记忆', browseLibrary, 'memory.read', (v, caller): CatalogResult => {
+          const scopes = this.store.documents<{id:string;name:string}>('personas')
+            .filter(p => !caller.personaId || p.id === caller.personaId)
+            .map(p => ({id:p.id, title:p.name}));
+          const scope = v.scope || scopes[0]?.id;
+          invariant(!scope || scopes.some(p => p.id === scope), 'memory_scope', '请选择可访问的角色。');
+          const groups = [{id:'core',title:'核心记忆',kind:'group' as const},{id:'general',title:'普通记忆',kind:'group' as const}];
+          const words = v.query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
+          const entries = this.store.documents<Memory>('memories').filter(m =>
+            m.personaId === scope && (!v.group || (m.core ? 'core' : 'general') === v.group) &&
+            words.every((word:string) => [m.title,m.text,...m.tags].join(' ').toLocaleLowerCase().includes(word))
+          ).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
+          return {scopes,scope,groups,total:entries.length,rows:entries.slice(v.offset,v.offset+v.limit).map(m => ({
+            id:m.id,cells:{title:m.title,category:m.core?'核心记忆':'普通记忆',tags:m.tags.join(' · '),text:m.text},
+          }))};
+        }, false);
         op(
           'memory.list',
           '列出角色记忆',

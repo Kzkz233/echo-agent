@@ -101,13 +101,13 @@ export function DelegationExecutors({
             </label>
           ))}
       </fieldset>
-      <ReasoningSelect
+      <details className="setup-capability"><summary>{t('子任务默认思考强度')}</summary><ReasoningSelect
         label="子任务默认思考强度"
         value={policy.defaultReasoning ?? 'inherit'}
         profileId={mode === 'fixed' ? fixed : mainProfileId}
         onChange={(value) => onChange({ defaultReasoning: value })}
       />
-      <p className="muted">{t('每次委派可单独选择思考强度；受理前会检查所选执行器是否支持。')}</p>
+      <p className="muted">{t('每次委派可单独选择思考强度；受理前会检查所选执行器是否支持。')}</p></details>
     </section>
   );
 }

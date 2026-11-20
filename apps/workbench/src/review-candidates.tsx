@@ -17,7 +17,7 @@ export function ReviewCandidates({ jobId }: { jobId: string }) {
     <summary>{t('候选记忆')}</summary>
     {error && <p className="warning">{error}</p>}
     {page?.items.map((row: any) => <div key={row.id} className="card">
-      <strong>{row.title}</strong> · {t(row.state === 'pending' ? '待处理' : row.state === 'changed' ? '已处理' : '无需修改')}
+      <strong>{row.title}</strong> · {t(row.state === 'pending' ? '待处理' : row.state === 'changed' ? '已处理' : row.state === 'staged' ? '已暂存建议' : '无需修改')}
       <p style={{ whiteSpace: 'pre-wrap' }}>{full[row.id]?.text ?? row.excerpt}</p>
       {row.reason && <p>{row.reason}</p>}
       {!full[row.id] && <Button secondary onClick={() => void rpc('review.readCandidate', { jobId, id: row.id })

@@ -189,6 +189,7 @@ test('model expansion and reranking run only on explicit requests and cannot add
   await app.plugins.enable('embeddings');
   const backend = new FakeBackend();
   app.router.backends.set('api', backend);
+  await app.registry.call('routes.save', { 'semantic.rerank-language':'test' }, ui);
   const model = app.router.inference.models().find(row => row.id === 'test')!;
   await app.router.inference.saveModel({ ...model, reasoning: 'high', reasoningStyle: 'effort', reasoningLevels: ['high'] });
   await app.knowledge.save('local', 'Alpha', 'alpha beta');

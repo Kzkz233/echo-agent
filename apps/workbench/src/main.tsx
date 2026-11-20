@@ -1,12 +1,16 @@
+import { revealSetting } from './settings-locator.ts';
 import { PageHeader, PageTabs, RoleHeaderActions, HeaderStatus } from './page-header.tsx';
+import { SettingsFields } from './settings-fields.tsx';
 import { StarterCharacters } from './starter-characters.tsx';
 import { UnreadDot, usePageBadges } from './badges.tsx';
 import { CharacterPortrait } from './character-portrait.tsx';
 import { BrandMark, BrandWordmark } from './brand.tsx';
 import { WindowControls, nativeWindowChrome } from './window-chrome.tsx';
 import { CharacterLibrary } from './character-library.tsx';
+import { FailurePanel } from './task-failure.tsx';
 import { ReviewResume } from './review-resume.tsx';
 import { TaskModelDetails } from './task-model-details.tsx';
+import { GeneralSettings } from './general-settings.tsx';
 import { StorageSettings, PluginPackageInstaller } from './core-settings.tsx';
 import { UpdatesView, confirmDesktopReady } from './updates-view.tsx';
 import { type ObservationConfig } from '../../../packages/contracts/index.ts';
@@ -338,6 +342,7 @@ function App() {
     [groupSelection, setGroupSelection] = useState(''),
     [wizardRole, setWizardRole] = useState<string | undefined>(),
     [wizardTaskId, setWizardTaskId] = useState<string | undefined>(),
+    [wizardField, setWizardField] = useState(''),
     [wizardStep, setWizardStep] = useState(0),
     [navSearch, setNavSearch] = useState(''),
     [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -418,6 +423,7 @@ function App() {
     requestNavigation(() => {
       if (!selected) {
         editorOrigin.current = activeLocation;
+        setWizardField('');
         setWizardRole(undefined);
         setWizardTaskId(undefined);
         setWizardStep(0);
@@ -428,9 +434,10 @@ function App() {
       sessionStorage.setItem('echo.role', selected.id);
       setPage('character', { roleId: selected.id });
     });
-  const editRole = (selected?: Persona, step = 0, taskId?: string) =>
+  const editRole = (selected?: Persona, step = 0, taskId?: string, field = '') =>
     requestNavigation(() => {
       editorOrigin.current = activeLocation;
+      setWizardField(field);
       setWizardRole(selected?.id);
       setWizardTaskId(taskId);
       setWizardStep(step);
@@ -447,11 +454,11 @@ function App() {
     if (editorOrigin.current) setRoute(editorOrigin.current);
     else setPage(role ? 'character' : 'personas');
   };
-  const openSettings = async (target = 'plugins', pluginId?: string) => {
+  const openSettings = async (target = 'plugins', pluginId?: string, field?: string) => {
     try {
       localStorage.setItem(
         'echo.settings-navigation',
-        JSON.stringify({ page: target, pluginId, at: Date.now() }),
+        JSON.stringify({ page: target, pluginId, field, at: Date.now() }),
       );
       if (!isSettingsPage(target)) {
         await openWorkbench(target);
@@ -563,6 +570,7 @@ function App() {
           requestNavigation(() => {
             if (next.pluginId) sessionStorage.setItem('echo.plugin', next.pluginId);
             setPage(next.page);
+            if (next.field) requestAnimationFrame(() => revealSetting(next.field));
             window.dispatchEvent(new Event('echo:selection'));
           });
         } catch {}
@@ -585,6 +593,10 @@ function App() {
       try {
         const next = JSON.parse(raw);
         if (Date.now() - next.at > 60000) return;
+        if (next.page === 'character-wizard' && next.roleId) {
+          editRole({id:next.roleId} as Persona, next.step ?? 0, next.taskId, next.field);
+          return;
+        }
         goPage(next.page, next.pluginId, next.selection, next.task, {
           workspace: isWorkspacePage(next.page),
           roleId: next.roleId,
@@ -783,6 +795,7 @@ function App() {
           role: roleSection ? role : undefined,
           savedRole,
           openSettings,
+          openWorkbench,
           editRole,
         }}
       >
@@ -806,6 +819,14 @@ function App() {
                 <kbd>{t('⌃ K')}</kbd>
               </div>
             }
+            {navSearch.trim() && <div className="setting-matches">{[
+              { label:t('网络代理'), action:() => settingsWindow ? (setPage('general'), requestAnimationFrame(() => revealSetting(t('网络代理')))) : void openSettings('general',undefined,t('网络代理')) },
+              ...(role && data.characters.some((c: any) => c.id === role.id) ? [
+                {label:t('压缩触发上限（tokens）'), step:3},
+                {label:t('角色可用工具'), field:t('搜索插件或工具'), step:8},
+                ...((data.plugins.some((p: any) => p.id === 'observation' && p.enabled) ) ? [{label:t('观察白名单'),field:t('允许观察的来源'),step:4}] : []),
+              ].map(entry => ({ label:entry.label, action:() => settingsWindow ? void openWorkbench('character-wizard',{roleId:role.id,step:entry.step,field:entry.field ?? entry.label}) : editRole(role,entry.step,undefined,entry.field ?? entry.label) })) : []),
+            ].filter(entry => entry.label.toLowerCase().includes(navSearch.trim().toLowerCase())).map(entry => <button className="text-button" key={entry.label} onClick={() => { setNavSearch(''); entry.action(); }}>{entry.label}</button>)}</div>}
             {settingsWindow ? (
               <nav aria-label={t('主导航')}>
                 {navigationGroups.map((group) => {
@@ -1216,7 +1237,7 @@ function App() {
                 ) : page === 'character-wizard' ? (
                   <CharacterWizard
                     {...{ data, act, openSettings, openTask }}
-                    initialStep={wizardStep}
+                    key={[wizardRole,wizardStep,wizardTaskId,wizardField].join(':')} initialField={wizardField} initialStep={wizardStep}
                     initialTaskId={wizardTaskId}
                     personaId={wizardRole}
                     onClose={closeRoleEditor}
@@ -1276,11 +1297,13 @@ function App() {
                 ) : page === 'chat' ? (
                   <Chat />
                 ) : page === 'personas' ? (
-                  <RoleList {...{ data, openRole, act, openSettings }} />
+                  <RoleList {...{ data, openRole, act, openSettings }} openKnowledge={() => goPage('knowledge')} />
                 ) : page === 'persona-settings' ? (
                   <Personas />
                 ) : page === 'memory' ? (
                   <Memories />
+                ) : page === 'general' ? (
+                  <GeneralSettings connections={data.connections} />
                 ) : page === 'appearance' ? (
                   <AppearanceSettings />
                 ) : page === 'backends' ? (
@@ -1362,14 +1385,14 @@ function Empty({ children }: any) {
 function Chat() {
   return <ChatView {...useApp()} />;
 }
-function RoleList({ data, openRole, act, openSettings }: any) {
+function RoleList({ data, openRole, act, openSettings, openKnowledge }: any) {
   return (
     <>
       <div className="page-title page-title-actions">
         <h1>{t('角色')}</h1>
         <Button onClick={() => openRole()}>{t('＋ 新角色')}</Button>
       </div>
-      <StarterCharacters {...{ data, act, openRole, openSettings }} />
+      <StarterCharacters {...{ data, act, openRole, openSettings, openKnowledge }} />
       <div className="role-grid">
         {data.personas.map((role: Persona) => (
           <button key={role.id} className="card role-tile" onClick={() => openRole(role)}>
@@ -1647,7 +1670,8 @@ function Backends() {
   );
 }
 function ExtensionSettings() {
-  const { data, act } = useApp();
+  const { data, act, openWorkbench } = useApp();
+  const [grantRole, setGrantRole] = useState('');
   const selectedServer = () => {
     const target = sessionStorage.getItem('echo.plugin') ?? '';
     return target.startsWith('external-mcp:') ? target.slice('external-mcp:'.length) : undefined;
@@ -1686,6 +1710,10 @@ function ExtensionSettings() {
           {t('外部 MCP')}
         </button>
       </div>
+      {!!data.characters.length && <div className="row wrap"><label className="field"><span>{t('角色授权')}</span>
+        <select aria-label={t('角色授权')} value={grantRole} onChange={e => setGrantRole(e.target.value)}>
+          <option value="">{t('选择角色')}</option>{data.characters.map((r: any) => <option key={r.id} value={r.id}>{data.personas.find((p: any) => p.id === r.id)?.name ?? r.id}</option>)}</select></label>
+        <Button secondary disabled={!grantRole} onClick={() => requestNavigation(() => openWorkbench('character-wizard', {roleId:grantRole,step:8}))}>{t('为角色授权')}</Button></div>}
       {section === 'plugins' ? (
         <Plugins />
       ) : (
@@ -1702,7 +1730,7 @@ function Plugins() {
     .sort((a: any, b: any) => a.loadOrder - b.loadOrder);
   const initial =
     plugins.find((p: any) => p.id === sessionStorage.getItem('echo.plugin'))?.id ??
-    plugins[0]?.id ??
+    plugins.find((p: any) => !p.builtin)?.id ?? plugins[0]?.id ??
     '';
   const [selected, setSelected] = useState(() => initial),
     [settings, setSettings] = useState<any>(() => {
@@ -1711,6 +1739,7 @@ function Plugins() {
     [search, setSearch] = useState(''),
     [filter, setFilter] = useState('all'),
     [sortMode, setSortMode] = useState('category'),
+    [showComponents, setShowComponents] = useState(() => Boolean(plugins.find((p: any) => p.id === initial)?.builtin)),
     [directory, setDirectory] = useState('');
   useEffect(() => {
     const listener = () => {
@@ -1733,6 +1762,7 @@ function Plugins() {
       if (!plugins.some((p: any) => p.id === id)) return;
       sessionStorage.setItem('echo.plugin', id);
       setSelected(id);
+      if (plugins.find((p: any) => p.id === id)?.builtin) setShowComponents(true);
       setSettings(data[id + 'Config'] ?? data.pluginSettings?.[id] ?? {});
     });
   return (
@@ -1761,7 +1791,8 @@ function Plugins() {
               <option value="disabled">{t('未启用')}</option>
             </select>
           </div>
-          <label className="plugin-sort">
+          <label className="inline-toggle"><input type="checkbox" checked={showComponents} onChange={e => setShowComponents(e.target.checked)} />{t('显示内置组件')}</label>
+          <details className="setup-capability"><summary>{t('插件排序')}</summary><label className="plugin-sort">
             <span>{t('插件排序')}</span>
             <select
               aria-label={t('插件排序')}
@@ -1772,7 +1803,8 @@ function Plugins() {
               <option value="dependency">{t('按加载依赖')}</option>
             </select>
           </label>
-          {[...plugins]
+          </details>
+          {[...plugins].filter(p => !p.builtin || showComponents || search.trim())
             .sort((a: any, b: any) =>
               sortMode === 'category'
                 ? (a.builtin === b.builtin ? 0 : a.builtin ? -1 : 1) ||
@@ -1968,16 +2000,15 @@ function Plugins() {
                 {plugin.permissions.join('、') || t('无')}
               </div>
             </details>
-            {plugin.settings
-              .filter((f: Field) => selected !== 'qq' || !['appId', 'secretRef'].includes(f.key))
-              .map((f: Field) => (
+            <SettingsFields fields={plugin.settings.filter((f: Field) => selected !== 'qq' || !['appId', 'secretRef'].includes(f.key))}
+              advanced={(f: Field) => f.advanced === true} render={(f: Field) => (
                 <FieldInput
                   key={f.key}
                   field={f}
                   value={settings[f.key]}
                   onChange={(v) => setSettings({ ...settings, [f.key]: v })}
                 />
-              ))}
+              )} />
             {plugin.enabled && (
               <Suspense fallback={<p>{t('正在打开…')}</p>}>
                 {data.inference.adapters.some(
@@ -2281,7 +2312,7 @@ function Review() {
           </p>
           <progress value={job.nextPacket} max={Math.max(1, job.totalPackets)} />
           {job.taskModel && <TaskModelDetails model={job.taskModel} />}
-          {job.error && <p className="warning">{job.error}</p>}
+          {job.failure ? <FailurePanel key={job.id + job.error} failure={job.failure}/> : job.error && <p className="warning">{job.error}</p>}
           <p className="review-notes">{job.notes}</p>
           {job.drafts.length > 0 && (
             <details>
@@ -2386,7 +2417,8 @@ function Diagnostics() {
           {t('刷新状态')}{' '}
         </Button>
       </div>
-      <div className="metric-grid card">
+      {status && <p role="status">{status.plugins?.some((p: any) => p.error) || status.memoryIssue ? t('有运行问题需要查看') : t('当前未检测到组件异常')}</p>}
+      <details className="card"><summary>{t('资源与内建模块')}</summary><div className="metric-grid card">
         {[
           ['核心内存 RSS', ((status?.resources?.rss ?? 0) / 1048576).toFixed(1) + t(' MB')],
           ['JS 堆使用', ((status?.resources?.heapUsed ?? 0) / 1048576).toFixed(1) + t(' MB')],
@@ -2418,8 +2450,8 @@ function Diagnostics() {
             ))}
         </div>
       </div>
-      <div className="card">
-        <h2>{t('MCP 对外能力')}</h2>
+      </details>
+      <details className="card"><summary>{t('MCP 对外能力')}</summary>
         <p>{t('本机其他应用可通过 MCP 调用勾选的读取工具。由角色委派的子任务按任务单独授权。')}</p>
         <div className="row wrap mcp-permission-options">
           {[...new Set<string>([...(data.mcpAvailablePermissions ?? []), ...permissions])]
@@ -2460,7 +2492,7 @@ function Diagnostics() {
             {t('保存开放范围')}{' '}
           </Button>
         </div>
-      </div>
+      </details>
       <div className="card">
         <h2>{t('最近运行')}</h2>
         <details>

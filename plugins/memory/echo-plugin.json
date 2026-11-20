@@ -17,7 +17,8 @@
     "knowledge.read",
     "knowledge.enhance",
     "approvals.request",
-    "approvals.contribute"
+    "approvals.contribute",
+    "ui.contribute"
   ],
   "characterPermissions": [
     "memory.read",
@@ -35,5 +36,40 @@
     "order": 10
   },
   "category": "Memory and behavior",
-  "optionalDependencies": ["approvals"]
+  "optionalDependencies": [
+    "approvals"
+  ],
+  "pages": [
+    {
+      "id": "memory.library",
+      "title": "角色记忆",
+      "placement": "workspace",
+      "section": "knowledge",
+      "order": 20,
+      "view": {
+        "type": "catalog",
+        "load": "memory.browse",
+        "columns": [
+          {
+            "key": "title",
+            "label": "标题"
+          },
+          {
+            "key": "category",
+            "label": "类别",
+            "localized": true
+          },
+          {
+            "key": "tags",
+            "label": "标签"
+          },
+          {
+            "key": "text",
+            "label": "内容"
+          }
+        ],
+        "scopeLabel": "角色"
+      }
+    }
+  ]
 }

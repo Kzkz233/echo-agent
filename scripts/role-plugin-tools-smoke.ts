@@ -54,6 +54,7 @@ try {
   await page.getByRole('region', { name: '浏览器操作', exact: true }).getByText('已配置', { exact: true }).waitFor();
   assert(await grant('browser-use.read', '主会话').isChecked());
   await page.getByRole('searchbox', { name: '搜索插件或工具' }).fill('');
+  await page.locator('details').filter({has:page.locator('[data-permission="computer-use.read"]')}).last().locator(':scope > summary').click();
   await grant('computer-use.read', '子任务').check();
   await page.getByRole('button', { name: '模型与权限', exact: true }).click();
   assert.equal(await page.locator('[data-permission]').count(), 0);
@@ -72,6 +73,8 @@ try {
   await assert.rejects(authorize('browser-use.read'), /子任务请求的工具权限超出角色授权/);
   await page.reload();
   await edit();
+  for (const name of ['浏览器操作', 'Windows 桌面操作'])
+    await page.getByRole('region',{name,exact:true}).locator('details > summary').click();
   assert(await grant('browser-use.read', '主会话').isChecked());
   assert(!(await grant('browser-use.read', '子任务').isChecked()));
   assert(await grant('computer-use.read', '子任务').isChecked());

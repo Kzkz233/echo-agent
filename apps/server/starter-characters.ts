@@ -11,7 +11,6 @@ import { characterDraft } from '../../plugins/persona/character-contracts.ts';
 import type { Application } from './application.ts';
 import { starterCharacters, starterSourcePrompts, starterStudio } from './starter-content.ts';
 import { refreshStarterDraft, refreshStarterGroup, starterDefaults } from './starter-refresh.ts';
-import { ensureStarterModels } from './bundled-models.ts';
 import { inferenceTasks } from '../../packages/contracts/inference.ts';
 import { defaultPermissions } from '../../packages/kernel/tool-access.ts';
 
@@ -95,7 +94,7 @@ export function registerStarterCharacters(app: Application) {
         );
         changes.push({ id: roleId, updated, preserved });
       }
-      const group = app.store.document<any>('groups', completed.groupId);
+      const group = completed.groupId && app.store.document<any>('groups', completed.groupId);
       if (group) {
         const next = refreshStarterGroup(group, completed.groupDefaults);
         if (group.prompt !== next.prompt || group.context !== next.context)
@@ -111,10 +110,10 @@ export function registerStarterCharacters(app: Application) {
   });
   op(
     'characters.examples.create',
-    z.object({ profileId: id, requestId: id, updateExisting: z.literal(true).optional() }),
+    z.object({ profileId: id, requestId: id, characterId: z.enum(['hina', 'miyu']).optional(), updateExisting: z.literal(true).optional() }),
     async (value, signal) => {
       const completed = app.store.get<any>('starter.studio.v1', null);
-      if (completed && !value.updateExisting) return completed;
+      if (completed && !value.characterId && !value.updateExisting) return completed;
       // Backward compatible entry point; refreshing content never reconfigures a role.
       if (completed && value.updateExisting)
         return app.registry.call(
@@ -127,53 +126,22 @@ export function registerStarterCharacters(app: Application) {
       invariant(assets, 'examples_missing', '示例素材缺失，请重新安装完整应用。');
       const model = app.router.inference.models().find((model) => model.id === value.profileId);
       invariant(
-        model &&
-          app.router.inference.supports(model, {
-            operation: 'generate',
-            inputs: ['text', 'image'],
-          }),
+        model && app.router.inference.eligibility(model).conversation,
         'examples_model',
-        '请选择支持语言与图像的模型，供主会话、观察与辅助推理共同使用。',
+        '请选择可用于主会话的语言模型。',
       );
       creating = true;
       try {
-        const pluginIds = [...app.plugins.plugins.values()]
-          .filter(
-            (plugin) =>
-              plugin.distribution !== 'local' && plugin.manifest.package?.startsWith('@echo/'),
-          )
-          .map((plugin) => plugin.manifest.id);
-        for (const pluginId of pluginIds) {
-          signal.throwIfAborted();
-          await app.registry.call(
-            'plugins.enable',
-            { id: pluginId, enabled: true },
-            internal,
-            signal,
-          );
-        }
-        await ensureStarterModels(app, value.profileId);
-        const toolPermissions = [
-          ...new Set([
-            ...defaultPermissions,
-            ...app.registry
-              .list(internal, true)
-              .filter((operation) => pluginIds.includes(operation.owner))
-              .map((operation) => operation.permission),
-          ]),
-        ];
-        // The user explicitly invokes the full example setup; role grants remain separate.
-        app.store.set('mcp.permissions', [
-          ...new Set([...app.store.get('mcp.permissions', defaultPermissions), ...toolPermissions]),
-        ]);
+        const toolPermissions = defaultPermissions.filter(permission => app.plugins.characterPermissions().has(permission));
         const catalog = (await app.registry.call(
           'persona.character.catalog',
           {},
           internal,
           signal,
         )) as any;
+        const availableFeatures = featureIds.filter(id => catalog.features.some((feature: any) => feature.id === id));
         const roles: string[] = [];
-        for (const example of characters) {
+        for (const example of characters.filter(role => !value.characterId || role.id === value.characterId)) {
           signal.throwIfAborted();
           const roleId = 'example-' + example.id;
           const existing = app.store.document<any>('characters', roleId);
@@ -195,7 +163,7 @@ export function registerStarterCharacters(app: Application) {
                   signal,
                 )) as any)
               : undefined;
-          const material = (await app.registry.call(
+          const material = availableFeatures.includes('avatar') ? (await app.registry.call(
             'avatar.import',
             {
               source: join(assets, example.id),
@@ -212,7 +180,7 @@ export function registerStarterCharacters(app: Application) {
             },
             internal,
             signal,
-          )) as any;
+          )) as any : undefined;
           const tasks = [
             {
               id: roleId + '-review',
@@ -294,7 +262,7 @@ export function registerStarterCharacters(app: Application) {
                 prompt: example.mail,
               },
             },
-          ].map((task) => ({
+          ].filter(task => catalog.taskTypes.some((type: any) => type.id === task.type && availableFeatures.includes(type.owner))).map((task) => ({
             ...task,
             settings: {
               ...catalog.taskTypes.find((entry: any) => entry.id === task.type)?.defaults,
@@ -321,11 +289,11 @@ export function registerStarterCharacters(app: Application) {
                 'data:image/webp;base64,' +
                 (await readFile(join(assets, example.id, 'portrait.webp'))).toString('base64'),
             },
-            features: featureIds,
+            features: availableFeatures,
             profileId: value.profileId,
             reasoning: 'off',
             routes: {
-              [inferenceTasks.query]: value.profileId,
+              ...(availableFeatures.includes('memory') && { [inferenceTasks.query]: value.profileId }),
             },
             permissions: {
               projectDirectory: workspace,
@@ -366,7 +334,7 @@ export function registerStarterCharacters(app: Application) {
                 ...previous?.configurations.avatar,
                 enabled: previous?.configurations.avatar.enabled ?? false,
                 renderer: 'frames',
-                assetDirectory: material.directory,
+                assetDirectory: material?.directory,
                 fps: 8,
                 animationClips: { idle: 'idle', working: 'running', speaking: 'waving' },
                 stateRules: Object.fromEntries(
@@ -406,44 +374,48 @@ export function registerStarterCharacters(app: Application) {
             internal,
             signal,
           );
-          const manifest = JSON.parse(
-            await readFile(join(assets, example.id, 'manifest.json'), 'utf8'),
-          );
-          const sharp = (await import('sharp')).default;
-          for (const sticker of [
-            { key: 'hello', label: '招呼', clip: 'waving', meaning: '轻松打招呼或表示收到' },
-            {
-              key: 'thinking',
-              label: '想一想',
-              clip: 'review',
-              meaning: '好奇、认真思考或一起琢磨',
-            },
-            { key: 'celebrate', label: '开心', clip: 'jumping', meaning: '恰当的小小庆祝' },
-          ]) {
-            const frame = manifest.clips[sticker.clip]?.frames[0];
-            invariant(frame, 'examples_assets', '示例表情动作素材缺失。');
-            const data = await sharp(join(assets, example.id, manifest.image))
-              .extract({ left: frame.x, top: frame.y, width: frame.w, height: frame.h })
-              .png()
-              .toBuffer();
-            await app.registry.call(
-              'chatstick.save',
+          if (availableFeatures.includes('chatstick')) {
+            const manifest = JSON.parse(await readFile(join(assets, example.id, 'manifest.json'), 'utf8'));
+            const sharp = (await import('sharp')).default;
+            for (const sticker of [
+              { key: 'hello', label: '招呼', clip: 'waving', meaning: '轻松打招呼或表示收到' },
               {
-                personaId: roleId,
-                key: sticker.key,
-                label: sticker.label,
-                meaning: sticker.meaning,
-                data: data.toString('base64'),
-                replace: true,
+                key: 'thinking',
+                label: '想一想',
+                clip: 'review',
+                meaning: '好奇、认真思考或一起琢磨',
               },
-              internal,
-              signal,
-            );
+              { key: 'celebrate', label: '开心', clip: 'jumping', meaning: '恰当的小小庆祝' },
+            ]) {
+              const frame = manifest.clips[sticker.clip]?.frames[0];
+              invariant(frame, 'examples_assets', '示例表情动作素材缺失。');
+              const data = await sharp(join(assets, example.id, manifest.image))
+                .extract({ left: frame.x, top: frame.y, width: frame.w, height: frame.h })
+                .png()
+                .toBuffer();
+              await app.registry.call(
+                'chatstick.save',
+                {
+                  personaId: roleId,
+                  key: sticker.key,
+                  label: sticker.label,
+                  meaning: sticker.meaning,
+                  data: data.toString('base64'),
+                  replace: true,
+                },
+                internal,
+                signal,
+              );
+            }
           }
           roles.push(roleId);
         }
+        if (value.characterId) {
+          app.events.emit('characters.updated', {});
+          return { roles, version: starterVersion, profileId: value.profileId };
+        }
         const groupId = 'example-studio';
-        if (!app.store.document('groups', groupId))
+        if (app.plugins.active.has('groups') && !app.store.document('groups', groupId))
           await app.registry.call(
             'groups.save',
             {
@@ -458,7 +430,7 @@ export function registerStarterCharacters(app: Application) {
           );
         const result = {
           roles,
-          groupId,
+          ...(app.store.document('groups',groupId) ? {groupId} : {}),
           version: starterVersion,
           profileId: value.profileId,
           groupDefaults: starterStudio,

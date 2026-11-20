@@ -9,10 +9,16 @@
     "persona.read",
     "persona.write",
     "character.configure",
-    "automation.invoke"
+    "automation.invoke",
+    "persona.expression.write",
+    "persona.identity.propose",
+    "approvals.request",
+    "approvals.contribute"
   ],
   "characterPermissions": [
-    "persona.read"
+    "persona.read",
+    "persona.expression.write",
+    "persona.identity.propose"
   ],
   "settings": [],
   "views": [

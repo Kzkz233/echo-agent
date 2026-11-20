@@ -1,4 +1,5 @@
 import { useTaskCatalog } from './use-task-catalog.ts';
+import { FailurePanel } from './task-failure.tsx';
 import { RecordedTasks, TaskHistory } from './task-history.tsx';
 import { useEffect, useState } from 'react';
 import { rpc } from './client.ts';
@@ -233,7 +234,7 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
                   </Button>
                 </div>
                 <p>{t('执行设置由来源任务管理。')}</p>
-                {current.error && <p className="warning">{current.error}</p>}
+                {current.failure && <FailurePanel key={current.id + current.error} failure={current.failure}/>}
                 {['running', 'waiting'].includes(current.state) && (
                   <Button
                     secondary

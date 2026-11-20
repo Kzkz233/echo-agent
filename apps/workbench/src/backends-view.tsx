@@ -1,7 +1,9 @@
+import { QuickModel } from './quick-model.tsx';
 import { CredentialInput } from './credential-input.tsx';
 import { openCodexLogin } from './account-login.ts';
 import {
   connectionForPurpose,
+  isBundledEmbedding,
   modelDisplayName,
 } from '../../../packages/contracts/model-services.ts';
 import { useEffect } from 'react';
@@ -1103,7 +1105,9 @@ function BackendServices({
                               }
                             />
                           </details>
-                        ) : (
+                        ) : modelAdapter.modelFields.length > 0 && (
+                          <details className="form-advanced">
+                          <summary>{t('高级模型设置')}</summary>
                           <Fields
                             fields={modelAdapter.modelFields}
                             value={{ ...defaults(modelAdapter.modelSchema), ...model.options }}
@@ -1118,6 +1122,7 @@ function BackendServices({
                               })
                             }
                           />
+                          </details>
                         )}
                         <details className="form-advanced">
                           <summary>{t('运行限制')}</summary>
@@ -1247,16 +1252,37 @@ export default function BackendsView(props: any) {
   const kinds = props.data.inference.kinds ?? [
     { id: 'core.language', label: '语言与视觉模型', capability: 'generation' },
   ];
-  const [selected, setSelected] = useState('core.language');
+  const [selected, setSelected] = useState('');
+  const [connecting, setConnecting] = useState(false);
   if (props.embedded || (props.owner && props.owner !== 'core'))
     return <BackendServices {...props} />;
+  const embedding = props.data.inference.models.find((entry: ModelProfile) => entry.id === props.data.routes?.['embeddings.encode']);
+  const bundled = props.data.inference.models.some((model: ModelProfile) => isBundledEmbedding(model, props.data.connections));
+  const chats = props.data.profiles.filter((entry: any) => entry.available && entry.eligibility?.conversation);
   const kind = kinds.find((entry: any) => entry.id === selected) ?? kinds[0];
   return (
     <>
       <div className="page-title">
         <h1>{t('模型服务')}</h1>
       </div>
-      <div className="page-sheets" role="tablist" aria-label={t('模型分类')}>
+      <div className="row wrap" aria-label={t('模型用途')}>
+        <span>{t('聊天模型')} · {chats.length ? chats.map((p:any) => p.name).join('、') : t('待连接')}</span>
+        <span>{t('默认文本索引')} · {embedding ? modelDisplayName(embedding) : t('未配置')}</span>
+      </div>
+      {!selected && <section className="model-purpose-grid">{kinds.map((entry: any) => {
+        const models = props.data.inference.models.filter((p: any) => p[entry.capability]?.enabled);
+        return <article className="card" key={entry.id}><h2>{t(entry.label)}</h2>
+          <p>{models.map((p: ModelProfile) => modelDisplayName(p)).join('、') || t('未配置')}</p>
+          {entry.capability === 'generation' && <Button onClick={() => setConnecting(!connecting)}>{t('连接聊天模型')}</Button>}
+          <Button secondary onClick={() => { setConnecting(false); setSelected(entry.id); }}>{t('管理模型')}</Button>
+          {entry.capability === 'embedding' && !bundled && props.data.inference.adapters.some((a: any) => a.id === 'local-models.onnx') &&
+            <Button secondary onClick={() => props.act(() => rpc('models.restoreBundled'), t('内置模型已就绪'))}>{t('恢复内置模型')}</Button>}
+        </article>;
+      })}</section>}
+      {connecting && !selected && <QuickModel localRuntime={props.data.plugins.some((p: any) => p.id === 'local-models' && p.enabled)}
+        onReady={async () => { setConnecting(false); await props.act(async () => true); }} />}
+      {selected && <Button secondary onClick={() => requestNavigation(() => setSelected(''))}>{t('返回模型总览')}</Button>}
+      <div className="page-sheets" role="tablist" aria-label={t('模型分类')} hidden={!selected}>
         {kinds.map((entry: any) => (
           <button
             role="tab"
@@ -1268,7 +1294,7 @@ export default function BackendsView(props: any) {
           </button>
         ))}
       </div>
-      <BackendServices {...props} key={kind.id} embedded purpose={kind.capability} />
+      {selected && <BackendServices {...props} key={kind.id} embedded purpose={kind.capability} /> }
     </>
   );
 }

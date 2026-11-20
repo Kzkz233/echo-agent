@@ -199,11 +199,6 @@ export function AgendaCalendar({ data, act }: any) {
                 <span>{t('Notes')}</span>
                 <textarea value={form.notes ?? ''} onChange={(e) => set('notes', e.target.value)} />
               </label>
-              <AgendaFields
-                fields={fields}
-                value={form.extensions}
-                onChange={(value: any) => set('extensions', value)}
-              />
               <label className="toggle-field">
                 <span>{t('All day')}</span>
                 <input
@@ -250,27 +245,6 @@ export function AgendaCalendar({ data, act }: any) {
                   ))}
                 </>
               )}
-              {(['priority', 'state'] as const).map((key) => (
-                <label className="field" key={key}>
-                  <span>{key === 'priority' ? t('Priority') : t('State')}</span>
-                  <select
-                    aria-label={key === 'priority' ? t('Priority') : t('State')}
-                    value={form[key] ?? (key === 'priority' ? 'normal' : 'open')}
-                    onChange={(e) => set(key, e.target.value)}
-                  >
-                    {(key === 'priority'
-                      ? ['low', 'normal', 'high']
-                      : ['open', 'done', 'cancelled']
-                    ).map((v) => (
-                      <option key={v} value={v}>
-                        {key === 'state'
-                          ? statusText(v)
-                          : t(({ low: '低', normal: '普通', high: '高' } as any)[v] ?? v)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ))}
               <label className="toggle-field">
                 <span>{t('Remind me')}</span>
                 <input
@@ -295,6 +269,33 @@ export function AgendaCalendar({ data, act }: any) {
                   />
                 </label>
               )}
+              <details className="setup-capability"><summary>{t('更多设置')}</summary>
+              {(['priority', 'state'] as const).map((key) => (
+                <label className="field" key={key}>
+                  <span>{key === 'priority' ? t('Priority') : t('State')}</span>
+                  <select
+                    aria-label={key === 'priority' ? t('Priority') : t('State')}
+                    value={form[key] ?? (key === 'priority' ? 'normal' : 'open')}
+                    onChange={(e) => set(key, e.target.value)}
+                  >
+                    {(key === 'priority'
+                      ? ['low', 'normal', 'high']
+                      : ['open', 'done', 'cancelled']
+                    ).map((v) => (
+                      <option key={v} value={v}>
+                        {key === 'state'
+                          ? statusText(v)
+                          : t(({ low: '低', normal: '普通', high: '高' } as any)[v] ?? v)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+              <AgendaFields
+                fields={fields}
+                value={form.extensions}
+                onChange={(value: any) => set('extensions', value)}
+              />
               <label className="field">
                 <span>{t('Conversation (optional)')}</span>
                 <select
@@ -309,6 +310,7 @@ export function AgendaCalendar({ data, act }: any) {
                   ))}
                 </select>
               </label>
+              </details>
               <div className="row wrap">
                 <button
                   className="primary"
