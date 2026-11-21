@@ -65,6 +65,21 @@ export class Entries {
     }
     return result;
   }
+  async titles(vaultId: string, documentIds: string[], reader?:ResourceReader) {
+    const result = new Map<string,string>();
+    if (!documentIds.length || !this.files.roots().some(v=>v.id===vaultId)) return result;
+    const {db}=await this.files.database(vaultId);
+    const ids=[...new Set(documentIds)];
+    for(let offset=0;offset<ids.length;offset+=200) {
+      const batch=ids.slice(offset,offset+200);
+      const fields=reader?.kind==='mcp' ? 'id,title,kind,logical_path,metadata' : 'id,title';
+      const rows=db.prepare('SELECT '+fields+' FROM entries WHERE id IN ('+batch.map(()=>'?').join(',')+')').all(...batch) as {id:string;title:string;kind:string;logical_path?:string;metadata?:string}[];
+      for(const row of rows) {
+        if (reader?.kind!=='mcp' || canReadEntry({kind:row.kind,logicalPath:row.logical_path,metadata:JSON.parse(row.metadata ?? '{}')},reader)) result.set(row.id,row.title);
+      }
+    }
+    return result;
+  }
   async find(documentId: string, vaultId?: string, reader?: ResourceReader) {
     const rows: LibraryEntry[] = [];
     for (const vault of this.files.roots().filter((v) => !vaultId || v.id === vaultId)) {

@@ -63,7 +63,7 @@ test('library browsing includes unlinked records, descendant groups, multiple at
     coverage,
   );
   assert.equal(plain.total, 2);
-  assert.equal(plain.rows[0].cells.imported, '未入库');
+  assert.equal(plain.rows[0].cells.imported, '无附件');
 });
 
 test('registered knowledge tabs use plugin scopes, live pagination and read-only index coverage', async (t) => {

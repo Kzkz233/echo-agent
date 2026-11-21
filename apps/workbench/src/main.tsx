@@ -1226,6 +1226,7 @@ function App() {
                     key={
                       page + ':' + (extensionPage.placement === 'character' ? (role?.id ?? '') : '')
                     }
+                    data={data}
                     page={extensionPage}
                     navigate={goPage}
                     personaId={extensionPage.placement === 'character' ? role?.id : undefined}
@@ -2031,7 +2032,7 @@ function Plugins() {
                     (page: any) => page.owner === selected && page.placement === 'plugin-settings',
                   )
                   .map((page: any) => (
-                    <PluginPage key={page.id} page={page} act={act} embedded navigate={setPage} />
+                    <PluginPage key={page.id} data={data} page={page} act={act} embedded navigate={setPage} />
                   ))}
               </Suspense>
             )}

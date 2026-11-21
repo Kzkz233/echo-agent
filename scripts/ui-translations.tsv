@@ -2880,3 +2880,34 @@ Zotero 本机服务 ID	Local Zotero server ID
 修复连接	Fix connection
 模型已配置	Model configured
 正在下载并校验本地模型…	Downloading and checking the local model…
+查看原件	View original
+附件内容已更新	Source file updated
+来源已移除	Source removed
+来源附件待核对	Check source attachment
+知识条目	Knowledge entry
+上次同步	Last synced
+尚未同步完整题录	Full catalog has not synced yet
+正在同步…	Syncing…
+条目信息	Item details
+已移出文献库	Removed from the library
+知识条目不可用	Knowledge entry unavailable
+无法连接本机 Zotero	Local Zotero is unavailable
+文献库刷新失败	Library refresh failed
+检索正文	Search knowledge pages
+当前分组没有可检索的正文	No searchable knowledge pages in this group
+输入检索词搜索当前分组的正文	Search the full text of this group
+检索范围	Search scope
+题录	References
+网页链接	Web link
+无附件	No attachments
+仅网页链接	Web links only
+已有正文待核对	Existing page awaiting verification
+PDF 待入库	PDF ready to import
+链接文件或其他附件	Linked file or other attachment
+无可入库 PDF	No importable PDFs
+附件内容待核对	Verify changed attachment
+Zotero 文献库	Zotero literature library
+新 PDF 入库位置	Destination for new PDFs
+请选择单一检索范围	Select a single search scope
+使用模型默认	Use model default
+工具授权	Tool permissions

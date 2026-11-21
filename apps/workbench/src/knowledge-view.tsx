@@ -1,3 +1,4 @@
+import { KnowledgeQuery, searchKnowledge } from './knowledge-query.tsx';
 import type { ParserDescriptor } from '../../../packages/contracts/parsing.ts';
 import { libraryLabel } from './library-label.ts';
 import { locale } from './i18n.ts';
@@ -239,6 +240,7 @@ export function KnowledgeView({
         if (selected.vaultId) {
           setVault(selected.vaultId);
           setFolder('');
+          setInitialCollection(selected.collectionId);
         }
         if (selected.documentId) void read({ id: selected.documentId, vaultId: selected.vaultId });
       } catch {}
@@ -403,52 +405,12 @@ export function KnowledgeView({
               ))}
           </select>
         )}
-        <form
-          className="search-control"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (query.trim() || searchOptions.queries.some((q: any) => q.text.trim()))
-              void act(async () => {
-                const current = ++searchVersion.current;
-                const results = await rpc('knowledge.searchAdvanced', {
-                  query: query.trim() || searchOptions.queries.map((q: any) => q.text).join('; '),
-                  ...scope,
-                  strategy: searchOptions.strategy,
-                  semanticWeight: searchOptions.semanticWeight,
-                  queries: searchOptions.queries.filter((q: any) => q.text.trim()),
-                  rerank: searchOptions.rerank ?? false,
-                  directoryBoost:
-                    !grouped && searchOptions.boostFolder
-                      ? {
-                          folder: searchOptions.boostFolder,
-                          weight: searchOptions.boostWeight ?? 1,
-                        }
-                      : undefined,
-                });
-                if (current === searchVersion.current) setHits(results);
-              }, t('检索完成'));
-            else setHits(undefined);
-          }}
-        >
-          <Icon name="search" size={16} />
-          <input
-            aria-label={t('知识检索词')}
-            placeholder={t('搜索当前知识库…')}
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              searchVersion.current++;
-              setHits(undefined);
-            }}
-          />
-          <button
-            className="text-button"
-            type="submit"
-            disabled={!query.trim() && !searchOptions.queries.some((q: any) => q.text.trim())}
-          >
-            {t('检索')}
-          </button>
-        </form>
+        <KnowledgeQuery query={query} options={searchOptions} onChange={q=>{setQuery(q);searchVersion.current++;setHits(undefined);}}
+          onSearch={()=>void act(async()=>{
+            const current=++searchVersion.current;
+            const results=await searchKnowledge(query, searchOptions, scope, grouped);
+            if(current===searchVersion.current)setHits(results);
+          },t('检索完成'))} />
         {!fixedSelection && (
           <button
             className="secondary"

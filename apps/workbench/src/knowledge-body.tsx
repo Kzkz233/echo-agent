@@ -56,7 +56,7 @@ function ManagedAsset({ vaultId, hash, attachments, alt, autoLoad = true, start 
     </a>
   );
 }
-export default function KnowledgeBody({ document, onOpenEntry }: any) {
+export default function KnowledgeBody({ document, onOpenEntry, showOriginal = false }: any) {
   const [raw, setRaw] = useState(false),
     asset = (uri: string, alt?: string) => {
       const [hash, fragment] = uri.slice('echo-asset:'.length).split('#t=');
@@ -94,6 +94,7 @@ export default function KnowledgeBody({ document, onOpenEntry }: any) {
         <p className="preserve-lines">{document.evidence.node.text}</p>
         {document.evidence.parent?.text && <blockquote className="preserve-lines">{document.evidence.parent.text}</blockquote>}
       </details>}
+      {showOriginal && document.original && <details className="knowledge-attachments"><summary>{t('查看原件')}</summary><ManagedAsset key={document.original.hash} vaultId={document.vaultId} hash={document.original.hash} attachments={[document.original]} alt={document.original.name} autoLoad={false}/></details>}
       {document.attachments?.length > 0 && (
         <details className="knowledge-attachments">
           <summary>

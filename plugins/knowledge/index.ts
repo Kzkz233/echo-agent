@@ -129,42 +129,51 @@ export class Knowledge {
       semanticWeight?: number;
       directoryBoost?: { folder: string; weight: number };
       rerank?: boolean;
+      collectionScopes?: {vaultId:string; collectionId:string}[];
     } = {},
     reader?: ResourceReader,
   ) {
-    filter = await this.collectionScope(filter, signal);
     const strategy = filter.strategy ?? this.config().strategy;
-    let documents = filter.documentIds;
-    if (strategy === 'keyword') {
-      documents = [];
-      for (const vault of this.vaults().filter((v) => !filter.vaultId || v.id === filter.vaultId)) {
-        const db = await this.files.database(vault.id),
-          allowed = (
-            db.db.prepare('SELECT id,kind,logical_path,metadata FROM entries').all() as any[]
-          )
-            .filter(
-              (d) =>
-                !JSON.parse(d.metadata).sourceUnavailable &&
-                Boolean(JSON.parse(d.metadata).archived) === Boolean(filter.archived) &&
-                (!filter.documentIds || filter.documentIds.includes(d.id)) &&
-                (filter.kind === 'all' || d.kind === (filter.kind ?? 'knowledge')) &&
-                (!filter.folder ||
-                  (filter.folderExact
-                    ? (d.logical_path ?? '').split('/').slice(0, -1).join('/') === filter.folder
-                    : (d.logical_path ?? '').startsWith(filter.folder + '/'))),
+    const searchRecords = async (scope: KnowledgeScope) => {
+      const scoped = await this.collectionScope(scope, signal);
+      let documents = scoped.documentIds;
+      if (strategy === 'keyword') {
+        documents = [];
+        for (const vault of this.vaults().filter((v) => !scoped.vaultId || v.id === scoped.vaultId)) {
+          const db = await this.files.database(vault.id),
+            allowed = (
+              db.db.prepare('SELECT id,kind,logical_path,metadata FROM entries').all() as any[]
             )
-            .map((d) => d.id);
-        documents.push(
-          ...keywordCandidates(
-            db,
-            filter.queries?.length ? filter.queries.map((q) => q.text) : [query],
-            allowed,
-          ),
-        );
+              .filter(
+                (d) =>
+                  !JSON.parse(d.metadata).sourceUnavailable &&
+                  Boolean(JSON.parse(d.metadata).archived) === Boolean(scoped.archived) &&
+                  (!scoped.documentIds || scoped.documentIds.includes(d.id)) &&
+                  (scoped.kind === 'all' || d.kind === (scoped.kind ?? 'knowledge')) &&
+                  (!scoped.folder ||
+                    (scoped.folderExact
+                      ? (d.logical_path ?? '').split('/').slice(0, -1).join('/') === scoped.folder
+                      : (d.logical_path ?? '').startsWith(scoped.folder + '/'))),
+              )
+              .map((d) => d.id);
+          documents.push(
+            ...keywordCandidates(
+              db,
+              filter.queries?.length ? filter.queries.map((q) => q.text) : [query],
+              allowed,
+            ),
+          );
+        }
       }
-    }
-    const records = await this.records({ ...filter, documentIds: documents }, reader),
-      lookup = new Map(records.map((r) => [r.id, r]));
+      return this.records({ ...scoped, documentIds: documents }, reader);
+    };
+    const scopes = filter.collectionScopes;
+    invariant(!scopes || !(filter.vaultId || filter.collectionId || filter.documentIds || filter.folder), 'knowledge_collection_scope', '请选择单一检索范围');
+    const candidates = scopes
+      ? (await Promise.all(scopes.map(s => searchRecords({ ...s, kind: filter.kind, archived: filter.archived })))).flat()
+      : await searchRecords(filter);
+    const lookup = new Map(candidates.map(r => [r.id, r]));
+    const records = [...lookup.values()];
     if (!records.length) return [];
     const hits = await this.retrieval.search(
       'knowledge',
@@ -390,14 +399,15 @@ export class Knowledge {
     requestId: string,
     parserProvider?: string,
     targetFolder?: string,
+    writer?: string,
   ) {
     return this.enqueue(async () => {
-      this.files.assertWrite(vaultId);
+      this.files.assertWrite(vaultId, writer);
       const folder = targetFolder === undefined ? undefined : logicalEntryPath(targetFolder);
       const prior = this.priorRequest(requestId, vaultId, source, folder, parserProvider);
       if (prior) return prior;
       const original = await this.files.import(vaultId, source);
-      return this.createImport(original, requestId, parserProvider, folder, source);
+      return this.createImport(original, requestId, parserProvider, folder, source, undefined, undefined, writer);
     });
   }
   reparse(v: {
@@ -443,6 +453,7 @@ export class Knowledge {
     requestedSource: string,
     document?: any,
     frozenPlan?: import('../../packages/contracts/parsing.ts').ParsePlan,
+    writer?: string,
   ) {
     const catalog = await this.files.parsers.list();
     const parser = parserProvider
@@ -486,6 +497,7 @@ export class Knowledge {
       id: requestId,
       vaultId: original.vaultId,
       requestedSource,
+      writer,
       original,
       documentId: existing?.id ?? randomUUID(),
       revision: existing?.revision ?? 0,
@@ -581,6 +593,7 @@ export class Knowledge {
               ? undefined
               : [job.folder, job.documentId + '.md'].filter(Boolean).join('/'),
         },
+        job.writer,
       );
       job = {
         ...job,
@@ -826,6 +839,7 @@ export class Knowledge {
           input: z.object({
             query: z.string().min(1).max(10000),
             ...searchScope.shape,
+            collectionScopes: z.array(z.object({vaultId:id, collectionId:id})).min(1).max(128).optional(),
             strategy: z.enum(['keyword', 'semantic', 'hybrid']).optional(),
             queries: z
               .array(

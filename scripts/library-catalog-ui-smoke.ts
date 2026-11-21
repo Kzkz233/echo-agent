@@ -41,14 +41,24 @@ await app.registry.call(
 );
 app.store.set('zotero.config', { serverId: 'fixture', secretRef: 'fixture' });
 await app.secrets.set('fixture', 'isolated-test-only');
-const linked = await app.knowledge.save('local','Fixture knowledge entry','Preserved original text.');
-app.store.put('zotero-references','fixture-link',{
-  serverId:'fixture',itemKey:'REFBBBBB',vaultId:'local',documentId:linked.id,sha256:'a'.repeat(64),
+const linked = await app.knowledge.save(
+  'local',
+  'Fixture knowledge entry',
+  'Preserved original text.',
+);
+app.store.put('zotero-references', 'fixture-link', {
+  serverId: 'fixture',
+  itemKey: 'REFBBBBB',
+  vaultId: 'local',
+  documentId: linked.id,
+  sha256: 'a'.repeat(64),
 });
 const network = globalThis.fetch;
+let zoteroOnline = true;
 globalThis.fetch = async (input, init) => {
   const url = new URL(String(input));
   if (url.origin !== 'http://127.0.0.1:23119') return network(input, init);
+  if (!zoteroOnline) throw new TypeError('Zotero closed for the offline fixture');
   assert.equal(init?.method ?? 'GET', 'GET');
   const record = (key: string, data: object) => ({ key, version: 1, data });
   if (url.pathname.endsWith('/collections'))
@@ -87,14 +97,42 @@ try {
   const catalog = page.locator('[data-plugin-page="zotero.library"]');
   await catalog.getByRole('cell', { name: 'Example short comment' }).waitFor();
   await catalog.getByRole('cell', { name: 'example.pdf' }).waitFor();
-  await catalog.getByRole('button',{name:'First paper'}).click();
-  await catalog.getByRole('button',{name:'打开知识条目'}).click();
-  await catalog.getByText('Preserved original text.',{exact:true}).waitFor();
-  assert(await tabs.getByRole('tab',{name:'文献库',selected:true}).isVisible());
+  await catalog.getByRole('button', { name: 'First paper' }).click();
+  await catalog.getByText('Preserved original text.', { exact: true }).waitFor();
+  zoteroOnline = false;
+  await catalog.getByRole('button', { name: '刷新', exact: true }).click();
+  await catalog.getByText(/无法连接本机 Zotero/).waitFor();
+  assert(await catalog.getByText('Preserved original text.', { exact: true }).isVisible());
+  assert(await tabs.getByRole('tab', { name: '文献库', selected: true }).isVisible());
   await catalog.getByRole('button', { name: 'Lab group' }).click();
   await catalog.getByRole('button', { name: 'First paper' }).waitFor();
   await catalog.getByRole('button', { name: 'Second paper' }).waitFor({ state: 'hidden' });
   await catalog.getByRole('button', { name: 'First paper' }).waitFor();
+  await catalog.getByRole('button', { name: '正文', exact: true }).click();
+  await tabs.getByRole('tab', { name: '文献库', selected: true }).waitFor();
+  await catalog
+    .getByRole('treeitem', { selected: true })
+    .filter({ hasText: 'Lab group' })
+    .waitFor();
+  await catalog.getByRole('button', { name: 'First paper' }).click();
+  await catalog
+    .locator('.document-reader')
+    .getByText('Preserved original text.', { exact: true })
+    .waitFor();
+  await catalog.getByRole('button', { name: '高级搜索' }).click();
+  await catalog.getByRole('combobox', { name: '检索策略' }).selectOption('keyword');
+  await catalog.getByRole('textbox', { name: '知识检索词' }).fill('Preserved');
+  await catalog.getByRole('button', { name: '检索', exact: true }).click();
+  await catalog.getByRole('button', { name: /Fixture knowledge entry/ }).click();
+  await catalog
+    .locator('.document-reader')
+    .getByText('Preserved original text.', { exact: true })
+    .waitFor();
+  await catalog.getByRole('button', { name: '题录', exact: true }).click();
+  await catalog
+    .getByRole('treeitem', { selected: true })
+    .filter({ hasText: 'Lab group' })
+    .waitFor();
   await page.setViewportSize({ width: 900, height: 780 });
   await catalog.getByRole('combobox', { name: '知识分组' }).selectOption('');
   await catalog.getByRole('button', { name: 'Second paper' }).waitFor();

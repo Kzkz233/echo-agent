@@ -8,6 +8,7 @@ import { t, currentAppearance, usePreferences } from './i18n.ts';
 
 export function PluginPage({
   page,
+  data,
   personaId,
   act,
   popout,
@@ -15,14 +16,15 @@ export function PluginPage({
   embedded = false,
 }: {
   page: FrontendPageEntry;
+  data: any;
   personaId?: string;
   navigate?: (page: string, selected?: string, selection?: any) => void;
   act: (fn: () => Promise<any>, message?: string) => Promise<any>;
   popout?: () => void;
   embedded?: boolean;
 }) {
-  if (page.view.type === 'catalog') return <LibraryCatalog page={page} view={page.view} navigate={navigate} />;
-  return <ExtensionContent {...{page, personaId, act, popout, navigate, embedded}} />;
+  if (page.view.type === 'catalog') return <LibraryCatalog data={data} perform={act} page={page} view={page.view} navigate={navigate} />;
+  return <ExtensionContent {...{page, data, personaId, act, popout, navigate, embedded}} />;
 }
 
 function ExtensionContent({page,personaId,act,popout,navigate,embedded}: Parameters<typeof PluginPage>[0]) {
