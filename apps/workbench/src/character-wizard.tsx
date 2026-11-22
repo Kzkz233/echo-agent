@@ -186,8 +186,7 @@ export function CharacterWizard({
         catalog.features.some(
           (feature: any) =>
             draft.features.includes(feature.id) && feature.taskTypes?.includes(v.id),
-        )) &&
-      v.canRemove,
+        )),
   );
   const toggleFeature = (id: string, enabled: boolean) => {
     const selected = new Set(draft.features);
@@ -582,7 +581,7 @@ export function CharacterWizard({
           </label>
           <div className="task-type-grid">
             {availableTasks
-              .filter((v: any) => t(v.name).toLowerCase().includes(taskSearch.toLowerCase()))
+              .filter((v: any) => v.canRemove && t(v.name).toLowerCase().includes(taskSearch.toLowerCase()))
               .map((type: any) => (
                 <button
                   type="button"
@@ -740,7 +739,7 @@ export function CharacterWizard({
               {taskPreview && <pre className="readable-pre">{taskPreview}</pre>}
             </section>
           )}
-          <Button
+          {type.canRemove && <Button
             secondary
             onClick={() => {
               removals.current.add(taskKey(task));
@@ -749,7 +748,7 @@ export function CharacterWizard({
             }}
           >
             {t('移除任务')}
-          </Button>
+          </Button>}
         </div>
       )}
     </>

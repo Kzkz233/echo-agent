@@ -222,9 +222,10 @@ test('Pi separates file permissions from approved or explicitly granted Echo mut
   assert.deepEqual(writes, ['write', 'write', 'write']);
 });
 
-test('Pi retains transport causes and never silently retries a submitted HTTP request', async (t) => {
+test('Pi retains transport causes and reports each bounded retry when a socket closes before output', { timeout: 60000 }, async (t) => {
   const app = await setup(t, []);
   let calls = 0;
+  const retryItems: string[] = [];
   const server = createServer((request) => {
     calls++;
     request.socket.destroy();
@@ -250,11 +251,13 @@ test('Pi retains transport causes and never silently retries a submitted HTTP re
       }),
       messages: [{ role: 'user', text: 'Synthetic' }],
       requestId: 'transport',
-      signal: AbortSignal.timeout(5000),
+      onItem: item => { if (item.id.startsWith('model-retry-')) retryItems.push(item.id); },
+      signal: AbortSignal.timeout(50000),
     }),
     (error: any) => !error.uncertain && /UND_ERR_SOCKET|ECONNRESET/.test(error.message),
   );
-  assert.equal(calls, 1);
+  assert.equal(calls, 6);
+  assert.equal(new Set(retryItems).size, 5);
 });
 
 test('Pi compatible APIs use max_tokens without OpenAI storage parameters and allow an explicit wire override', async (t) => {

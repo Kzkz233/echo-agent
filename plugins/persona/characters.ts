@@ -566,7 +566,7 @@ export class Characters {
       tasks,
     });
   }
-  async importPackage(raw: unknown) {
+  async importPackage(raw: unknown, personaId: string = randomUUID()) {
     const pack = characterPackage.parse(raw),
       catalog = await this.catalog(),
       features = pack.features
@@ -582,7 +582,7 @@ export class Characters {
     if (missing.length)
       return {
         missing,
-        draft: characterDraft.parse({ persona: { ...pack.persona, id: randomUUID() } }),
+        draft: characterDraft.parse({ persona: { ...pack.persona, id: personaId } }),
       };
     const assetConfigurations: Record<string, Record<string, unknown>> = {};
     for (const feature of features)
@@ -594,7 +594,7 @@ export class Characters {
           })) as any
         ).value;
     const draft = characterDraft.parse({
-      persona: { ...pack.persona, id: randomUUID() },
+      persona: { ...pack.persona, id: personaId },
       features: features.map((f) => f.id),
       configurations: Object.fromEntries(
         features.map((f) => {
@@ -621,7 +621,7 @@ export class Characters {
         return {
           ...t,
           templateId: t.id,
-          id: randomUUID(),
+          id: type?.instanceKey === 'personaId' ? personaId : randomUUID(),
           settings: { ...type?.defaults, ...t.settings, enabled: false },
         };
       }),
@@ -644,7 +644,7 @@ export class Characters {
   }
   async updatePackage(personaId: string, raw: unknown) {
     const current = await this.read(personaId),
-      next = await this.importPackage(raw);
+      next = await this.importPackage(raw, personaId);
     if (next.missing.length) return { missing: next.missing, draft: current };
     invariant(
       current.package?.id === next.draft.package?.id,
@@ -681,7 +681,7 @@ export class Characters {
     const tasks = [...current.tasks];
     for (const task of next.draft.tasks) {
       const index = tasks.findIndex(
-        (t) => t.templateId === task.templateId && t.type === task.type,
+        (t) => t.type === task.type && (t.templateId === task.templateId || t.id === task.id),
       );
       if (index < 0) tasks.push(task);
       else

@@ -6,6 +6,7 @@ import { rpc } from './client.ts';
 import { localDay, localTime } from '../../../packages/kernel/time.ts';
 import { agendaOccursOn } from '../../../plugins/agenda/range.ts';
 import { useConfirm } from './ui.tsx';
+import { OutputTargetsField } from './output-targets.tsx';
 import { AgendaFields, startAgendaDrag, useAgendaMove } from './agenda-interactions.tsx';
 const dateInput = (s: string | undefined, timezone: string) =>
   s
@@ -29,6 +30,20 @@ export function AgendaCalendar({ data, act }: any) {
     [form, setForm] = useState<any>({}),
     [editing, setEditing] = useState(false),
     [busy, setBusy] = useState(false);
+  const [reminderDefaults, setReminderDefaults] = useState<{conversationId:string; personaId:string; outputTargets:string[]}>();
+  const [reminderIssue, setReminderIssue] = useState('');
+  const reminderOwner = form.personaId || 'companion';
+  useEffect(() => {
+    let active = true;
+    setReminderDefaults(undefined);
+    setReminderIssue('');
+    if (editing && form.reminder?.enabled) {
+      void rpc('agenda.reminderDefaults', { personaId:reminderOwner, conversationId:form.conversationId || undefined })
+        .then(result => { if (active) setReminderDefaults(result); })
+        .catch(error => { if (active) setReminderIssue(error.message); });
+    }
+    return () => { active = false; };
+  }, [editing, form.reminder?.enabled, reminderOwner, form.conversationId]);
   const timezone =
     data.pluginSettings.agenda?.timezone ??
     data.clock?.timezone ??
@@ -44,6 +59,17 @@ export function AgendaCalendar({ data, act }: any) {
     setFields(fields);
   };
   const movement = useAgendaMove(act, load);
+  useEffect(() => {
+    const queued = new Set(reminders.filter(row => row.state === 'queued').map(row => row.outputId));
+    if (!queued.size) return;
+    let active = true;
+    const listener = (event:any) => {
+      if (event.detail.type === 'output.changed' && queued.has(event.detail.data?.outputId))
+        void rpc('agenda.reminders').then(rows => { if (active) setReminders(rows); }).catch(() => {});
+    };
+    window.addEventListener('echo-event', listener);
+    return () => { active = false; window.removeEventListener('echo-event', listener); };
+  }, [reminders]);
   useEffect(() => {
     void load();
     const cb = (e: any) => {
@@ -70,7 +96,13 @@ export function AgendaCalendar({ data, act }: any) {
   };
   const set = (key: string, value: any) => setForm((f: any) => ({ ...f, [key]: value }));
   const begin = (day?: string) => {
+    const roles = (data.characters ?? []).filter((role:any) => role.features?.includes('agenda'));
+    const active = roles.filter((role:any) => data.characterActivities?.[role.id]?.enabled !== false);
+    const defaultConversation = data.pluginSettings.agenda?.conversationId;
+    const role = defaultConversation ? roles.find((role:any) => role.mainConversationId === defaultConversation) :
+      active.length === 1 ? active[0] : undefined;
     setForm({
+      personaId: role?.id,
       date: day,
       allDay: !!day,
       priority: 'normal',
@@ -254,6 +286,19 @@ export function AgendaCalendar({ data, act }: any) {
                 />
               </label>
               {form.reminder?.enabled && (
+                <>
+                <label className="field">
+                  <span>{t('提醒角色')}</span>
+                  <select aria-label={t('提醒角色')} value={form.personaId || 'companion'} onChange={e =>
+                    setForm({ ...form, personaId:e.target.value, conversationId:undefined,
+                      reminder:{ ...form.reminder, outputTargets:undefined } })}>
+                    {(!data.characters.some((role:any) => role.id === 'companion' && role.features?.includes('agenda'))) &&
+                      <option value="companion">{t('沿用日程默认绑定')}</option>}
+                    {data.characters.filter((role:any) => role.features?.includes('agenda') || role.id === form.personaId)
+                      .map((role:any) => <option key={role.id} value={role.id}>
+                        {data.personas.find((p:any) => p.id === role.id)?.name ?? role.id}</option>)}
+                  </select>
+                </label>
                 <label className="field">
                   <span>
                     {t('Minutes before (all-day entries use the configured reminder hour)')}
@@ -268,6 +313,19 @@ export function AgendaCalendar({ data, act }: any) {
                     }
                   />
                 </label>
+                {reminderIssue && <p role="alert">{reminderIssue}</p>}
+                {reminderDefaults?.conversationId && <>
+                  <label className="inline-toggle"><input type="checkbox" checked={form.reminder.outputTargets === undefined}
+                    onChange={e => set('reminder', { ...form.reminder,
+                      outputTargets:e.target.checked ? undefined : reminderDefaults.outputTargets })} />
+                    {t('使用角色的提醒渠道')}
+                  </label>
+                  {form.reminder.outputTargets !== undefined && <OutputTargetsField
+                    value={form.reminder.outputTargets} personaId={reminderDefaults.personaId}
+                    conversationId={reminderDefaults.conversationId} source="agenda"
+                    onChange={(outputTargets:string[]) => set('reminder', { ...form.reminder, outputTargets })} />}
+                </>}
+                </>
               )}
               <details className="setup-capability"><summary>{t('更多设置')}</summary>
               {(['priority', 'state'] as const).map((key) => (
@@ -300,10 +358,11 @@ export function AgendaCalendar({ data, act }: any) {
                 <span>{t('Conversation (optional)')}</span>
                 <select
                   value={form.conversationId ?? ''}
-                  onChange={(e) => set('conversationId', e.target.value)}
+                  onChange={(e) => setForm({ ...form, conversationId:e.target.value || undefined,
+                    reminder:{ ...form.reminder, outputTargets:undefined } })}
                 >
                   <option value="">{t('No per-entry binding')}</option>
-                  {data.conversations.map((c: any) => (
+                  {data.conversations.filter((c:any) => reminderOwner === 'companion' || c.personaId === reminderOwner || c.id === form.conversationId).map((c: any) => (
                     <option key={c.id} value={c.id}>
                       {c.title}
                     </option>
@@ -393,14 +452,9 @@ export function AgendaCalendar({ data, act }: any) {
               <div key={r.id}>
                 <b>{r.title}</b>
                 <small> · {statusText(r.state)}</small>
+                {r.deliveries?.map((delivery:any) => <small key={delivery.targetId} className="muted"> · {t(delivery.label)} · {statusText(delivery.state)}</small>)}
               </div>
             ))}
-          <p className="muted">
-            {' '}
-            {t(
-              '提醒不调用模型。Notifications 可增强收件箱和已绑定会话展示；缺少它时提醒仍保存在此处。',
-            )}{' '}
-          </p>
         </div>
       </div>
     </>

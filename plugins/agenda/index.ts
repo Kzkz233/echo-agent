@@ -1,4 +1,8 @@
-import { characterFeature } from '../../packages/kernel/characters.ts';
+import { contributeAutomation } from '../../packages/kernel/automation.ts';
+import { contributeSignal } from '../../packages/kernel/trigger-actions.ts';
+import { decideOccurrence, missedFields, missedPolicy, recordOccurrence, shiftDay } from '../../packages/kernel/schedule-policy.ts';
+import { outputTargets } from '../../packages/contracts/delivery.ts';
+import { characterEnabled, characterFeature } from '../../packages/kernel/characters.ts';
 import manifest from './echo-plugin.json' with { type: 'json' };
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -8,6 +12,7 @@ import { Store } from '../../packages/kernel/store.ts';
 import { Events } from '../../packages/kernel/events.ts';
 import { Clock } from '../../packages/kernel/clock.ts';
 import { MaterialSources } from '../../packages/kernel/materials.ts';
+import type { Deliveries } from '../../packages/kernel/delivery.ts';
 import { localDay, localTime, configuredTimezone } from '../../packages/kernel/time.ts';
 import { operations } from '../shared.ts';
 import { agendaImport, importAgenda } from './import.ts';
@@ -21,6 +26,18 @@ import {
   agendaField,
   rescheduleInput,
 } from './contracts.ts';
+const remindersType = 'agenda.reminders';
+function deliveryState(rows: {state: string}[]) {
+  if (!rows.length) return 'recorded';
+  if (rows.every(row => row.state === 'delivered')) return 'delivered';
+  if (rows.some(row => ['failed', 'unknown', 'skipped', 'closed'].includes(row.state))) return 'attention';
+  return 'queued';
+}
+const reminderSettings = z.object({
+  name: z.string().trim().min(1).max(160).default('日程提醒'),
+  enabled: z.boolean().default(true), missedPolicy: missedPolicy.default('valid'),
+  outputTargets: outputTargets.optional(),
+});
 export class Agenda {
   private ctx?: PluginContext;
   private cancel?: () => void;
@@ -29,6 +46,7 @@ export class Agenda {
     readonly events: Events,
     readonly materials: MaterialSources,
     readonly clock: Clock,
+    readonly deliveries: Pick<Deliveries, 'receiptSummary'>,
   ) {}
   config() {
     return {
@@ -88,6 +106,10 @@ export class Agenda {
       'missing_conversation',
       '绑定会话不存在',
     );
+    invariant(!v.conversationId || v.personaId === 'companion' ||
+      this.store.conversation(v.conversationId)?.personaId === v.personaId ||
+      (old?.personaId === v.personaId && old.conversationId === v.conversationId),
+      'agenda_owner', '请选择日程所属角色的会话。');
     invariant(
       Buffer.byteLength(JSON.stringify(v.extensions)) <= 32768,
       'agenda_metadata',
@@ -235,6 +257,21 @@ export class Agenda {
       return this.store.document('agenda-changes', input.requestId);
     });
   }
+  private reminderSettings(personaId: string) {
+    return reminderSettings.parse(this.store.document('agenda-reminder-settings', personaId) ?? {});
+  }
+  private reminderContext(item: Pick<AgendaItem, 'personaId' | 'conversationId'>) {
+    const cfg = this.config();
+    const role = this.store.document<{mainConversationId: string}>('characters', item.personaId);
+    const fallback = cfg.conversationId && this.store.conversation(cfg.conversationId);
+    const conversationId = item.conversationId || role?.mainConversationId ||
+      (fallback && (fallback.personaId === item.personaId || item.personaId === 'companion') ? cfg.conversationId : '');
+    const personaId = this.store.conversation(conversationId)?.personaId ?? item.personaId;
+    const settings = this.reminderSettings(personaId);
+    const defaults = settings.outputTargets ?? (conversationId && (item.conversationId || cfg.conversationId === conversationId)
+      ? ['notifications.inbox', 'avatar.bubble'] : ['notifications.inbox']);
+    return { conversationId, personaId, settings, defaults };
+  }
   private schedule(item: AgendaItem) {
     if (!item.reminder.enabled || item.state !== 'open') return;
     const cfg = this.config(),
@@ -246,11 +283,15 @@ export class Agenda {
             : NaN) -
         item.reminder.minutesBefore * 60000;
     if (!Number.isFinite(at)) return;
-    const conversationId = item.conversationId || cfg.conversationId || '';
+    const context = this.reminderContext(item);
+    const expires = item.date ? localTime(shiftDay(item.dateEnd ?? item.date, 1), 0, 0, cfg.timezone) - 1 :
+      item.end ? Date.parse(item.end) : Date.parse(item.start!) + 3600000;
     const key = createHash('sha256')
-      .update(JSON.stringify([item.id, at, conversationId]))
+      .update(JSON.stringify([item.id, at]))
       .digest('hex');
-    return { at, id: key, conversationId };
+    // A previous version used the configured conversation (including an empty one) in its receipt key.
+    const oldKey = createHash('sha256').update(JSON.stringify([item.id, at, item.conversationId || cfg.conversationId || ''])).digest('hex');
+    return { at, expires, id: key, oldKey, itemId:item.id, ...context };
   }
   private arm() {
     this.cancel?.();
@@ -258,10 +299,16 @@ export class Agenda {
     if (!this.ctx) return;
     const due = this.items().flatMap((item) => {
       const s = this.schedule(item);
-      return s && !this.store.document('agenda-reminders', s.id) ? [s.at] : [];
+      return s && !this.reminded(s) ? [s.at] : [];
     });
     if (due.length)
       this.cancel = this.clock.at('agenda.reminders', Math.min(...due), () => this.tick());
+  }
+  private reminded(s: {id:string; oldKey:string; itemId:string; at:number}) {
+    return this.store.document('agenda-reminders', s.id) ||
+      this.store.document('agenda-reminders', s.oldKey) ||
+      this.store.db.prepare("SELECT 1 FROM documents WHERE namespace='agenda-reminders' AND json_extract(data,'$.itemId')=? AND json_extract(data,'$.scheduledAt')=? LIMIT 1")
+        .get(s.itemId, new Date(s.at).toISOString());
   }
   async tick(now = Date.now()) {
     if (!this.ctx) return;
@@ -269,7 +316,10 @@ export class Agenda {
     for (const item of this.items()) {
       if (ctx.signal.aborted) return;
       const s = this.schedule(item);
-      if (!s || s.at > now || this.store.document('agenda-reminders', s.id)) continue;
+      if (!s || s.at > now || this.reminded(s)) continue;
+      const settings = s.settings;
+      const decision = decideOccurrence(s.at, s.at, now, settings.missedPolicy, s.expires);
+      const active = settings.enabled && characterEnabled(this.store, s.personaId, 'agenda');
       const notice = {
         id: s.id,
         itemId: item.id,
@@ -278,11 +328,31 @@ export class Agenda {
         text: item.notes || item.title,
         scheduledAt: new Date(s.at).toISOString(),
         createdAt: new Date().toISOString(),
-        state: now - s.at > 86400000 ? 'missed' : 'recorded',
+        state: !active || decision.outcome === 'skipped' ? 'missed' : 'recorded',
       };
-      this.store.put('agenda-reminders', s.id, notice);
+      this.store.transaction(() => {
+        this.store.put('agenda-reminders', s.id, notice);
+        if (active) recordOccurrence(this.store, remindersType, s.personaId, s.personaId, decision, item.id);
+      });
       this.events.emit('agenda.reminder', notice);
       if (notice.state === 'missed') continue;
+      if (s.conversationId) {
+        const selected = item.reminder.outputTargets ?? s.defaults;
+        try {
+          const result = await ctx.registry.call('automation.dispatch', {
+            action: 'notice', kind: 'agenda.reminder', requestId: s.id,
+            title: item.title, text: this.reminderText(item), conversationId: s.conversationId,
+            outputTargets: selected, task: { type: remindersType, id: s.personaId },
+          }, { kind: 'internal', permissions: new Set(['automation.dispatch']) }, ctx.signal);
+          const rows: {state:string}[] = result.deliveries ?? [];
+          const state = deliveryState(rows);
+          this.store.put('agenda-reminders', s.id, { ...notice, state, outputId: result.outputId });
+        } catch (error) {
+          this.store.put('agenda-reminders', s.id, { ...notice, state: 'unknown', error: String(error).slice(0, 500) });
+        }
+        this.events.emit('agenda.reminder', { id: s.id });
+        continue;
+      }
       const provider = ctx.capabilities
         .list('agenda.reminders@1')
         .find((p) => p.state === 'active' && p.id === 'notifications.agenda');
@@ -302,6 +372,11 @@ export class Agenda {
     }
     this.arm();
   }
+  private reminderText(item: AgendaItem) {
+    const time = item.date ? item.date + (item.dateEnd && item.dateEnd !== item.date ? ' – ' + item.dateEnd : '') :
+      new Intl.DateTimeFormat('zh-CN', { timeZone: this.config().timezone, dateStyle: 'short', timeStyle: 'short' }).format(Date.parse(item.start!));
+    return [time + ' · ' + item.title, item.notes].filter(Boolean).join('\n');
+  }
   plugin(): Plugin {
     return {
       api: { version: 1, value: this },
@@ -314,7 +389,7 @@ export class Agenda {
           .filter((item) => item.conversationId === id)
           .map((item) => ({ label: item.title, page: 'agenda', role: 'report' as const })),
       ],
-      character: characterFeature(this.store, 'agenda', z.object({}), [], []),
+      character: characterFeature(this.store, 'agenda', z.object({}), [], [remindersType]),
       config: {
         schema: z.object({
           allDayReminderHour: z.number().int().min(0).max(23).default(9),
@@ -322,6 +397,28 @@ export class Agenda {
         }),
       },
       activate: (ctx) => {
+        this.store.db.exec("CREATE INDEX IF NOT EXISTS agenda_reminder_occurrence ON documents(json_extract(data,'$.itemId'),json_extract(data,'$.scheduledAt')) WHERE namespace='agenda-reminders'");
+        contributeSignal(ctx, 'agenda.reminder', '日程提醒', 'notice');
+        contributeAutomation(ctx, remindersType, '日程提醒', {
+          describe: () => ({ scope: 'character', instanceKey: 'personaId', defaults: { enabled: true, missedPolicy: 'valid' },
+            fields: [...missedFields(false), {key:'outputTargets',label:'提醒渠道',kind:'outputs',outputSource:'agenda'}] }),
+          items: () => this.store.documents<{id:string;features:string[];mainConversationId:string}>('characters')
+            .filter(role => role.features.includes('agenda')).map(role => {
+              const config = this.reminderSettings(role.id);
+              return { id:role.id, personaId:role.id, name:config.name, enabled:config.enabled,
+                state:config.enabled ? 'waiting' : 'paused',
+                settings:{...config, personaId:role.id, conversationId:role.mainConversationId,
+                  outputTargets: this.reminderContext({personaId:role.id}).defaults} };
+            }),
+          save: (roleId, settings, actor) => {
+            invariant(this.store.document('characters', roleId) && settings.personaId === roleId && (!actor || actor.personaId === roleId),
+              'task_owner', '请选择日程所属角色。');
+            const config = reminderSettings.parse(settings);
+            this.store.put('agenda-reminder-settings', roleId, config);
+            this.arm();
+            this.events.emit('automation.changed', {owner:'agenda'});
+          },
+        });
         ctx.capabilities.define({
           id: 'agenda.fields@1',
           description: '日程编辑器的可选字段及保存校验',
@@ -354,6 +451,11 @@ export class Agenda {
           this.cancel?.();
         });
         const op = operations(ctx, 'agenda');
+        op('reminderDefaults', '读取此日程所属角色的提醒渠道', z.object({ personaId:id, conversationId:id.optional() }),
+          'agenda.read', v => {
+            const {personaId, conversationId, defaults} = this.reminderContext(v);
+            return { personaId, conversationId, outputTargets: defaults };
+          }, false);
         op(
           'import',
           '预览或导入外部日程，保留已有记录并禁用历史提醒',
@@ -469,7 +571,14 @@ export class Agenda {
           'Create or update a calendar entry',
           agendaItemSchema,
           'agenda.write',
-          async (v, s) => {
+          async (v, s, caller) => {
+            if (caller.personaId) {
+              const old = v.id && this.store.document<AgendaItem>('agenda', v.id);
+              invariant((!old || old.personaId === caller.personaId) &&
+                (!v.conversationId || this.store.conversation(v.conversationId)?.personaId === caller.personaId),
+                'agenda_owner', '请选择当前角色的日程和渠道。');
+              v = { ...v, personaId: caller.personaId };
+            }
             await this.validateFields(v, s);
             s.throwIfAborted();
             return this.save(v);
@@ -498,7 +607,11 @@ export class Agenda {
           });
         });
         op('reminders', 'Read reminder history', z.object({ before: id.optional(), limit: z.number().int().min(1).max(300).default(300) }), 'agenda.read', (v) =>
-          this.store.documentHistory('agenda-reminders', 'createdAt', v.limit, v.before),
+          this.store.documentHistory<{id:string; outputId?:string}>('agenda-reminders', 'createdAt', v.limit, v.before).map(notice => {
+            if (!notice.outputId) return notice;
+            const receipts = this.deliveries.receiptSummary(notice.outputId);
+            return { ...notice, state: deliveryState(receipts), deliveries: receipts };
+          }),
         );
         op(
           'parse',

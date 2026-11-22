@@ -1,4 +1,5 @@
 import type { Deliveries } from '../../packages/kernel/delivery.ts';
+import { decideOccurrence, latestDaily, missedFields, missedPolicy, recordOccurrence, validMinutes } from '../../packages/kernel/schedule-policy.ts';
 import { describeFailure } from '../../packages/kernel/task-failure.ts';
 import { contributeJobs } from '../../packages/kernel/jobs.ts';
 import { outputTargets, type DeliveryPlan } from '../../packages/contracts/delivery.ts';
@@ -65,6 +66,7 @@ const reviewSettings = reviewConfigSchema.extend({
     .refine((value) => value === 0 || value >= 64).default(0),
 });
 const taskSchema = reviewConfigSchema.extend({
+  missedPolicy: missedPolicy.default('once'), validMinutes,
   scope: z.enum(['incremental', 'maintenance']).default('incremental'),
   maintenanceBatchSize: z.number().int().min(1).max(100).default(20),
   runtimeVersion: z.number().int().default(2),
@@ -193,6 +195,7 @@ export function packets(materials: Material[], maxChars: number) {
 export class Reviews {
   private ctx?: PluginContext;
   private active = new Set<string>();
+  private checking = new Set<string>();
   private applyQueue: Promise<unknown> = Promise.resolve();
   private work = new Set<Promise<void>>();
   private controller = new AbortController();
@@ -421,6 +424,9 @@ export class Reviews {
     new Intl.DateTimeFormat('en', { timeZone: task.timezone });
     if (!tasks.some((other) => other.id === taskId))
       this.store.set('review.taskCursors.' + taskId, true);
+    if (!previousTask || previousTask.enabled !== task.enabled || previousTask.mode !== task.mode ||
+        previousTask.hour !== task.hour || previousTask.minute !== task.minute || previousTask.timezone !== task.timezone)
+      this.store.set('review.nextSlot.' + taskId, nextDaily(new Date(), task.hour, task.minute, task.timezone));
     this.setTasks([...tasks.filter((other) => other.id !== taskId), task]);
     this.publishRetention(task.personaId);
   }
@@ -1377,7 +1383,8 @@ export class Reviews {
   }
   async tick(now = new Date()) {
     for (const policy of this.tasks()) {
-      if (!policy.enabled || !characterEnabled(this.store, policy.personaId, 'review')) continue;
+      if (!policy.enabled || this.checking.has(policy.id) || !characterEnabled(this.store, policy.personaId, 'review')) continue;
+      this.checking.add(policy.id);
       try {
         await this.tickTask(policy, now);
         this.store.set('review.taskIssue.' + policy.id, null);
@@ -1387,13 +1394,15 @@ export class Reviews {
           message: String(error).slice(0, 500),
         });
         this.events.emit('automation.changed', { owner: 'review' });
+      } finally {
+        this.checking.delete(policy.id);
       }
     }
   }
   private async tickTask(policy: ReviewTask, now: Date) {
     const { personaId, timezone } = policy;
-    const day = localDay(now, timezone);
-    const scheduled = localTime(day, policy.hour, policy.minute, timezone);
+    const scheduled = latestDaily(now.getTime(), policy.hour, policy.minute, timezone);
+    const day = localDay(new Date(scheduled), timezone);
     const jobs = this.jobs().filter((job) => this.belongs(job, policy));
     const suspended = jobs.find(job => job.state === 'paused' && job.pausedByCharacter);
     if (suspended) { await this.execute(suspended.id); return; }
@@ -1412,17 +1421,27 @@ export class Reviews {
       if (now.getTime() >= at + original.fallbackMinutes * 60000) await this.report(existing, 'fallback');
     }
     if (jobs.some((job) => ['pending', 'running'].includes(job.state))) return;
-    if (policy.mode !== 'turns' && now.getTime() >= scheduled) {
-      await this.archive(policy);
+    const cursor = 'review.nextSlot.' + policy.id;
+    const first = this.store.get<number>(cursor, scheduled);
+    if (policy.mode !== 'turns' && first <= scheduled) {
+      const decision = decideOccurrence(first, scheduled, now.getTime(), policy.missedPolicy,
+        scheduled + policy.validMinutes * 60000);
       const key = 'daily-' + day;
-      if (!jobs.some((job) => job.key === key)) {
-        const before = new Date(now.getTime() + 1).toISOString();
-        const materials = this.unassigned(await this.collect(personaId, before, policy), policy);
-        if (materials.length) {
-          await this.triggerTask(policy, key, before, materials);
-          return;
+      if (!jobs.some(job => job.key === key)) {
+        if (decision.outcome === 'skipped') {
+          recordOccurrence(this.store, 'review.policies', policy.id, personaId, decision);
+        } else {
+          await this.archive(policy);
+          const before = new Date(now.getTime() + 1).toISOString();
+          const materials = this.unassigned(await this.collect(personaId, before, policy), policy);
+          if (materials.length) {
+            await this.triggerTask(policy, key, before, materials);
+            recordOccurrence(this.store, 'review.policies', policy.id, personaId, decision);
+          }
         }
       }
+      this.store.set(cursor, nextDaily(now, policy.hour, policy.minute, timezone));
+      if (decision.outcome !== 'skipped' && this.jobs().some(job => this.belongs(job, policy) && job.key === key)) return;
     }
     if (policy.mode !== 'daily') {
       const materials = this.unassigned(await this.collect(personaId, undefined, policy), policy);
@@ -1809,6 +1828,8 @@ export class Reviews {
         dispose(
           this.events.subscribe((e) => {
             if (e.type === 'character.activity.changed') {
+              if (e.data.enabled) for (const policy of this.tasks().filter(p => p.personaId === e.data.personaId))
+                this.store.set('review.nextSlot.' + policy.id, nextDaily(new Date(), policy.hour, policy.minute, policy.timezone));
               if (!e.data.enabled) for (const job of this.jobs().filter(job => job.personaId === e.data.personaId && job.state === 'completed')) {
                 for (const suffix of ['fallback', 'completed']) {
                   const key = `review-report.${job.id}.${suffix}`;
@@ -1884,7 +1905,7 @@ export class Reviews {
             const activeTargets = targets();
             return {
               defaults: {
-                ...reviewConfigSchema.parse({}),
+                ...reviewConfigSchema.parse({}), missedPolicy: 'once', validMinutes: 60,
                 outputTargets:['core.chat','notifications.inbox'],
                 report: true,
                 memoryOperations: ['add'],
@@ -2016,6 +2037,7 @@ export class Reviews {
                 { key: 'hour', label: '整理小时', kind: 'number', min: 0, max: 23 },
                 { key: 'minute', label: '整理分钟', kind: 'number', min: 0, max: 59 },
                 { key: 'timezone', portability: 'value', label: '时区', kind: 'text' },
+                ...missedFields(),
                 { key: 'rounds', label: '整理间隔（对话轮数）', kind: 'number', min: 2, max: 1000 },
                 {
                   key: 'packetChars', advanced: true,

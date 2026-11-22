@@ -167,7 +167,9 @@ export class TriggerActions {
         const conversation=this.router.store.conversation(input.conversationId);
         invariant(conversation,'missing_conversation','通知会话不存在。');
         const plan=input.delivery ?? await this.deliveries.plan(input.conversationId,type.noticeSource,input.outputTargets,{bubble:input.bubble,task:input.task,legacySources:[legacyNoticeSelector(input.kind,type.noticeSource),'notice']},signal);
-        await this.deliveries.publish({id:requestId,personaId:conversation.personaId,conversationId:conversation.id,title:input.title,text:input.text,plan},signal);
+        const receipts = await this.deliveries.publish({id:requestId,personaId:conversation.personaId,conversationId:conversation.id,title:input.title,text:input.text,plan},signal);
+        return { state: 'published' as const, outputId: requestId,
+          deliveries: receipts.map(row => ({ targetId: row.targetId, state: row.state })) };
       } else await this.scope.invoke('notifications.publish@1','notifications.inbox',{
         id:requestId,title:input.title,text:input.text,conversationId:input.conversationId,bubble:input.bubble,triggerKind:input.kind,
       },signal);

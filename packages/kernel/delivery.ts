@@ -322,6 +322,12 @@ export class Deliveries {
         ).map((row) => JSON.parse(row.data))
       : this.store.documents<Receipt>('output-deliveries');
   }
+  receiptSummary(outputId: string) {
+    const targets = this.store.document<OutputEnvelope>('outputs', outputId)?.plan.targets ?? [];
+    return this.rows(outputId).map(({targetId, state}) => ({
+      targetId, label: targets.find(target => target.id === targetId)?.label ?? targetId, state,
+    }));
+  }
   private states(states: string[], owner?: string): Receipt[] {
     return (
       this.store.db

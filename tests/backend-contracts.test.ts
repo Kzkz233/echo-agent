@@ -467,15 +467,16 @@ test('DSH keeps a query timeout unknown after request submission', async (t) => 
     (error) => error instanceof EchoError && error.uncertain,
   );
 });
-test('embedded pi completes a genuine tool loop against a local synthetic model', async (t) => {
+test('embedded pi completes a genuine tool loop against a local synthetic model', { timeout: 60000 }, async (t) => {
   const app = await setup(t);
-  let calls = 0, failSecond = false;
+  let calls = 0, failuresAfterTool = 0;
   const server = createServer(async (req, res) => {
     let body = '';
     for await (const part of req) body += part;
     const request = JSON.parse(body);
     calls++;
-    if (failSecond && calls === 2) {
+    if (calls > 1 && failuresAfterTool > 0) {
+      failuresAfterTool--;
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: { message: 'Synthetic upstream failure' } })); return;
     }
@@ -557,13 +558,24 @@ test('embedded pi completes a genuine tool loop against a local synthetic model'
   assert(Object.values(result.metrics?.context ?? {}).every((count) => count > 0));
   assert(result.metrics?.details?.some((item) => item.group === 'tools' && item.source === 'system_status'));
   assert(result.metrics?.details?.some((item) => item.group === 'turn' && item.source === 'execution'));
-  calls = 0; failSecond = true;
+  calls = 0; failuresAfterTool = 1;
+  const transcript: string[] = [];
+  const recovered = await new PiBackend(app.registry, async () => undefined).generate({ profile,
+    messages: [{ role: 'user', text: 'Check system status.' }], requestId: 'pi-recovered',
+    onTranscript: message => { transcript.push(message.role); return String(transcript.length); },
+    signal: new AbortController().signal });
+  assert.equal(recovered.text, result.text);
+  assert.deepEqual(recovered.metrics?.totalUsage, result.metrics?.totalUsage);
+  assert.equal(calls, 3);
+  assert.deepEqual(transcript, ['assistant', 'toolResult', 'assistant']);
+  calls = 0; failuresAfterTool = 6;
   await assert.rejects(new PiBackend(app.registry, async () => undefined).generate({ profile,
     messages: [{ role: 'user', text: 'Check system status.' }], requestId: 'pi-failure-usage',
     signal: new AbortController().signal }), (error: any) => {
       assert.deepEqual(error.metrics?.totalUsage, { input: 80, output: 7, cacheRead: 0, cacheWrite: 0 });
       return true;
     });
+  assert.equal(calls, 7);
 });
 
 test('pi can generate from an application signal without changing its author to human', async (t) => {

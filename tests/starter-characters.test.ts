@@ -36,7 +36,9 @@ test('starter studio creates two editable roles with licensed assets, inactive t
   for (const id of result.roles) {
     const role = await call('persona.character.read', { id });
     assert.equal(role.profileId, 'test');
-    assert.equal(role.tasks.length, 4);
+    const templates = role.tasks.filter((task: any) => task.type !== 'agenda.reminders');
+    assert.equal(templates.length, 4);
+    assert.equal(role.tasks.find((task:any) => task.type === 'agenda.reminders')?.id, id);
     assert(role.persona.prompt.length > 1000);
     for (const heading of [
       'Identity',
@@ -89,7 +91,7 @@ test('starter studio creates two editable roles with licensed assets, inactive t
       'notifications.inbox': false,
     });
     assert.equal((await call('chatstick.list', { personaId: id })).length, 3);
-    assert(role.tasks.every((task: any) => task.settings.enabled === false));
+    assert(templates.every((task: any) => task.settings.enabled === false));
     assert.equal(role.configurations.avatar.enabled, false);
     assert.equal(role.configurations.avatar.animationClips.speaking, 'waving');
     const manifest = JSON.parse(
@@ -106,6 +108,7 @@ test('starter studio creates two editable roles with licensed assets, inactive t
       version: '1.0.0',
     });
     const imported = await call('persona.package.import', pack);
+    assert.equal(imported.draft.tasks.find((task:any) => task.type === 'agenda.reminders')?.id, imported.draft.persona.id);
     const review = imported.draft.tasks.find((task: any) => task.type === 'review.policies');
     assert.deepEqual(review.settings.memoryOperations, [
       'add',

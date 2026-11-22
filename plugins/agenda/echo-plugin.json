@@ -8,6 +8,8 @@
     "agenda.read",
     "agenda.write",
     "agenda.notify",
+    "automation.contribute",
+    "automation.dispatch",
     "review.contribute",
     "character.contribute"
   ],

@@ -11530,5 +11530,69 @@
   [
     "请选择单一检索范围",
     "Select a single search scope"
+  ],
+  [
+    "计划触发记录",
+    "Scheduled occurrences"
+  ],
+  [
+    "已跳过",
+    "Skipped"
+  ],
+  [
+    "补跑",
+    "Catch-up run"
+  ],
+  [
+    "按时触发",
+    "On time"
+  ],
+  [
+    "原定时间",
+    "Scheduled for"
+  ],
+  [
+    "实际处理",
+    "Processed at"
+  ],
+  [
+    "合并自",
+    "Combined since"
+  ],
+  [
+    "恢复后补一次",
+    "Run once when back"
+  ],
+  [
+    "仍有效时补一次",
+    "Run once if still relevant"
+  ],
+  [
+    "跳过本次",
+    "Skip the missed run"
+  ],
+  [
+    "错过执行时间时",
+    "When a scheduled run is missed"
+  ],
+  [
+    "最多延迟（分钟）",
+    "Maximum delay (minutes)"
+  ],
+  [
+    "提醒渠道",
+    "Reminder destinations"
+  ],
+  [
+    "提醒角色",
+    "Reminder role"
+  ],
+  [
+    "沿用日程默认绑定",
+    "Use the calendar’s default binding"
+  ],
+  [
+    "使用角色的提醒渠道",
+    "Use the role’s reminder destinations"
   ]
 ]

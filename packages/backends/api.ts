@@ -10,6 +10,7 @@ import { readModelListing, selectedReasoning, effectiveReasoning } from './model
 import { endpoint, modelApiKey, modelListRequest, modelProtocol, outputTokensField } from './protocol.ts';
 import { protocolTranscript } from './transcript.ts';
 import { materializeMessage } from '../contracts/message-context.ts';
+import { ModelStepRetry, retryModelStream } from './model-retry.ts';
 export { endpoint } from './protocol.ts';
 
 export type SecretResolver = (reference: string) => Promise<string | undefined>;
@@ -120,6 +121,26 @@ export class ApiBackend implements Backend {
     invariant(profile.model, 'missing_model', '请填写模型名称。');
     const key = await this.secrets(profile.apiKeyRef);
     if (profile.protocol !== 'openai-completions') return this.generateWithProtocol(request, key);
+    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(profile.timeoutMs)]);
+    const retry = new ModelStepRetry(signal, request.onItem, 1);
+    let published = false;
+    for (;;) {
+      try {
+        return await this.generateCompletions({ ...request, signal, onDelta: delta => {
+          if (delta) published = true;
+          request.onDelta?.(delta);
+        } }, key, retry);
+      } catch (error) {
+        if (published || !(error instanceof EchoError)) throw error;
+        const network = ['provider_connection', 'provider_stream_lost', 'provider_truncated'].includes(error.code);
+        if ((!network && !error.code.startsWith('provider_http_') && error.code !== 'provider_stream_transient') ||
+            !await retry.again(network ? 'connection lost' : error.code === 'provider_stream_transient' ? 'server_busy' : error.code)) throw error;
+      }
+    }
+  }
+  private async generateCompletions(request: GenerateRequest, key: string | undefined, retry: ModelStepRetry): Promise<GenerateResult> {
+    const { profile, signal } = request;
+    const url = endpoint(profile, '/chat/completions');
     const messages = request.messages.map((m) => {
       const text = m.context === 'event' ? '<echo_application_event>\n' + m.text + '\n</echo_application_event>' : m.text;
       return {
@@ -134,10 +155,9 @@ export class ApiBackend implements Backend {
           ]
         : text,
     }; });
-    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(profile.timeoutMs)]);
     let response: Response;
     try {
-      response = await this.fetcher(endpoint(profile, '/chat/completions'), {
+      response = await retry.fetch(this.fetcher, url, {
         method: 'POST',
         redirect: 'error',
         headers: {
@@ -181,6 +201,8 @@ export class ApiBackend implements Backend {
         )
       )
         throw new EchoError('provider_content_rejected', '提供方拒绝了本次内容。');
+      if (/insufficient[_ -](?:quota|balance)|billing|quota exceeded|out of budget|available balance|usage limit reached|GoUsageLimitError|FreeUsageLimitError/i.test(excerpt))
+        throw new EchoError('provider_quota', '模型服务配额或余额不足。');
       throw new EchoError(
         `provider_http_${response.status}`,
         `模型接口返回 HTTP ${response.status}。`,
@@ -240,7 +262,10 @@ export class ApiBackend implements Backend {
           } catch {
             throw new EchoError('provider_format', '模型流中出现无效 JSON。', true);
           }
-          if (data.error) throw new EchoError('provider_stream_error', '模型流返回错误。', true);
+          if (data.error) {
+            const transient = /^(?:upstream_error|server_error|overloaded_error|rate_limit_exceeded)$/.test(String(data.error.code ?? data.error.type));
+            throw new EchoError(transient ? 'provider_stream_transient' : 'provider_stream_error', '模型流返回错误。', true);
+          }
           invariant(data.choices?.[0]?.finish_reason !== 'length', 'provider_output_limit', '模型达到输出上限，结果未完成；请调整本任务的输出预算。');
           if (
             data.choices?.[0]?.delta?.refusal ||
@@ -264,7 +289,7 @@ export class ApiBackend implements Backend {
         if (!['provider_output_limit','provider_empty','provider_content_rejected'].includes(e.code)) e.uncertain = true;
         throw e;
       }
-      throw new EchoError('provider_stream_lost', '读取模型结果时连接中断，未自动重试。', true);
+      throw new EchoError('provider_stream_lost', '读取模型结果时连接中断。', true);
     } finally {
       reader.releaseLock();
     }
@@ -275,7 +300,7 @@ export class ApiBackend implements Backend {
     const apiKey = modelApiKey(profile, key);
     invariant(apiKey, 'missing_credential', '请先保存此连接的 API Key。');
     const { normalizeContext } = await import('@earendil-works/pi-ai');
-    const stream = streams.streamSimple(model, protocolTranscript(normalizeContext({
+    const context = protocolTranscript(normalizeContext({
       messages: request.messages.map((message) => {
         if (message.role === 'system')
           return { role: 'system', content: message.text, timestamp: Date.now(), echoContext: message.context };
@@ -293,11 +318,14 @@ export class ApiBackend implements Backend {
             ...(message.images ?? []).map((image) => ({ type: 'image' as const, ...image }))],
         };
       }),
-    }), model.api), {
+    }), model.api);
+    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(profile.timeoutMs)]);
+    const retry = new ModelStepRetry(signal, request.onItem, 1);
+    const stream = retryModelStream(model, retry, () => streams.streamSimple(model, context, {
       apiKey, reasoning, onPayload, maxTokens: profile.maxOutputTokens, maxRetries: 0,
-      signal: AbortSignal.any([request.signal, AbortSignal.timeout(profile.timeoutMs)]),
-      fetch: (input, init) => this.fetcher(input, { ...init, redirect: 'error' }),
-    });
+      signal,
+      fetch: (input, init) => retry.fetch(this.fetcher, input, init),
+    }));
     let chars = 0;
     for await (const event of stream)
       if (event.type === 'text_delta') {

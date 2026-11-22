@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, FakeBackend, until, submitFixtureReplies } from './helpers.ts';
+import { setup, FakeBackend, until, submitFixtureReplies, temporary, project } from './helpers.ts';
+import { join } from 'node:path';
+import { Application } from '../apps/server/application.ts';
 import { internal } from '../packages/kernel/registry.ts';
 import { characterDraft } from '../plugins/persona/character-contracts.ts';
 import { echoToolPermissions } from '../packages/kernel/tool-access.ts';
@@ -180,6 +182,40 @@ test('general prompt automations reuse a worker, retain history and keep no-repo
   assert(fake.calls.every(call => call.principal?.conversationId === work.conversationId));
   assert(fake.calls[1].messages.some(message => message.role === 'assistant'));
   assert.equal(app.store.allMessages(parent.mainConversationId).filter(message => message.meta.taskResultId).length, 2);
+});
+
+test('one-time agent tasks restored after downtime respect the saved recovery window', async t => {
+  const app = await setup(t), parent = await role(app), fake = new FakeBackend();
+  app.router.backends.set('api', fake);
+  app.clock.pause();
+  const type = 'delegation.automations';
+  const now = Date.now();
+  for (const missedPolicy of ['once','valid','skip']) {
+    const id = 'offline-' + missedPolicy;
+    await app.registry.call('automation.save', { type, id, settings:{
+      name:'Offline task', personaId:parent.id, prompt:'Synthetic work', enabled:true,
+      mode:'once', at:new Date(now + 86400000).toISOString(), missedPolicy, validMinutes:5, report:false,
+    } }, internal);
+    const task = app.store.document<any>('agent-automations', id);
+    const nextAt = now - 15 * 60000;
+    app.store.put('agent-automations',id,{...task,nextAt,at:new Date(nextAt).toISOString()});
+  }
+  const runtime = await temporary(t);
+  app.store.db.prepare('VACUUM INTO ?').run(join(runtime,'echo.sqlite'));
+  const restored = await Application.create({runtime,project});
+  try {
+    restored.router.backends.set('api',fake);
+    await until(() => restored.store.documents<any>('agent-automations').every(task => !task.enabled));
+    const outcomes = restored.store.documents<any>('schedule-occurrences').filter(row => row.type === type);
+    assert.deepEqual(outcomes.map(row => row.outcome).sort(),['catchup','skipped','skipped']);
+    await until(() => restored.store.allMessages(parent.mainConversationId).some(row => row.meta.taskResultId));
+    assert.equal(fake.calls.length,1);
+  } finally { await restored.close(); }
+  const reopened = await Application.create({runtime,project});
+  try {
+    assert.equal(reopened.store.documents<any>('agent-automations').filter(task => task.enabled).length,0);
+    assert.equal(reopened.store.allMessages(parent.mainConversationId).filter(row => row.meta.taskResultId).length,1);
+  } finally { await reopened.close(); }
 });
 
 test('worker context options follow plugin registration and unload without changing saved choices', async t => {

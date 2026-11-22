@@ -43,7 +43,7 @@ test('API streaming accepts fragmented SSE and sends configured reasoning', asyn
   assert.equal(deltas, '你好');
   assert.equal(received.enable_thinking, false);
 });
-test('API does not blindly retry HTTP errors or an incomplete stream', async () => {
+test('API does not replay an incomplete stream after publishing text', async () => {
   let calls = 0;
   const profile = profileSchema.parse({
     id: 'api',
@@ -68,6 +68,33 @@ test('API does not blindly retry HTTP errors or an incomplete stream', async () 
     /提前结束/,
   );
   assert.equal(calls, 1);
+});
+test('API retries a temporary gateway outage and emits the successful result once', async () => {
+  const profile = profileSchema.parse({ id: 'fixture', name: 'Fixture', kind: 'api', model: 'fixture', endpoint: 'http://127.0.0.1:1/v1' });
+  let calls = 0;
+  const api = new ApiBackend(async () => undefined, async () => ++calls === 1
+    ? new Response('', { status: 502 }) : Response.json({ choices: [{ message: { content: 'ready' } }] }));
+  const deltas: string[] = [];
+  assert.equal((await api.generate({ profile, messages: [], requestId: 'retry', signal: AbortSignal.timeout(5000),
+    onDelta: delta => deltas.push(delta) })).text, 'ready');
+  assert.equal(calls, 2);
+  assert.deepEqual(deltas, ['ready']);
+});
+test('API respects quotas, authentication, long Retry-After and cancellation during backoff', async () => {
+  const profile = profileSchema.parse({ id: 'fixture', name: 'Fixture', kind: 'api', model: 'fixture', endpoint: 'http://127.0.0.1:1/v1' });
+  for (const [status, body, after, cancel] of [[429, 'insufficient_quota', '', false], [401, '', '', false],
+    [429, '', '120', false], [503, '', '', true]] as const) {
+    let calls = 0;
+    const controller = new AbortController();
+    const api = new ApiBackend(async () => undefined, async () => {
+      calls++;
+      return new Response(body, { status, headers: after ? { 'Retry-After': after } : {} });
+    });
+    await assert.rejects(api.generate({ profile, messages: [], requestId: 'stop', signal: controller.signal,
+      onItem: () => { if (cancel) controller.abort(); } }));
+    assert.equal(calls, 1);
+    assert.equal(controller.signal.aborted, cancel);
+  }
 });
 test('HTTP requires token and rejects foreign origins and rebinding hosts', async (t) => {
   const app = await setup(t, []);

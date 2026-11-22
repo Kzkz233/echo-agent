@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { outputTargets } from '../../packages/contracts/delivery.ts';
 import { id } from '../../packages/contracts/index.ts';
 export const agendaItemSchema = z.object({
   id: id.optional(),
@@ -15,6 +16,7 @@ export const agendaItemSchema = z.object({
   reminder: z
     .object({
       enabled: z.boolean().default(false),
+      outputTargets: outputTargets.optional(),
       minutesBefore: z.number().int().min(0).max(43200).default(0),
     })
     .default({ enabled: false, minutesBefore: 0 }),

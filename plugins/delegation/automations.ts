@@ -14,6 +14,8 @@ import type { DelegationPolicy } from './config.ts';
 import { authorizeExecution } from './authorization.ts';
 import { selectedReasoning } from '../../packages/backends/model-metadata.ts';
 
+import { missedPolicy, validMinutes, missedFields, decideOccurrence, latestSlot, recordOccurrence } from '../../packages/kernel/schedule-policy.ts';
+
 const type = 'delegation.automations';
 const schema = z.object({
   id, name: z.string().trim().min(1).max(80), personaId: id,
@@ -22,6 +24,7 @@ const schema = z.object({
   at: z.string().optional(), hour: z.number().int().min(0).max(23).default(7),
   minute: z.number().int().min(0).max(59).default(0),
   minutes: z.number().int().min(1).max(525600).default(60),
+  missedPolicy: missedPolicy.default('valid'), validMinutes,
   execution: executionRequest.default({}),
   report: z.boolean().default(true), reportPrompt: z.string().max(10000).default('简要汇报任务的实际结果、需要确认的事项。'),
   outputTargets: z.array(z.string().min(1)).max(20).default(['core.chat']),
@@ -70,7 +73,7 @@ export class AgentAutomations {
     const sameSchedule = old && old.enabled === task.enabled &&
       (['mode','at','hour','minute','minutes'] as const).every(key => old[key] === task[key]);
     const nextAt = sameSchedule && old.nextAt ? old.nextAt : this.next(task);
-    invariant(Number.isFinite(nextAt) && (task.mode !== 'once' || nextAt > Date.now()), 'task_time', '请填写未来的有效执行时间。');
+    invariant(Number.isFinite(nextAt) && (task.mode !== 'once' || !task.enabled || sameSchedule || nextAt > Date.now()), 'task_time', '请填写未来的有效执行时间。');
     this.running.get(task.id)?.abort();
     this.router.workSessions.cancelOrigin(type, task.id);
     const saved = { ...task, nextAt, lastAt:old?.lastAt, lastError:old?.lastError };
@@ -83,10 +86,31 @@ export class AgentAutomations {
     this.clock.cancel('agent-task.' + task.id);
     if (!task.enabled || !characterEnabled(this.router.store, task.personaId, 'delegation') || this.running.has(task.id)) return;
     const nextAt = task.nextAt ?? this.next(task);
-    this.clock.at('agent-task.' + task.id, Math.max(Date.now(), nextAt), () =>
-      this.run(task.id, 'auto-' + createHash('sha256').update(task.id + ':' + nextAt).digest('hex').slice(0, 40)));
+    this.clock.at('agent-task.' + task.id, nextAt, () => this.due(task.id, nextAt));
   }
-  async run(id: string, requestId: string) {
+  private async due(id: string, first: number) {
+    const store = this.router.store, task = store.document<Task>('agent-automations', id);
+    if (!task?.enabled || (task.nextAt !== undefined && task.nextAt !== first) ||
+        !characterEnabled(store, task.personaId, 'delegation')) return;
+    const now = Date.now(), slot = latestSlot(first, now, task, configuredTimezone(store));
+    const decision = decideOccurrence(first, slot, now, task.missedPolicy ?? 'valid', slot + (task.validMinutes ?? 60) * 60000);
+    const requestId = 'auto-' + createHash('sha256').update(id + ':' + slot).digest('hex').slice(0, 40);
+    const next = { ...task, enabled: task.mode !== 'once', nextAt: task.mode === 'interval'
+      ? slot + task.minutes * 60000 : this.next(task, now) };
+    store.transaction(() => {
+      recordOccurrence(store, type, id, task.personaId, decision);
+      // Claim this occurrence before the first await. A crash cannot re-submit its tools.
+      store.put('agent-automations', id, next);
+    });
+    try {
+      if (decision.outcome !== 'skipped') await this.run(id, requestId, true);
+    } finally {
+      const current = store.document<Task>('agent-automations', id);
+      if (current) this.schedule(current);
+      this.router.events.emit('automation.changed', { owner: 'delegation' });
+    }
+  }
+  async run(id: string, requestId: string, scheduled = false) {
     const task = this.router.store.document<Task>('agent-automations', id);
     invariant(task, 'task_missing', '任务不存在。');
     invariant(characterEnabled(this.router.store, task.personaId, 'delegation'), 'character_disabled', '角色或任务功能已停用。');
@@ -147,8 +171,9 @@ export class AgentAutomations {
       const current = this.router.store.document<Task>('agent-automations', id);
       if (current) {
         const saved = { ...current, lastAt: new Date().toISOString(), lastError: error,
-          ...(task.mode === 'once' && current.nextAt === task.nextAt ? { enabled: false } : {}),
-          nextAt: current.nextAt !== task.nextAt ? current.nextAt : this.next(current) };
+          ...(!scheduled && task.mode === 'once' && current.nextAt === task.nextAt ? { enabled: false } : {}),
+          nextAt: current.nextAt !== task.nextAt ? current.nextAt :
+            scheduled && (current.mode === 'once' || (current.nextAt ?? 0) > Date.now()) ? current.nextAt : this.next(current) };
         this.router.store.put('agent-automations', id, saved);
         this.schedule(saved);
       }
@@ -159,7 +184,7 @@ export class AgentAutomations {
     contributeAutomation(ctx, type, '自定义任务', {
       describe: () => ({ scope: 'character', defaults: { prompt: '', execution: {}, report: true,
         reportPrompt: '简要汇报任务的实际结果、需要确认的事项。', outputTargets: ['core.chat'],
-        mode: 'daily', hour: 7, minute: 0, minutes: 60 },
+        mode: 'daily', hour: 7, minute: 0, minutes: 60, missedPolicy: 'valid', validMinutes: 60 },
         fields: [
           { key: 'personaId', label: '所属角色', kind: 'select', options: this.router.store.documents<any>('characters').map(role =>
             ({ value: role.id, label: this.router.store.document<any>('personas', role.id)?.name ?? role.id })) },
@@ -170,6 +195,7 @@ export class AgentAutomations {
           { key: 'hour', label: '小时', kind: 'number', min: 0, max: 23, when: { key: 'mode', value: 'daily' } },
           { key: 'minute', label: '分钟', kind: 'number', min: 0, max: 59, when: { key: 'mode', value: 'daily' } },
           { key: 'minutes', label: '间隔（分钟）', kind: 'number', min: 1, when: { key: 'mode', value: 'interval' } },
+          ...missedFields(),
           { key: 'execution', label: '执行设置', kind: 'execution' },
           { key: 'report', label: '结果汇报', kind: 'boolean' },
           { key: 'reportPrompt', advanced: true, label: '汇报要求', kind: 'textarea', when: { key: 'report', value: true } },
@@ -177,7 +203,7 @@ export class AgentAutomations {
         ], }),
       items: () => this.tasks().map(task => ({ id: task.id, name: task.name, enabled: task.enabled,
           personaId: task.personaId, state: this.running.has(task.id) ? 'running' : !task.enabled ? 'paused' : task.lastError ? 'failed' : 'waiting',
-          nextAt: task.nextAt, lastAt: task.lastAt, settings: task })),
+          nextAt: task.nextAt, lastAt: task.lastAt, settings: { ...task, missedPolicy: task.missedPolicy ?? 'valid', validMinutes: task.validMinutes ?? 60 } })),
       save: (id, value) => this.save({ ...value, id }),
       remove: id => { invariant(!this.running.has(id), 'task_busy', '请先停止正在执行的任务。');
         this.clock.cancel('agent-task.' + id); this.router.store.remove('agent-automations', id); },
@@ -217,13 +243,7 @@ export class AgentAutomations {
           actor:{personaId:caller.personaId,conversationId:caller.conversationId!,permissions:[...caller.permissions]}},signal);
         return result.saved;
       } });
-    for (const task of this.tasks()) {
-      if (task.nextAt && task.nextAt < Date.now()) {
-        const nextAt = this.next(task);
-        const current = { ...task, nextAt, ...(task.mode === 'once' ? { enabled: false, lastError: '已错过执行时间，请重新安排。' } : {}) };
-        this.router.store.put('agent-automations', task.id, current); this.schedule(current);
-      } else this.schedule(task);
-    }
+    for (const task of this.tasks()) this.schedule(task);
     ctx.dispose(this.router.events.subscribe(event => {
       if (['character.activity.changed', 'characters.updated'].includes(event.type)) {
         for (const task of this.tasks()) if (event.data.personaId === task.personaId) {
@@ -232,6 +252,13 @@ export class AgentAutomations {
             this.running.get(task.id)?.abort();
             this.router.workSessions.cancelOrigin(type, task.id);
           }
+            if (event.type === 'character.activity.changed' && event.data.enabled && task.enabled &&
+                task.nextAt !== undefined && task.nextAt <= Date.now()) {
+              const saved = { ...task, enabled: task.mode !== 'once', nextAt: this.next(task) };
+              this.router.store.put('agent-automations', task.id, saved);
+              this.schedule(saved);
+              continue;
+            }
           this.schedule(task);
         }
       }

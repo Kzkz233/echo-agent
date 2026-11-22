@@ -16,7 +16,7 @@ function output(items: any[]) {
       usage: { input_tokens: 100, output_tokens: 10, total_tokens: 110 } } });
 }
 
-test('Responses review-sized tool loops retain valid pairs before and after compaction; upstream failure is not retried', async t => {
+test('Responses retries the failing step after compaction while retaining executed tools and transcript pairs', { timeout: 60000 }, async t => {
   const app = await setup(t, []);
   let tools = 0, summaries = 0;
   app.registry.register({ owner: 'core', name: 'fixture.read', description: 'Synthetic read',
@@ -52,10 +52,12 @@ test('Responses review-sized tool loops retain valid pairs before and after comp
     messages: [{ role: 'system', text: 'Stable fixture role' }, { role: 'user', text: 'Earlier material '.repeat(10000) }],
     compaction: { triggerTokens: 256000, keepRecentPercent: 10 },
     permissions: conversationPermissions.parse({ pi: { tools: 'none', echoTools: 'granted' } }),
-    onItem: item => items.push(item), signal: AbortSignal.timeout(10000) }), /upstream_error: Upstream request failed/);
+    onItem: item => items.push(item), signal: AbortSignal.timeout(50000) }), /upstream_error: Upstream request failed/);
   assert.equal(tools, 3);
   assert.equal(summaries, 1);
-  assert.equal(requests.length, 4);
+  assert.equal(requests.length, 9);
+  assert.deepEqual(requests.at(-1).input, requests.at(-3).input);
+  assert.equal(items.filter(item => item.id.startsWith('model-retry-')).length, 5);
   assert(items.some(item => item.id === 'context-compaction' && item.state === 'completed'));
   const diagnostic = JSON.parse(items.find(item => item.id === 'provider-request-failure').detail);
   assert.equal(diagnostic.protocol, 'openai-responses');
@@ -80,7 +82,7 @@ test('Responses review-sized tool loops retain valid pairs before and after comp
   }
 });
 
-test('HTTP gateway failure records status without retaining error HTML, credentials or retrying', async t => {
+test('persistent HTTP gateway failure stops after five retries and records sanitized diagnostics', { timeout: 60000 }, async t => {
   const app = await setup(t, []);
   let requests = 0;
   const items: any[] = [];
@@ -96,8 +98,8 @@ test('HTTP gateway failure records status without retaining error HTML, credenti
   await assert.rejects(pi.generate({ profile: profileSchema.parse({ id: 'fixture', name: 'Fixture', kind: 'pi',
     protocol: 'openai-responses', model: 'fixture', endpoint: `http://127.0.0.1:${(server.address() as any).port}` }),
     messages: [{ role: 'user', text: 'Private synthetic message' }], toolPolicy: 'none',
-    requestId: 'gateway-fixture', onItem: item => items.push(item), signal: AbortSignal.timeout(5000) }), /504/);
-  assert.equal(requests, 1);
+    requestId: 'gateway-fixture', onItem: item => items.push(item), signal: AbortSignal.timeout(50000) }), /504/);
+  assert.equal(requests, 6);
   const diagnostic = JSON.parse(items.find(item => item.id === 'provider-request-failure').detail);
   assert.equal(diagnostic.httpStatus, 504);
   assert.equal(diagnostic.responseHeaders['x-request-id'], 'gateway-fixture');

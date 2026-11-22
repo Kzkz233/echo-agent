@@ -37,13 +37,14 @@ export class Documents {
           ],
         ] as const;
         for (const [id, label, extensions] of choices) {
+          const maxBytes = id === 'documents.local' ? 16000000 : 64000000;
           ctx.capabilities.provide('files.parsers@1', id, label, () => ({
             id,
             label,
             version: '2',
             contract: 'files.extract@3',
             extensions: [...extensions],
-            maxBytes: 16000000,
+            maxBytes,
             ...(id === 'documents.local' ? {} : { prepare: id }),
           }));
           if (id !== 'documents.local')
@@ -60,7 +61,7 @@ export class Documents {
             });
           ctx.capabilities.provide('files.extract@3', id, label, async (v, signal) => {
             const file = await this.files.original(v.vaultId, v.fileId, v.sourceHash);
-            const data = (await this.files.parsers.read(file, signal)).toString('base64');
+            const data = (await this.files.parsers.read(file, signal, maxBytes)).toString('base64');
             const input = {
               name: v.name,
               extension: extname(v.name).toLowerCase(),

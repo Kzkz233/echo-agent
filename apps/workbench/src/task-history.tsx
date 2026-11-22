@@ -25,7 +25,7 @@ export function TaskHistory({
   personaId?: string;
   act: any;
 }) {
-  const [history, setHistory] = useState<{ results: any[]; otherOutputs: any[] }>();
+  const [history, setHistory] = useState<{ results: any[]; otherOutputs: any[]; occurrences?: any[] }>();
   const [issue, setIssue] = useState('');
   useEffect(() => {
     let sequence = 0,
@@ -69,7 +69,17 @@ export function TaskHistory({
       <h2>{t('结果与投递')}</h2>
       {issue && <p role="alert">{issue}</p>}
       {!issue && !history && <p>{t('正在打开…')}</p>}
-      {history && !history.results.length && !history.otherOutputs.length && (
+      {Boolean(history?.occurrences?.length) && <details>
+        <summary>{t('计划触发记录')}</summary>
+        {history!.occurrences!.map((row, i) => <p key={i}>
+          {t(row.outcome === 'skipped' ? '已跳过' : row.outcome === 'catchup' ? '补跑' : '按时触发')}
+          {' · '}{t('原定时间')} {new Date(row.scheduled).toLocaleString(locale())}
+          {' · '}{t('实际处理')} {new Date(row.observed).toLocaleString(locale())}
+          {row.first < row.scheduled && <> · {t('合并自')} {new Date(row.first).toLocaleString(locale())}</>}
+          {row.outcome !== 'due' && <> · {t(row.policy === 'once' ? '恢复后补一次' : row.policy === 'valid' ? '仍有效时补一次' : '跳过本次')}</>}
+        </p>)}
+      </details>}
+      {history && !history.occurrences?.length && !history.results.length && !history.otherOutputs.length && (
         <p className="muted">{t('暂无记录')}</p>
       )}
       {history?.results.map((r) => (

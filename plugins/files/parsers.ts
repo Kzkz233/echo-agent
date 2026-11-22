@@ -214,9 +214,9 @@ export class Parsers {
       provenance: prepared.provenance ?? {},
     });
   }
-  async read(source: FileRecord, signal: AbortSignal) {
+  async read(source: FileRecord, signal: AbortSignal, maxBytes = 16000000) {
     const path = await this.files.path(source.vaultId, source.relativePath);
-    invariant(source.bytes <= 16000000, 'parser_size', '此解析器支持的文件上限为16 MB');
+    invariant(source.bytes <= maxBytes, 'parser_size', '原件超过此解析器支持的大小上限');
     const bytes = await readFile(path, { signal });
     invariant(
       createHash('sha256').update(bytes).digest('hex') === source.hash,

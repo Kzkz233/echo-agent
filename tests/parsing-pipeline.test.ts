@@ -226,6 +226,19 @@ test('old captured source version remains readable after its file record has a n
     job.original.hash,
   );
 });
+test('MinerU reads an archived PDF beyond the inline parser budget using its declared limit', async t => {
+  const app = await setup(t, ['documents']);
+  const size = 16000001, path = join(await temporary(t), 'large.pdf');
+  await writeFile(path, Buffer.alloc(size));
+  const source = await app.files.import('local', path);
+  const catalog = await app.files.parsers.list();
+  const remote = catalog.find(parser => parser.id === 'documents.mineru-api')!;
+  assert(remote.maxBytes >= size);
+  assert(catalog.find(parser => parser.id === 'documents.local')!.maxBytes < size);
+  const signal = new AbortController().signal;
+  await assert.rejects(app.files.parsers.read(source, signal), /大小上限/);
+  assert.equal((await app.files.parsers.read(source, signal, remote.maxBytes)).length, size);
+});
 test('parser catalog does not confuse source-reference PDF parsers with media support and checks connection files', async (t) => {
   const app = await setup(t, ['asr']);
   const parsers = await app.files.parsers.list();

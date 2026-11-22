@@ -80,6 +80,7 @@ const item = z.object({
 });
 const descriptor = z.object({
   scope: z.enum(['workspace', 'character']).default('workspace'),
+  instanceKey: z.literal('personaId').optional(),
   fields: z.array(field).max(400).default([]),
   defaults: value.default({}),
   items: z.array(item),

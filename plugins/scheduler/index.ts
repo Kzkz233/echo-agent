@@ -9,6 +9,7 @@ import { Store } from '../../packages/kernel/store.ts';
 import { Events } from '../../packages/kernel/events.ts';
 import type { Plugin, PluginContext } from '../../packages/kernel/registry.ts';
 import { operations } from '../shared.ts';
+import { decideOccurrence, latestSlot, missedFields, missedPolicy, recordOccurrence, validMinutes } from '../../packages/kernel/schedule-policy.ts';
 export const jobSchema = z.object({
   id,
   name: z.string().min(1).max(160),
@@ -20,6 +21,7 @@ export const jobSchema = z.object({
   hour: z.number().int().min(0).max(23).default(7),
   minute: z.number().int().min(0).max(59).default(0),
   timezone: z.string().default('Asia/Shanghai'),
+  missedPolicy: missedPolicy.default('once'), validMinutes,
 });
 type Job = z.infer<typeof jobSchema> & { nextAt?: number; blocked?: string };
 type Execution = {
@@ -59,7 +61,9 @@ export class Scheduler {
     const job = jobSchema.parse(value);
     new Intl.DateTimeFormat('en', { timeZone: job.timezone });
     const old = this.store.document<Job>('scheduler-jobs', job.id);
-    const next = { ...job, nextAt: this.next(job), blocked: old?.blocked };
+    const sameSchedule = old && old.enabled === job.enabled && old.mode === job.mode &&
+      old.minutes === job.minutes && old.hour === job.hour && old.minute === job.minute && old.timezone === job.timezone;
+    const next = { ...job, nextAt: sameSchedule && old.nextAt ? old.nextAt : this.next(job), blocked: old?.blocked };
     this.store.put('scheduler-jobs', job.id, next);
     this.refresh();
     return next;
@@ -80,11 +84,23 @@ export class Scheduler {
         this.store.put('scheduler-jobs', j.id, { ...j, nextAt });
         this.disposers.set(
           j.id,
-          this.clock.at('scheduler.' + j.id, nextAt, () => this.execute(j.id, nextAt)),
+          this.clock.at('scheduler.' + j.id, nextAt, () => this.due(j.id, nextAt)),
         );
       }
   }
-  async execute(jobId: string, slot = Date.now()) {
+  private async due(id: string, first: number) {
+    const job = this.store.document<Job>('scheduler-jobs', id);
+    if (!job?.enabled || job.blocked || job.nextAt !== first || this.running.has(id)) return;
+    const now = Date.now(), slot = latestSlot(first, now, job, job.timezone);
+    const decision = decideOccurrence(first, slot, now, job.missedPolicy ?? 'once', slot + (job.validMinutes ?? 60) * 60000);
+    this.store.transaction(() => {
+      recordOccurrence(this.store, job.provider === 'mail.sync' ? 'scheduler.mail' : 'scheduler.timed', id, undefined, decision);
+      this.store.put('scheduler-jobs', id, { ...job, nextAt: job.mode === 'interval' ? slot + job.minutes * 60000 : this.next(job, now) });
+    });
+    try { if (decision.outcome !== 'skipped') await this.execute(id, slot, true); }
+    finally { this.refresh(); this.events.emit('automation.changed', { owner: 'scheduler' }); }
+  }
+  async execute(jobId: string, slot = Date.now(), scheduled = false) {
     invariant(this.ctx, 'plugin_disabled', '调度插件未启用');
     const job = this.store.document<Job>('scheduler-jobs', jobId);
     invariant(job, 'job_missing', '任务不存在');
@@ -126,7 +142,7 @@ export class Scheduler {
       execution.finishedAt = new Date().toISOString();
       this.store.put('scheduler-runs', key, execution);
       const current = this.store.document<Job>('scheduler-jobs', jobId);
-      if (current)
+      if (current && current.nextAt === job.nextAt && (!scheduled || (current.nextAt ?? 0) <= Date.now()))
         this.store.put('scheduler-jobs', jobId, { ...current, nextAt: this.next(current) });
       this.running.delete(jobId);
       this.refresh();
@@ -185,10 +201,11 @@ export class Scheduler {
             { key: 'minutes', label: '间隔（分钟）', kind: 'number', min: 1, max: 525600, when: { key: 'mode', value: 'interval' } },
             { key: 'hour', label: '小时', kind: 'number', min: 0, max: 23, when: { key: 'mode', value: 'daily' } },
             { key: 'minute', label: '分钟', kind: 'number', min: 0, max: 59, when: { key: 'mode', value: 'daily' } },
+            ...missedFields(),
             { key: 'timezone', label: '时区', kind: 'text', when: { key: 'mode', value: 'daily' } },
           ];
           return {
-            defaults: { mode: 'interval', minutes: 60, hour: 7, minute: 0, timezone: 'Asia/Shanghai', input: {} },
+            defaults: { mode: 'interval', minutes: 60, hour: 7, minute: 0, timezone: 'Asia/Shanghai', input: {}, missedPolicy: 'once', validMinutes: 60 },
             fields,
           };
         };
@@ -208,7 +225,7 @@ export class Scheduler {
                 subject: mail ? accounts.find((a) => a.id === accountId)?.name ?? accountId : job.provider,
                 nextAt: job.enabled && !job.blocked ? job.nextAt : undefined,
                 lastAt: latest?.finishedAt,
-                settings: { ...job, ...(mail ? { accountId } : {}) },
+                settings: { ...job, missedPolicy: job.missedPolicy ?? 'once', validMinutes: job.validMinutes ?? 60, ...(mail ? { accountId } : {}) },
               };
             });
         };

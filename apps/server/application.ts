@@ -1,4 +1,5 @@
 import { Maintenance, contributeMaintenance } from '../../packages/kernel/maintenance.ts';
+import { occurrenceHistory } from '../../packages/kernel/schedule-policy.ts';
 import { recordedTasks, taskHistory } from '../../packages/kernel/task-history.ts';
 import { Deliveries } from '../../packages/kernel/delivery.ts';
 import { characterActive, characterEnabled } from '../../packages/kernel/characters.ts';
@@ -307,7 +308,7 @@ export class Application {
     defineReplyImages(core);
     this.files = new Files(this.store, join(runtime, 'Vault'), this.events);
     this.knowledge = new Knowledge(this.store, this.retrieval, this.files, project, this.events);
-    this.agenda = new Agenda(this.store, this.events, this.materials, this.clock);
+    this.agenda = new Agenda(this.store, this.events, this.materials, this.clock, this.deliveries);
     this.scheduler = new Scheduler(this.store, this.events, this.clock);
     this.assets = new Assets(this.store, this.files, this.events);
     this.care = new Care(this.store, this.router, this.events, this.clock, this.triggerActions);
@@ -652,7 +653,7 @@ export class Application {
         const linked = new Set(results.flatMap(r => r.outputs.map(o => o.id)));
         const otherOutputs = this.deliveries.recent({ personaId,taskType:v.type,taskId:v.id }).filter(o => !linked.has(o.id))
           .map(o => ({ ...o, deliveries:this.deliveries.rows(o.id) }));
-        return { results,otherOutputs };
+        return { results,otherOutputs, occurrences: occurrenceHistory(this.store, v.type, v.id, personaId) };
       });
     op('work.list', '读取角色的全部工作会话', z.object({ personaId: id.optional() }), 'delegation.read',
       (value, caller) => {
@@ -837,7 +838,7 @@ export class Application {
         return this.automation.mutate(v.type, { action: 'run', id: v.id, requestId: v.requestId }, scopedSignal);
       },
     );
-    op('outputs.targets', '读取会话可选的输出位置', z.object({ conversationId: id.optional(), personaId: id.optional(), source:z.string().optional(), bubble:z.boolean().optional() }), 'conversation.read', async(v,_c,signal)=>{ const targets=await this.deliveries.catalog(v.conversationId??'draft-'+v.personaId,signal,v.personaId); return {targets,defaults:targets.filter(t=>t.id==='core.chat'||(v.bubble&&t.id==='avatar.bubble')||t.legacySources.includes(v.source)||t.legacySources.includes('*')).map(t=>t.id)}; });
+    op('outputs.targets', '读取会话可选的输出位置', z.object({ conversationId: id.optional(), personaId: id.optional(), source:z.string().optional(), bubble:z.boolean().optional() }), 'conversation.read', async(v,_c,signal)=>{ const targets=await this.deliveries.catalog(v.conversationId ?? (v.personaId && this.store.document<{mainConversationId:string}>('characters',v.personaId)?.mainConversationId) ?? 'draft-'+v.personaId,signal,v.personaId); return {targets,defaults:targets.filter(t=>t.id==='core.chat'||(v.bubble&&t.id==='avatar.bubble')||t.legacySources.includes(v.source)||t.legacySources.includes('*')).map(t=>t.id)}; });
     op('outputs.list', '读取任务结果与各渠道投递回执', z.object({ personaId:id.optional(), taskType:id.optional(), taskId:id.optional() }), 'automation.read', async v=>{
       await this.deliveries.refreshQueued('avatar');
       return this.deliveries.recent(v).map(output=>({...output,deliveries:this.deliveries.rows(output.id)}));

@@ -123,7 +123,7 @@ test('base calendar reminders are durable, bind a conversation without inference
   });
   await app.agenda.tick(Date.parse(date) + 10);
   await app.agenda.tick(Date.parse(date) + 20);
-  assert.equal(app.store.allMessages(c.id).filter((m) => m.source === 'notification').length, 1);
+  assert.equal(app.store.allMessages(c.id).filter((m) => m.meta.taskResultId).length, 1);
   assert.equal(app.store.allMessages(c.id)[0].role, 'system');
   assert.equal(fake.calls.length, 0);
   assert.equal(app.store.documents('agenda-reminders').length, 1);

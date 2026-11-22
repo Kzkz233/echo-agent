@@ -21,6 +21,7 @@ import { materializeMessage } from '../contracts/message-context.ts';
 import { agentCompactor } from './agent-compaction.ts';
 import { summarizeContext } from './context-summary.ts';
 import { providerFailure, requestShape, transportHeaders } from './request-diagnostics.ts';
+import { ModelStepRetry, retryModelStream } from './model-retry.ts';
 import { estimateTokens, type ContextBreakdown, type ContextDetail } from '../contracts/generation-metrics.ts';
 
 type CacheUsage = {
@@ -305,6 +306,7 @@ export class PiBackend implements Backend {
                 maxChars: Math.max(256, Math.min(8000, Math.floor(request.profile.contextChars / 4))),
                 generate: summary => this.generate(summary),
                 onItem: item => {
+                  if (item.id.startsWith('model-retry-')) request.onItem?.({ ...item, id: 'compaction-' + item.id });
                   if (item.id === 'provider-request-failure') request.onItem?.({ ...item,
                     id: 'compaction-request-failure', title: '上下文压缩请求诊断' });
                 },
@@ -375,8 +377,11 @@ export class PiBackend implements Backend {
           if (additionalTokens && !compactedDuringExecution)
             details.push({ group: 'turn', source: 'execution', tokens: additionalTokens });
         }
-        return models.streamSimple(model, context, {
+        const signal = AbortSignal.any([request.signal, ...(options?.signal ? [options.signal] : [])]);
+        const retry = new ModelStepRetry(signal, request.onItem, step);
+        return retryModelStream(model, retry, () => models.streamSimple(model, context, {
           ...options,
+          signal,
           onProviderStreamEvent: (event) => {
             if (!cacheReported) cacheReported = reportsCache(event);
             Object.assign(diagnostic!, providerFailure(event));
@@ -385,7 +390,13 @@ export class PiBackend implements Backend {
           timeoutMs: request.profile.timeoutMs,
           fetch: async (input, init) => {
             try {
-              const response = await this.fetcher(input, { ...init, redirect: 'error' });
+              transportIssue = '';
+              delete diagnostic!.terminalEvent;
+              delete diagnostic!.errorCode;
+              delete diagnostic!.responseStatus;
+              delete diagnostic!.httpStatus;
+              delete diagnostic!.responseHeaders;
+              const response = await retry.fetch(this.fetcher, input, init);
               Object.assign(diagnostic!, { httpStatus: response.status,
                 responseHeaders: transportHeaders(response.headers) });
               return response;
@@ -421,7 +432,7 @@ export class PiBackend implements Backend {
             Object.assign(diagnostic!, requestShape(prepared ?? payload));
             return prepared;
           },
-        });
+        }));
       },
       sessionId: request.sessionId ?? request.requestId,
     });
