@@ -1,16 +1,18 @@
 # Echo Agent CLI
 
-安装目录中的 `echo-agent.cmd` 使用桌面版同一个后端、角色、权限和会话，不另建 Agent。安装包包含运行环境。`--data-dir PATH` 指向数据入口目录，也可设置 `ECHO_DATA_DIR`。
+安装目录中的 `echo-agent.cmd` 使用桌面版同一个后端、伙伴、权限和会话，不另建 Agent。安装包包含运行环境。`--data-dir PATH` 指向数据入口目录，也可设置 `ECHO_DATA_DIR`。
 
 ```powershell
 .\echo-agent.cmd status --json
 .\echo-agent.cmd doctor --json
 .\echo-agent.cmd app start
-.\echo-agent.cmd roles
+.\echo-agent.cmd companions
 .\echo-agent.cmd tasks
-.\echo-agent.cmd chat --role ROLE_ID "检查当前计划" --stream-json
+.\echo-agent.cmd chat --companion COMPANION_ID "检查当前计划" --stream-json
 .\echo-agent.cmd task run review.policies TASK_ID --request-id RUN_ID --wait
 ```
+
+已有脚本可继续使用 `roles`、`chat --role ID`。
 
 `status`、`doctor` 区分 CLI、桌面和后端构建；应用未启动时仍显示数据位置和安装路径。`plugins`、`models`、`mcp`、`logs` 提供只读诊断，不返回凭据。
 

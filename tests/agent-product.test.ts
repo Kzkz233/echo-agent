@@ -79,7 +79,7 @@ test('observation task model selection overrides only that task and preserves th
   assert.deepEqual(app.store.get('routes', {}), before);
   const references = await app.registry.call('inference.references', { id: 'vision-task-model' }, internal);
   assert(references.some((entry: any) => entry.id === 'observation.tasks'));
-  await assert.rejects(app.registry.call('profiles.delete', { id: 'vision-task-model' }, internal), /仍被角色或任务使用/);
+  await assert.rejects(app.registry.call('profiles.delete', { id: 'vision-task-model' }, internal), /仍被伙伴或任务使用/);
   app.observations.remove('default');
   await app.registry.call('profiles.delete', { id: 'vision-task-model' }, internal);
   assert(!app.router.inference.models().some((model) => model.id === 'vision-task-model'));

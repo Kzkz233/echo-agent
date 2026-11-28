@@ -40,6 +40,7 @@ export async function setup(t: TestContext, plugins?: string[]) {
     model: 'synthetic',
     vision: true,
   });
+  await app.personas.save({ id: 'companion', name: 'Echo', prompt: '你是一位友善、坦诚、有自己看法的陪伴者。自然交流，结合已经知道的事实；不知道时直接说明。' });
   seedProfile(app,profile);
   seedRoutes(app, {
     chat: 'test',

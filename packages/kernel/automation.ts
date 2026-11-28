@@ -13,7 +13,7 @@ const option = z.object({
   scope: z.string().optional(),
   owner: z.string().optional(),
 });
-const condition = z.object({ key: id, value: z.union([z.string(), z.boolean()]) });
+const condition = z.object({ key: id, value: z.union([z.string(), z.boolean(), z.array(z.string())]) });
 const field = z.object({
   key: id,
   label: z.string(),
@@ -21,6 +21,8 @@ const field = z.object({
   kind: z.enum([
     'text',
     'datetime',
+    'time',
+    'timezone',
     'textarea',
     'number',
     'boolean',
@@ -109,7 +111,9 @@ export type AutomationType = z.infer<typeof descriptor> & {
 };
 type Scope = ReturnType<Capabilities['forOwner']>;
 type Description = Omit<z.input<typeof descriptor>,'items'> & { items?: AutomationItem[] };
+type Settings = Record<string, unknown>;
 type Handler = {
+  settingsCodec?: { view(settings: Settings): Settings; changes(settings: Settings, previous?: Settings): Settings };
   items?: (signal: AbortSignal) => AutomationItem[] | Promise<AutomationItem[]>;
   describe: (signal: AbortSignal) =>
     Description | undefined | Promise<Description | undefined>;
@@ -148,12 +152,16 @@ export function contributeAutomation(
   handler: Handler,
 ) {
   const pending = new Map<string, Promise<unknown>>();
+  const codec = handler.settingsCodec;
+  const project = (item: AutomationItem) => codec && item.settings
+    ? { ...item, settings: codec.view(item.settings), persistedSettings: item.persistedSettings ?? item.settings } : item;
   ctx.capabilities.provide(point, type, label, async (input: z.infer<typeof request>, signal) => {
     if (input.action === 'catalog') {
-      if (input.view === 'instances' && handler.items) return { catalog: { items:await handler.items(signal) } };
+      if (input.view === 'instances' && handler.items) return { catalog: { items:(await handler.items(signal)).map(project) } };
       const catalog = await handler.describe(signal);
       return catalog
-        ? { catalog: { ...catalog, supportsPatch:true, items:input.view === 'definition' ? [] : handler.items ? await handler.items(signal) : catalog.items ?? [], canRun: !!handler.run, canRemove: !!handler.remove } }
+        ? { catalog: { ...catalog, defaults: codec && catalog.defaults ? codec.view(catalog.defaults) : catalog.defaults,
+            supportsPatch:true, items:(input.view === 'definition' ? [] : handler.items ? await handler.items(signal) : catalog.items ?? []).map(project), canRun: !!handler.run, canRemove: !!handler.remove } }
         : {};
     }
     signal.throwIfAborted();
@@ -170,27 +178,30 @@ export function contributeAutomation(
         return {};
       }
       invariant(handler.save, 'automation_unsupported', '请打开专用页面配置此任务。');
-      if (!input.patch) {
-        await handler.save(input.id, input.settings, input.actor);
-        return {};
-      }
       const readItem = async () => {
         const items = handler.items ? await handler.items(signal) : (await handler.describe(signal))?.items;
         return items?.find(row => row.id === input.id);
       };
-      const item = await readItem();
-      invariant(item || !input.requireExisting, 'task_missing', '任务不存在。');
+      const item = input.patch || codec ? await readItem() : undefined;
       const current = item?.persistedSettings ?? item?.settings ?? {};
+      const changes = codec ? codec.changes(input.settings, item && current) : input.settings;
+      if (!input.patch) {
+        await handler.save(input.id, changes, input.actor);
+        return {};
+      }
+      invariant(item || !input.requireExisting, 'task_missing', '任务不存在。');
       invariant(!item || !input.actor || (item.personaId ?? current.personaId) === input.actor.personaId,
-        'task_owner', '不能编辑其他角色的任务。');
+        'task_owner', '不能编辑其他伙伴的任务。');
       const expected = input.expected ?? {};
+      const view = codec ? codec.view(current) : current;
       for (const key of Object.keys(expected))
-        invariant(isDeepStrictEqual(current[key], expected[key]) || isDeepStrictEqual(current[key], input.settings[key]),
+        invariant(isDeepStrictEqual(view[key], expected[key]) || isDeepStrictEqual(view[key], input.settings[key]),
           'revision_conflict', '任务字段已变化：' + key);
-      await handler.save(input.id, mergeTaskSettings(current, input.settings), input.actor);
+      await handler.save(input.id, mergeTaskSettings(current, changes), input.actor);
       const saved = await readItem();
       invariant(saved, 'task_missing', '无法核对已保存的任务。');
-      return { saved: saved.persistedSettings ?? saved.settings };
+      const settings = saved.persistedSettings ?? saved.settings;
+      return { saved: codec && settings ? codec.view(settings) : settings };
     };
     const work = (pending.get(input.id) ?? Promise.resolve()).catch(() => {}).then(change);
     pending.set(input.id, work);

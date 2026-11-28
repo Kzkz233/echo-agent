@@ -102,6 +102,10 @@ export async function compactConversation(input: {
           profile, prompt, text: [checkpoint?.text, ...lines].filter(Boolean).join('\n'),
           maxChars: Math.min(8000, Math.floor(charBudget / 2)),
           generate: request => backend.generate(request), signal,
+          onItem: item => {
+            if (item.id === 'summary-retry' || item.id.startsWith('model-retry-'))
+              events.emit('context.compaction.retry', { conversationId: conversation.id, title: item.title, text: item.text });
+          },
           reasoning: input.reasoning ?? conversation.reasoning,
         });
         signal.throwIfAborted();

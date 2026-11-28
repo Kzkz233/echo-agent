@@ -48,7 +48,62 @@ test('summary uses configured output allowance and rejects incomplete results wi
   await assert.rejects(summarizeContext({ ...summary, generate: async () => {
     calls++; return { text: ' ' };
   } }), { code: 'context_compaction_failed' });
-  assert.equal(calls, 4);
+  assert.equal(calls, 5);
+});
+
+test('empty tool-free summaries get one correction with the original history and a shared retry budget', async () => {
+  const base = { profile: profileSchema.parse({ id: 'fixture', name: 'Fixture', kind: 'pi' }), prompt: 'Summarize',
+    text: 'Complete synthetic history', maxChars: 8000, signal: new AbortController().signal };
+  for (const code of ['pi_empty', 'provider_empty', 'blank']) {
+    const attempts: import('../packages/contracts/index.ts').GenerateRequest[] = [];
+    const events: string[] = [];
+    const result = await summarizeContext({ ...base, onItem: item => events.push(item.id), generate: async request => {
+      attempts.push(request);
+      if (attempts.length === 1) {
+        request.modelRetryBudget!.used = 3;
+        if (code === 'blank') return { text: '\n ' };
+        throw new EchoError(code, 'Empty');
+      }
+      assert.equal(request.modelRetryBudget, attempts[0].modelRetryBudget);
+      assert.equal(request.modelRetryBudget!.used, 4);
+      assert.notEqual(request.requestId, attempts[0].requestId);
+      assert.equal(request.toolPolicy, 'none');
+      assert.deepEqual(request.messages[1], attempts[0].messages[1]);
+      assert.match(request.messages[0].text, /最终回答/);
+      return { text: '好' };
+    } });
+    assert.equal(result.text, '好');
+    assert.deepEqual(events, ['summary-retry']);
+    assert.equal(attempts.length, 2);
+  }
+  for (const failure of ['budget', 'uncertain', 'cancelled']) {
+    let calls = 0;
+    const controller = new AbortController();
+    await assert.rejects(summarizeContext({ ...base, signal: controller.signal, generate: async request => {
+      calls++;
+      if (failure === 'budget') request.modelRetryBudget!.used = 5;
+      if (failure === 'cancelled') controller.abort();
+      throw new EchoError('pi_empty', 'Empty', failure === 'uncertain');
+    } }));
+    assert.equal(calls, 1);
+  }
+});
+
+test('confirmed replay preserves the existing input and refuses a run that reached a tool', async t => {
+  const app = await setup(t, []);
+  const c = conversation(app);
+  const input = { conversationId: c.id, text: 'Synthetic input', requestId: 'original' };
+  const run = { id: 'initial', requestId: input.requestId, conversationId: c.id, profileId: 'test', epoch: 1,
+    state: 'failed' as const, source: 'human' as const, createdAt: new Date().toISOString(), input: input.text, meta: {} };
+  app.store.createRun(run);
+  app.store.saveReceipt('input-original', { kind: 'input', state: 'failed', input });
+  const current = app.store.append(c.id, 'user', 'human', input.text, run.id, { requestId: input.requestId });
+  app.store.put('execution.initial', 'diagnostic', { id: 'compaction-request-failure', kind: 'status', state: 'failed' });
+  const a = app.router.retryCompactionInput(run.id);
+  assert.equal(app.router.retryCompactionInput(run.id).requestId, a.requestId);
+  assert.equal(app.store.receipt('input-' + a.requestId)?.input.recordedInputId, current.id);
+  app.store.put('execution.initial', 'tool', { id: 'tool', kind: 'tool', state: 'completed' });
+  assert.throws(() => app.router.retryCompactionInput(run.id), { code: 'retry_unavailable' });
 });
 
 test('generation settings can be saved for the next run while execution identity stays protected', async (t) => {

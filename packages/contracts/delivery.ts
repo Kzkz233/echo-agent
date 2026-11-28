@@ -32,6 +32,7 @@ export const outputTarget = z.object({
   legacySources: z.array(z.string()).default([]),
 });
 export const deliveryPlan = z.object({
+  audience: z.object({ conversationId:key, personaId:key }).optional(),
   targets: z.array(outputTarget.extend({ provider: key, owner: key })).max(20),
   source: z.string().min(1).max(100),
   task: outputTask.optional(),
@@ -54,7 +55,7 @@ export const deliveryResult = z.object({
   receipt: z.unknown().optional(),
 });
 export const deliveryRequest = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('list'), personaId: key, conversationId: key }),
+  z.object({ action: z.literal('list'), personaId: key, conversationId: key, isReply: z.boolean().optional() }),
   z.object({
     action: z.enum(['deliver', 'inspect']),
     targetId: key,
@@ -64,6 +65,15 @@ export const deliveryRequest = z.discriminatedUnion('action', [
   }),
 ]);
 export type DeliveryPlan = z.infer<typeof deliveryPlan>;
+// Only these fields authorize a destination. Availability, labels and presentation
+// are read again for each handoff and may change without changing the request.
+export function deliveryIdentity(plan: DeliveryPlan, recipient?: DeliveryPlan['audience']) {
+  const audience = plan.audience ?? recipient;
+  const targets = plan.targets.map(t => [t.id, t.owner, t.provider, t.revision])
+    .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+  return [plan.source, plan.task && [plan.task.type, plan.task.id], plan.replyTo,
+    audience && [audience.conversationId, audience.personaId], targets];
+}
 export type OutputEnvelope = z.infer<typeof outputEnvelope>;
 export type OutputTarget = z.infer<typeof outputTarget>;
 export type DeliveryResult = z.infer<typeof deliveryResult>;

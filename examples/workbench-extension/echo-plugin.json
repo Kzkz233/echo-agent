@@ -2,7 +2,7 @@
   "apiVersion": 1,
   "id": "workbenchdemo",
   "name": "Workbench example",
-  "description": "Declarative forms, an isolated page and character-scoped preferences",
+  "description": "Declarative forms, an isolated page and companion-scoped preferences",
   "version": "0.1.0",
   "dependencies": [],
   "permissions": ["ui.contribute", "workbenchdemo.read", "workbenchdemo.write"],
@@ -15,7 +15,7 @@
         "fields": [{ "key": "message", "label": "Message", "type": "textarea" }, { "key": "count", "label": "Count", "type": "number", "min": 0 }] } },
     { "id": "workbenchdemo.dashboard", "title": "Example dashboard", "placement": "workspace", "section": "knowledge",
       "view": { "type": "webview", "entry": "dashboard.html", "operations": ["workbenchdemo.read", "workbenchdemo.save"] } },
-    { "id": "workbenchdemo.character", "title": "Character preferences", "placement": "character",
+    { "id": "workbenchdemo.character", "title": "Companion preferences", "placement": "character",
       "view": { "type": "form", "load": "workbenchdemo.read", "save": "workbenchdemo.save", "personaField": "personaId",
         "fields": [{ "key": "message", "label": "Message", "type": "textarea" }] } }
   ]

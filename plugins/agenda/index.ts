@@ -109,7 +109,7 @@ export class Agenda {
     invariant(!v.conversationId || v.personaId === 'companion' ||
       this.store.conversation(v.conversationId)?.personaId === v.personaId ||
       (old?.personaId === v.personaId && old.conversationId === v.conversationId),
-      'agenda_owner', '请选择日程所属角色的会话。');
+      'agenda_owner', '请选择日程所属伙伴的会话。');
     invariant(
       Buffer.byteLength(JSON.stringify(v.extensions)) <= 32768,
       'agenda_metadata',
@@ -332,7 +332,7 @@ export class Agenda {
       };
       this.store.transaction(() => {
         this.store.put('agenda-reminders', s.id, notice);
-        if (active) recordOccurrence(this.store, remindersType, s.personaId, s.personaId, decision, item.id);
+        if (active) recordOccurrence(this.store, remindersType, s.personaId, s.personaId, decision, item.id, s.id);
       });
       this.events.emit('agenda.reminder', notice);
       if (notice.state === 'missed') continue;
@@ -340,7 +340,7 @@ export class Agenda {
         const selected = item.reminder.outputTargets ?? s.defaults;
         try {
           const result = await ctx.registry.call('automation.dispatch', {
-            action: 'notice', kind: 'agenda.reminder', requestId: s.id,
+            action: 'notice', kind: 'agenda.reminder', requestId: s.id, resultContext: {runKey: s.id},
             title: item.title, text: this.reminderText(item), conversationId: s.conversationId,
             outputTargets: selected, task: { type: remindersType, id: s.personaId },
           }, { kind: 'internal', permissions: new Set(['automation.dispatch']) }, ctx.signal);
@@ -412,7 +412,7 @@ export class Agenda {
             }),
           save: (roleId, settings, actor) => {
             invariant(this.store.document('characters', roleId) && settings.personaId === roleId && (!actor || actor.personaId === roleId),
-              'task_owner', '请选择日程所属角色。');
+              'task_owner', '请选择日程所属伙伴。');
             const config = reminderSettings.parse(settings);
             this.store.put('agenda-reminder-settings', roleId, config);
             this.arm();
@@ -451,7 +451,7 @@ export class Agenda {
           this.cancel?.();
         });
         const op = operations(ctx, 'agenda');
-        op('reminderDefaults', '读取此日程所属角色的提醒渠道', z.object({ personaId:id, conversationId:id.optional() }),
+        op('reminderDefaults', '读取此日程所属伙伴的提醒渠道', z.object({ personaId:id, conversationId:id.optional() }),
           'agenda.read', v => {
             const {personaId, conversationId, defaults} = this.reminderContext(v);
             return { personaId, conversationId, outputTargets: defaults };
@@ -576,7 +576,7 @@ export class Agenda {
               const old = v.id && this.store.document<AgendaItem>('agenda', v.id);
               invariant((!old || old.personaId === caller.personaId) &&
                 (!v.conversationId || this.store.conversation(v.conversationId)?.personaId === caller.personaId),
-                'agenda_owner', '请选择当前角色的日程和渠道。');
+                'agenda_owner', '请选择当前伙伴的日程和渠道。');
               v = { ...v, personaId: caller.personaId };
             }
             await this.validateFields(v, s);

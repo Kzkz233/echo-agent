@@ -24,7 +24,7 @@ dropdown imposed on every task editor, and no new serial queue shared by all tas
 
 ## Task workspace
 
-The character has one Tasks entry with Subtasks and Automation tabs. Active subtasks include outstanding one-off work and
+The companion has one Tasks entry with Subtasks and Automation tabs. Active subtasks include outstanding one-off work and
 ongoing tasks. Accepted one-off work, paused ongoing work and explicitly ended tasks are inactive; failures,
 unknown outcomes and pending acceptance remain visible. Results, evidence and previous
 attempts belong to the task details. Ongoing work can pause, resume or end independently of
@@ -33,7 +33,7 @@ retaining a conversation does not keep a process resident. Fresh runs retain pri
 
 Autonomous delegation is a permission, separate from editable delegation guidance and
 concurrency limits. Legacy `manual/auto/prefer` settings are interpreted without losing
-written prompts. The role grants a ceiling for subtask models, directories, tools and
+written prompts. The companion grants a ceiling for subtask models, directories, tools and
 execution time; each task receives its own selected subset. Main-session permissions remain separate.
 Pi file tools check canonical paths against the working directory and additional read/write
 roots. Approved terminal execution runs as the OS user and is not an OS filesystem sandbox.
@@ -54,7 +54,7 @@ policies. Newly created tasks can read retained archival sources.
 Ordinary add/update/merge/archive/delete and core proposals are individual task grants.
 Migrations preserve existing grants. The worker reads full current memory records before
 changing them, and mutations carry their current versions.
-Writes are serialized, idempotent, scoped to the character, and retain before/after records.
+Writes are serialized, idempotent, scoped to the companion, and retain before/after records.
 Current grants are checked again before application. Core changes always go through the
 optional Approvals contracts; rejection, stale versions or withdrawn grants never alter the
 active core memory. Guidance remains editable; the enforcement protocol is program-owned.
@@ -84,7 +84,7 @@ instances can hold the same state; finishing one does not clear another. Expired
 unloaded providers disappear from the active set. Snapshots are refreshed by events and active
 lease deadlines, without idle polling or another resident worker.
 
-Character configuration maps each registered state to a clip and optional priority override.
+Companion configuration maps each registered state to a clip and optional priority override.
 The native renderer resolves concurrent states deterministically. Frame animation shows one
 primary clip, with short transition hysteresis. Visual priorities never modify scheduler priorities.
 

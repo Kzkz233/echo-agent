@@ -115,3 +115,25 @@ test('caller cancellation interrupts an active compaction despite its longer wai
   assert.equal(calls().summaries, 1);
   assert.equal(calls().replies, 0);
 });
+
+test('a whitespace-only stop is corrected inside the Pi compactor before the real turn executes', async t => {
+  const { backend, request, calls } = await fixture(t, (response, first) =>
+    response.end(delta(first ? '  ' : '完成', true)));
+  const items: string[] = [];
+  const saved: string[] = [];
+  const result = await backend.generate({ ...request, onItem: item => items.push(item.id),
+    onCompaction: snapshot => saved.push(snapshot.summary) });
+  assert.equal(items.filter(id => id === 'compaction-summary-retry').length, 1);
+  assert(saved.length > 0 && saved.every(summary => summary.trim()));
+  assert.equal(calls().replies, 1);
+  assert.match(result.text, /Finished synthetic task/);
+});
+
+test('twice-empty compaction preserves the checkpoint and never starts the real turn', async t => {
+  const { backend, request, calls } = await fixture(t, response => response.end(delta('  ', true)));
+  let committed = false;
+  await assert.rejects(backend.generate({ ...request, onCompaction: () => { committed = true; } }),
+    { message: /重新生成摘要后/ });
+  assert.equal(committed, false);
+  assert.deepEqual(calls(), { summaries: 2, replies: 0 });
+});

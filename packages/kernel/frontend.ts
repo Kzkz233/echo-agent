@@ -56,7 +56,7 @@ export class FrontendCatalog {
   async mount(id: string, bridge: string, personaId?: string) {
     const page = await this.page(id);
     invariant(page.view.type === 'webview', 'page_type', '此页面不需要独立网页。');
-    invariant(page.placement !== 'character' || personaId, 'page_character', '请先选择角色。');
+    invariant(page.placement !== 'character' || personaId, 'page_character', '请先选择伙伴。');
     for (const [key, mount] of this.mounts) if (mount.expires < Date.now()) this.mounts.delete(key);
     if (this.mounts.size >= 128) this.mounts.delete(this.mounts.keys().next().value!);
     const ticket = randomBytes(24).toString('base64url');
@@ -75,7 +75,7 @@ export class FrontendCatalog {
   }
   async invoke(id: string, operation: string, input: unknown, personaId?: string, signal?: AbortSignal) {
     const page = await this.page(id), view = page.view;
-    invariant(page.placement !== 'character' || personaId, 'page_character', '请先选择角色。');
+    invariant(page.placement !== 'character' || personaId, 'page_character', '请先选择伙伴。');
     const allowed = view.type === 'webview' ? view.operations : [view.load, view.type === 'catalog' ? view.action : view.save].filter(Boolean);
     invariant(allowed.includes(operation), 'page_operation', '页面未声明此操作。');
     const plugin = this.plugins.plugins.get(page.owner)!;

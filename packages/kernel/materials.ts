@@ -64,7 +64,7 @@ export class MaterialSources {
     });
     scope.define({
       id: 'review.material-streams@1',
-      description: '材料提供方可选的角色内子来源',
+      description: '材料提供方可选的伙伴内子来源',
       input: z.object({}),
       output: z.array(z.object({ id: z.string(), personaId: z.string(), label: z.string() })),
       providePermission: 'review.contribute',

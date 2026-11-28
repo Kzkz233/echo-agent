@@ -12,16 +12,16 @@ const groupLabels = {
   prefix: '固定前缀', tools: '工具定义', history: '会话历史', turn: '本轮临时内容',
 };
 const detailLabels: Record<string, string> = {
-  'persona.profile': '角色人设', 'memory.core': '核心记忆', 'memory.recall': '参考记忆',
+  'persona.profile': '伙伴人设', 'memory.core': '核心记忆', 'memory.recall': '参考记忆',
   'delegation.guide': '常驻委派指引', 'delegation.turn': '本轮委派信息',
-  'chatstick.catalog': '表情目录', 'reflections.current': '角色关注',
-  'core.presentation': '渠道约定', summary: '滚动摘要', human: '用户消息', chat: '角色回复',
+  'chatstick.catalog': '表情目录', 'reflections.current': '伙伴关注',
+  'core.presentation': '渠道约定', summary: '滚动摘要', human: '用户消息', chat: '伙伴回复',
   observation: '实时观察', care: '主动交流', notification: '通知', import: '导入记录',
   execution: '本轮工具调用与结果',
   'task.instructions': '任务指引', 'task.input': '任务输入',
 };
 const groupHints: Record<keyof typeof groupLabels, string> = {
-  prefix: '压缩会话时保留，随角色和插件设置更新。',
+  prefix: '压缩会话时保留，随伙伴和插件设置更新。',
   tools: '压缩会话时保留，随可用工具更新。',
   history: '旧内容可归入摘要或移出输入，原始记录保留。',
   turn: '仅注入本轮，留档的内容之后归入历史。',

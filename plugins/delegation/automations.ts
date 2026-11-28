@@ -1,3 +1,4 @@
+import { dailyTimeCodec, followAppTimezone } from '../../packages/contracts/daily-time.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { id, invariant } from '../../packages/contracts/index.ts';
@@ -5,7 +6,7 @@ import { executionRequest } from '../../packages/contracts/work.ts';
 import { conversationPermissions } from '../../packages/contracts/interaction.ts';
 import { characterEnabled } from '../../packages/kernel/characters.ts';
 import { Automation, contributeAutomation } from '../../packages/kernel/automation.ts';
-import { configuredTimezone, localTime, nextDaily } from '../../packages/kernel/time.ts';
+import { scheduleTimezone, configuredTimezone, localTime, nextDaily } from '../../packages/kernel/time.ts';
 import type { Caller, PluginContext } from '../../packages/kernel/registry.ts';
 import type { Clock } from '../../packages/kernel/clock.ts';
 import type { Router } from '../../packages/kernel/router.ts';
@@ -14,13 +15,14 @@ import type { DelegationPolicy } from './config.ts';
 import { authorizeExecution } from './authorization.ts';
 import { selectedReasoning } from '../../packages/backends/model-metadata.ts';
 
-import { missedPolicy, validMinutes, missedFields, decideOccurrence, latestSlot, recordOccurrence } from '../../packages/kernel/schedule-policy.ts';
+import { missedPolicy, validMinutes, watchScheduleTimezone, dailyFields, missedFields, decideOccurrence, latestSlot, recordOccurrence } from '../../packages/kernel/schedule-policy.ts';
 
 const type = 'delegation.automations';
 const schema = z.object({
   id, name: z.string().trim().min(1).max(80), personaId: id,
   prompt: z.string().trim().min(1).max(50000), enabled: z.boolean().default(false),
   mode: z.enum(['once', 'daily', 'interval']).default('daily'),
+  timezone: z.string().default(followAppTimezone),
   at: z.string().optional(), hour: z.number().int().min(0).max(23).default(7),
   minute: z.number().int().min(0).max(59).default(0),
   minutes: z.number().int().min(1).max(525600).default(60),
@@ -44,11 +46,11 @@ export class AgentAutomations {
         task.at ? Date.parse(task.at) : NaN;
     }
     return task.mode === 'interval' ? now + task.minutes * 60000 :
-      nextDaily(new Date(now), task.hour, task.minute, configuredTimezone(this.router.store));
+      nextDaily(new Date(now), task.hour, task.minute, scheduleTimezone(this.router.store, task.timezone));
   }
   private parent(personaId: string) {
     const role = this.router.store.document<{ mainConversationId: string }>('characters', personaId);
-    invariant(role, 'persona_missing', '请选择已有角色。');
+    invariant(role, 'persona_missing', '请选择已有伙伴。');
     return role.mainConversationId;
   }
   private async authorize(task: Task) {
@@ -64,14 +66,15 @@ export class AgentAutomations {
   }
   async save(raw: unknown, caller?: Caller) {
     const task = schema.parse(raw);
-    invariant(!caller?.personaId || caller.personaId === task.personaId, 'task_owner', '只能管理当前角色的任务。');
+    new Intl.DateTimeFormat('en', { timeZone: scheduleTimezone(this.router.store, task.timezone) });
+    invariant(!caller?.personaId || caller.personaId === task.personaId, 'task_owner', '只能管理当前伙伴的任务。');
     const old = this.router.store.document<Task>('agent-automations', task.id);
-    invariant(!old || old.personaId === task.personaId, 'task_owner', '不能覆盖其他角色的任务。');
+    invariant(!old || old.personaId === task.personaId, 'task_owner', '不能覆盖其他伙伴的任务。');
     // Character creation saves disabled task drafts before binding its main model.
     // Activation and every execution still validate the complete execution grant.
     if (task.enabled || this.router.store.binding(this.parent(task.personaId))) await this.authorize(task);
     const sameSchedule = old && old.enabled === task.enabled &&
-      (['mode','at','hour','minute','minutes'] as const).every(key => old[key] === task[key]);
+      (['mode','at','hour','minute','minutes'] as const).every(key => old[key] === task[key]) && (old.timezone ?? followAppTimezone) === task.timezone;
     const nextAt = sameSchedule && old.nextAt ? old.nextAt : this.next(task);
     invariant(Number.isFinite(nextAt) && (task.mode !== 'once' || !task.enabled || sameSchedule || nextAt > Date.now()), 'task_time', '请填写未来的有效执行时间。');
     this.running.get(task.id)?.abort();
@@ -92,13 +95,13 @@ export class AgentAutomations {
     const store = this.router.store, task = store.document<Task>('agent-automations', id);
     if (!task?.enabled || (task.nextAt !== undefined && task.nextAt !== first) ||
         !characterEnabled(store, task.personaId, 'delegation')) return;
-    const now = Date.now(), slot = latestSlot(first, now, task, configuredTimezone(store));
+    const now = Date.now(), slot = latestSlot(first, now, task, scheduleTimezone(store, task.timezone));
     const decision = decideOccurrence(first, slot, now, task.missedPolicy ?? 'valid', slot + (task.validMinutes ?? 60) * 60000);
     const requestId = 'auto-' + createHash('sha256').update(id + ':' + slot).digest('hex').slice(0, 40);
     const next = { ...task, enabled: task.mode !== 'once', nextAt: task.mode === 'interval'
       ? slot + task.minutes * 60000 : this.next(task, now) };
     store.transaction(() => {
-      recordOccurrence(store, type, id, task.personaId, decision);
+      recordOccurrence(store, type, id, task.personaId, decision, '', requestId);
       // Claim this occurrence before the first await. A crash cannot re-submit its tools.
       store.put('agent-automations', id, next);
     });
@@ -113,7 +116,7 @@ export class AgentAutomations {
   async run(id: string, requestId: string, scheduled = false) {
     const task = this.router.store.document<Task>('agent-automations', id);
     invariant(task, 'task_missing', '任务不存在。');
-    invariant(characterEnabled(this.router.store, task.personaId, 'delegation'), 'character_disabled', '角色或任务功能已停用。');
+    invariant(characterEnabled(this.router.store, task.personaId, 'delegation'), 'character_disabled', '伙伴或任务功能已停用。');
     invariant(!this.running.has(id), 'task_busy', '任务正在执行。');
     const receiptKey = 'agent-task.' + requestId;
     const old = this.router.store.receipt(receiptKey);
@@ -144,13 +147,13 @@ export class AgentAutomations {
         authority: { owner: 'delegation', taskType: type, taskId: id, permissions: execution.toolPermissions ?? [] },
         text: [execution.prompt, task.prompt,
           '这是自动化任务。本轮执行上述任务并核验结果，结束后说明实际成果和未完成事项。',
-          task.report ? '用户渠道由主角色按任务设置汇报。' : '本次只保存结果，不主动向用户渠道发消息。'].filter(Boolean).join('\n\n'),
+          task.report ? '用户渠道由主会话按任务设置汇报。' : '本次只保存结果，不主动向用户渠道发消息。'].filter(Boolean).join('\n\n'),
       }, controller.signal);
       const text = run.state === 'succeeded' ? run.result ?? '任务执行完成。' : run.error ?? '任务执行未完成。';
       if (run.state !== 'succeeded') error = text;
       await this.router.taskResults.submit({ id: 'agent-result-' + requestId, conversationId: parent,
         source: 'handoff', task: task.name, text, report: task.report,
-        context: { tasks:[{type,id}], workSessionId:work.id, executionState:run.state, executionRunId:run.id },
+        context: { runKey: scheduled ? requestId : undefined, tasks:[{type,id}], workSessionId:work.id, executionState:run.state, executionRunId:run.id },
         reportPrompt: task.report ? task.reportPrompt : undefined, delivery }, controller.signal);
       const receipt = { state: run.state, taskId: id, runId: run.id };
       this.router.store.saveReceipt(receiptKey, receipt);
@@ -161,7 +164,7 @@ export class AgentAutomations {
         // Execution errors remain visible to later conversation, without starting another failing report run.
         await this.router.taskResults.submit({ id: 'agent-result-' + requestId,
           conversationId: this.parent(task.personaId), source: 'handoff', task: task.name,
-          context: { tasks:[{type,id}], executionState:'failed' }, text: '任务未完成：' + error, report: false }).catch(() => {});
+          context: { runKey: scheduled ? requestId : undefined, tasks:[{type,id}], executionState:'failed' }, text: '任务未完成：' + error, report: false }).catch(() => {});
       }
       const receipt = { state: controller.signal.aborted ? 'cancelled' : 'failed', taskId: id, error };
       this.router.store.saveReceipt(receiptKey, receipt);
@@ -182,18 +185,18 @@ export class AgentAutomations {
   }
   install(ctx: PluginContext) {
     contributeAutomation(ctx, type, '自定义任务', {
+      settingsCodec: dailyTimeCodec,
       describe: () => ({ scope: 'character', defaults: { prompt: '', execution: {}, report: true,
         reportPrompt: '简要汇报任务的实际结果、需要确认的事项。', outputTargets: ['core.chat'],
-        mode: 'daily', hour: 7, minute: 0, minutes: 60, missedPolicy: 'valid', validMinutes: 60 },
+        mode: 'daily', hour: 7, minute: 0, timezone: followAppTimezone, minutes: 60, missedPolicy: 'valid', validMinutes: 60 },
         fields: [
-          { key: 'personaId', label: '所属角色', kind: 'select', options: this.router.store.documents<any>('characters').map(role =>
+          { key: 'personaId', label: '所属伙伴', kind: 'select', options: this.router.store.documents<any>('characters').map(role =>
             ({ value: role.id, label: this.router.store.document<any>('personas', role.id)?.name ?? role.id })) },
           { key: 'prompt', label: '任务要求', kind: 'textarea' },
           { key: 'mode', label: '执行周期', kind: 'select', options: [
             { value: 'once', label: '执行一次' }, { value: 'daily', label: '每日' }, { value: 'interval', label: '按间隔' }] },
           { key: 'at', label: '执行时间', kind: 'datetime', description: '使用应用时区。', when: { key: 'mode', value: 'once' } },
-          { key: 'hour', label: '小时', kind: 'number', min: 0, max: 23, when: { key: 'mode', value: 'daily' } },
-          { key: 'minute', label: '分钟', kind: 'number', min: 0, max: 59, when: { key: 'mode', value: 'daily' } },
+          ...dailyFields(),
           { key: 'minutes', label: '间隔（分钟）', kind: 'number', min: 1, when: { key: 'mode', value: 'interval' } },
           ...missedFields(),
           { key: 'execution', label: '执行设置', kind: 'execution' },
@@ -210,13 +213,13 @@ export class AgentAutomations {
       run: (id, requestId) => this.run(id, requestId),
     });
     ctx.registry.register({ owner: 'delegation', name: 'delegation.schedule',
-      description: '创建或编辑当前角色的自动化子任务：任务要求、执行时间、已授权执行配置和汇报渠道',
+      description: '创建或编辑当前伙伴的自动化子任务：任务要求、执行时间、已授权执行配置和汇报渠道',
       permission: 'delegation.write', mcp: true,
       input: z.object({ id:id.optional(), name:z.string().optional(), prompt:z.string().optional() }).catchall(z.unknown()), output: z.unknown(),
       run: async (value, caller, signal) => {
-        invariant(caller.personaId && caller.conversationId, 'task_owner', '请从角色工作会话创建任务。');
-        invariant(caller.conversationId === this.parent(caller.personaId), 'task_owner', '请由主角色创建自动化任务。');
-        invariant(this.policy(caller.personaId).autonomous, 'delegation_policy', '角色未获准自主创建子任务。');
+        invariant(caller.personaId && caller.conversationId, 'task_owner', '请从伙伴工作会话创建任务。');
+        invariant(caller.conversationId === this.parent(caller.personaId), 'task_owner', '请由主会话创建自动化任务。');
+        invariant(this.policy(caller.personaId).autonomous, 'delegation_policy', '伙伴未获准自主创建子任务。');
         const taskId = value.id ?? randomUUID();
         const exists = this.tasks().some(row => row.id === taskId);
         const result = await new Automation(ctx.capabilities).mutate(type, { action:'save', id:taskId, patch:true,
@@ -225,12 +228,12 @@ export class AgentAutomations {
         return result.saved;
       } });
     ctx.registry.register({ owner: 'delegation', name: 'delegation.automations',
-      description: '查看、启停、移除或立即执行当前角色的自定义任务', permission: 'delegation.write', mcp: true,
+      description: '查看、启停、移除或立即执行当前伙伴的自定义任务', permission: 'delegation.write', mcp: true,
       input: z.object({ action: z.enum(['list', 'pause', 'resume', 'run', 'remove']), id: id.optional(), requestId: id.optional() }),
       output: z.unknown(), run: async (value, caller, signal) => {
-        invariant(caller.personaId && caller.conversationId === this.parent(caller.personaId), 'task_owner', '请从主角色管理任务。');
+        invariant(caller.personaId && caller.conversationId === this.parent(caller.personaId), 'task_owner', '请从主会话管理任务。');
         if (value.action === 'list') return this.tasks().filter(task => task.personaId === caller.personaId);
-        invariant(this.policy(caller.personaId).autonomous, 'delegation_policy', '角色未获准自主管理子任务。');
+        invariant(this.policy(caller.personaId).autonomous, 'delegation_policy', '伙伴未获准自主管理子任务。');
         const task = this.tasks().find(task => task.id === value.id && task.personaId === caller.personaId);
         invariant(task, 'task_missing', '任务不存在。');
         if (value.action === 'run') return this.run(task.id, value.requestId ?? randomUUID());
@@ -243,6 +246,16 @@ export class AgentAutomations {
           actor:{personaId:caller.personaId,conversationId:caller.conversationId!,permissions:[...caller.permissions]}},signal);
         return result.saved;
       } });
+    ctx.dispose(watchScheduleTimezone(this.router.store, this.router.events, 'delegation', () => {
+      for (const task of this.tasks()) {
+        const follows = !task.timezone || task.timezone === followAppTimezone;
+        const localOnce = task.mode === 'once' && /^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test(task.at ?? '');
+        if (!task.enabled || !(localOnce || follows && task.mode === 'daily')) continue;
+        const saved = { ...task, nextAt: this.next(task) };
+        this.router.store.put('agent-automations', task.id, saved);
+        this.schedule(saved);
+      }
+    }));
     for (const task of this.tasks()) this.schedule(task);
     ctx.dispose(this.router.events.subscribe(event => {
       if (['character.activity.changed', 'characters.updated'].includes(event.type)) {

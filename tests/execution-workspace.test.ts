@@ -310,7 +310,7 @@ test('attachments are scoped and hydrated without putting base64 in conversation
   const stored = app.store.allMessages(chat.id).find((m) => m.role === 'user')!;
   assert.equal(stored.text, 'Read this');
   assert.equal((stored.meta.attachments as any)[0].id, text.id);
-  const png = await readFile(join(app.project, 'apps/workbench/public/assets/cute-girl/atlas.png'));
+  const png = await readFile(join(app.project, 'apps/workbench/public/assets/starter-characters/aria/atlas.png'));
   const image = await app.router.attachments.add(
     chat.id,
     'image.png',

@@ -54,7 +54,7 @@ await app.registry.call(
   { profileId: 'fixture', requestId: 'fixture-role' },
   internal,
 );
-const id = app.store.document<any>('characters', 'example-hina')!.mainConversationId;
+const id = app.store.document<any>('characters', 'example-aria')!.mainConversationId;
 const server = await serve(app, { webRoot: join(project, 'dist/web') });
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const ack = gate();
@@ -63,7 +63,7 @@ try {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(
-    `http://127.0.0.1:${server.port}/?page=character&persona=example-hina#token=${server.token}`,
+    `http://127.0.0.1:${server.port}/?page=character&persona=example-aria#token=${server.token}`,
   );
   await page.getByRole('tab', { name: '聊天', exact: true }).click();
   const input = page.getByRole('textbox', { name: '聊天消息' });

@@ -34,7 +34,7 @@ await app.registry.call(
   { profileId: 'fixture', requestId: 'scroll-fixture' },
   internal,
 );
-const id = app.store.document<any>('characters', 'example-hina')!.mainConversationId;
+const id = app.store.document<any>('characters', 'example-aria')!.mainConversationId;
 for (let i = 0; i < 160; i++)
   app.store.append(
     id,
@@ -64,7 +64,7 @@ const bottom = () =>
   });
 try {
   await page.goto(
-    `http://127.0.0.1:${server.port}/?page=character-session&persona=example-hina#token=${server.token}`,
+    `http://127.0.0.1:${server.port}/?page=character-session&persona=example-aria#token=${server.token}`,
   );
   await bottom();
   await page.getByRole('tab', { name: '聊天', exact: true }).click();

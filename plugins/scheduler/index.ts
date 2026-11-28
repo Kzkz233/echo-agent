@@ -1,15 +1,16 @@
+import { dailyTimeCodec, followAppTimezone } from '../../packages/contracts/daily-time.ts';
 import { contributeAutomation, type AutomationField } from '../../packages/kernel/automation.ts';
 import packageManifest from './echo-plugin.json' with { type: 'json' };
 import { defineManifest } from '../../packages/kernel/registry.ts';
 import { z } from 'zod';
 import { id, invariant, SafeTaskFailure } from '../../packages/contracts/index.ts';
 import { Clock } from '../../packages/kernel/clock.ts';
-import { nextDaily } from '../../packages/kernel/time.ts';
+import { scheduleTimezone, nextDaily } from '../../packages/kernel/time.ts';
 import { Store } from '../../packages/kernel/store.ts';
 import { Events } from '../../packages/kernel/events.ts';
 import type { Plugin, PluginContext } from '../../packages/kernel/registry.ts';
 import { operations } from '../shared.ts';
-import { decideOccurrence, latestSlot, missedFields, missedPolicy, recordOccurrence, validMinutes } from '../../packages/kernel/schedule-policy.ts';
+import { decideOccurrence, latestSlot, setOccurrenceExecution, watchScheduleTimezone, dailyFields, missedFields, missedPolicy, recordOccurrence, validMinutes } from '../../packages/kernel/schedule-policy.ts';
 export const jobSchema = z.object({
   id,
   name: z.string().min(1).max(160),
@@ -20,7 +21,7 @@ export const jobSchema = z.object({
   minutes: z.number().int().min(1).max(525600).default(60),
   hour: z.number().int().min(0).max(23).default(7),
   minute: z.number().int().min(0).max(59).default(0),
-  timezone: z.string().default('Asia/Shanghai'),
+  timezone: z.string().default(followAppTimezone),
   missedPolicy: missedPolicy.default('once'), validMinutes,
 });
 type Job = z.infer<typeof jobSchema> & { nextAt?: number; blocked?: string };
@@ -46,8 +47,10 @@ export class Scheduler {
   ) {
     store.db.exec("CREATE INDEX IF NOT EXISTS scheduler_runs_job_time ON documents(json_extract(data,'$.jobId'),json_extract(data,'$.startedAt')) WHERE namespace='scheduler-runs'");
     for (const e of store.documents<Execution>('scheduler-runs'))
-      if (e.state === 'running')
+      if (e.state === 'running') {
         store.put('scheduler-runs', e.id, { ...e, state: 'unknown', error: '进程中断，未重放。' });
+        setOccurrenceExecution(store, e.provider === 'mail.sync' ? 'scheduler.mail' : 'scheduler.timed', e.jobId, e.slot, 'unknown');
+      }
   }
   jobs() {
     return this.store.documents<Job>('scheduler-jobs');
@@ -55,11 +58,11 @@ export class Scheduler {
   private next(job: Job, now = Date.now()) {
     return job.mode === 'interval'
       ? now + job.minutes * 60000
-      : nextDaily(new Date(now), job.hour, job.minute, job.timezone);
+      : nextDaily(new Date(now), job.hour, job.minute, scheduleTimezone(this.store, job.timezone));
   }
   save(value: unknown) {
     const job = jobSchema.parse(value);
-    new Intl.DateTimeFormat('en', { timeZone: job.timezone });
+    new Intl.DateTimeFormat('en', { timeZone: scheduleTimezone(this.store, job.timezone) });
     const old = this.store.document<Job>('scheduler-jobs', job.id);
     const sameSchedule = old && old.enabled === job.enabled && old.mode === job.mode &&
       old.minutes === job.minutes && old.hour === job.hour && old.minute === job.minute && old.timezone === job.timezone;
@@ -91,7 +94,7 @@ export class Scheduler {
   private async due(id: string, first: number) {
     const job = this.store.document<Job>('scheduler-jobs', id);
     if (!job?.enabled || job.blocked || job.nextAt !== first || this.running.has(id)) return;
-    const now = Date.now(), slot = latestSlot(first, now, job, job.timezone);
+    const now = Date.now(), slot = latestSlot(first, now, job, scheduleTimezone(this.store, job.timezone));
     const decision = decideOccurrence(first, slot, now, job.missedPolicy ?? 'once', slot + (job.validMinutes ?? 60) * 60000);
     this.store.transaction(() => {
       recordOccurrence(this.store, job.provider === 'mail.sync' ? 'scheduler.mail' : 'scheduler.timed', id, undefined, decision);
@@ -118,6 +121,8 @@ export class Scheduler {
       state: 'running',
       startedAt: new Date().toISOString(),
     };
+    const type = job.provider === 'mail.sync' ? 'scheduler.mail' : 'scheduler.timed';
+    if (scheduled) setOccurrenceExecution(this.store, type, jobId, slot, execution.state);
     this.store.put('scheduler-runs', key, execution);
     try {
       const result = await this.ctx.capabilities.invoke('scheduler.handlers@1', job.provider, {
@@ -141,6 +146,7 @@ export class Scheduler {
     } finally {
       execution.finishedAt = new Date().toISOString();
       this.store.put('scheduler-runs', key, execution);
+      if (scheduled) setOccurrenceExecution(this.store, type, jobId, slot, execution.state);
       const current = this.store.document<Job>('scheduler-jobs', jobId);
       if (current && current.nextAt === job.nextAt && (!scheduled || (current.nextAt ?? 0) <= Date.now()))
         this.store.put('scheduler-jobs', jobId, { ...current, nextAt: this.next(current) });
@@ -199,13 +205,11 @@ export class Scheduler {
                 { key: 'input', label: '任务参数', kind: 'json' as const }]),
             { key: 'mode', label: '执行周期', kind: 'select', options: [{ value: 'interval', label: '按间隔' }, { value: 'daily', label: '每日' }] },
             { key: 'minutes', label: '间隔（分钟）', kind: 'number', min: 1, max: 525600, when: { key: 'mode', value: 'interval' } },
-            { key: 'hour', label: '小时', kind: 'number', min: 0, max: 23, when: { key: 'mode', value: 'daily' } },
-            { key: 'minute', label: '分钟', kind: 'number', min: 0, max: 59, when: { key: 'mode', value: 'daily' } },
+            ...dailyFields(),
             ...missedFields(),
-            { key: 'timezone', label: '时区', kind: 'text', when: { key: 'mode', value: 'daily' } },
           ];
           return {
-            defaults: { mode: 'interval', minutes: 60, hour: 7, minute: 0, timezone: 'Asia/Shanghai', input: {}, missedPolicy: 'once', validMinutes: 60 },
+            defaults: { mode: 'interval', minutes: 60, hour: 7, minute: 0, timezone: followAppTimezone, input: {}, missedPolicy: 'once', validMinutes: 60 },
             fields,
           };
         };
@@ -236,6 +240,7 @@ export class Scheduler {
             return job;
           };
           contributeAutomation(ctx, mail ? 'scheduler.mail' : 'scheduler.timed', mail ? '邮件同步' : '通用定时任务', {
+            settingsCodec: dailyTimeCodec,
             describe: () => describe(mail), items: () => items(mail),
             save: (id, settings) => {
               if (this.store.document('scheduler-jobs', id)) getJob(id);
@@ -294,6 +299,7 @@ export class Scheduler {
               state: 'failed',
               error: '使用者已核对并结束；未重放。',
             });
+            setOccurrenceExecution(this.store, e.provider === 'mail.sync' ? 'scheduler.mail' : 'scheduler.timed', e.jobId, e.slot, 'failed');
             const j = this.store.document<Job>('scheduler-jobs', e.jobId);
             if (j)
               this.store.put('scheduler-jobs', j.id, {
@@ -311,6 +317,11 @@ export class Scheduler {
             const j = this.store.document<Job>('scheduler-jobs', e.jobId);
             if (j) this.store.put('scheduler-jobs', j.id, { ...j, blocked: e.id });
           }
+        ctx.dispose(watchScheduleTimezone(this.store, this.events, 'scheduler', () => {
+          for (const job of this.jobs().filter(j => j.mode === 'daily' && j.timezone === followAppTimezone))
+            this.store.put('scheduler-jobs', job.id, { ...job, nextAt: this.next(job) });
+          this.refresh();
+        }));
         ctx.capabilities.subscribe(() => this.refresh());
         queueMicrotask(() => this.refresh());
         ctx.dispose(() => {

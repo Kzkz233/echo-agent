@@ -3,10 +3,10 @@
 > Historical record. Current guidance is in the [documentation index](README.md). [Browse historical records](history/README.md).
 
 The 0.20.1 follow-up also checks the shared navigation/layout boundaries described
-in [WORKBENCH-ARCHITECTURE.md](WORKBENCH-ARCHITECTURE.md): explicit scope and role
+in [WORKBENCH-ARCHITECTURE.md](WORKBENCH-ARCHITECTURE.md): explicit scope and companion
 identity, editor presentation, registered plugin containers, and parent-preserving
 navigation. The baseline now contains 474 application tests. Browser checks cover
-sequential role tab changes, fixed busy/action slots, task category restoration,
+sequential companion tab changes, fixed busy/action slots, task category restoration,
 editor return, frameless iframe bounds, and preference saves during navigation.
 
 - Baseline: `pnpm verify` (473 application tests), desktop Rust tests (4),
@@ -18,7 +18,7 @@ editor return, frameless iframe bounds, and preference saves during navigation.
   65 px header, and aligned tab/header edges. Fonts use one shared hierarchy;
   interface and chat scaling are separate persisted preferences.
 - Reference captures use the same invented conversation and 1048 px viewport as
-  the approved preview. Body line height, 59 px role cards, 630 px conversation
+  the approved preview. Body line height, 59 px companion cards, 630 px conversation
   reading width, and 646 px composer are calibrated together. Registered view
   tabs share the header instead of adding another strip above page content.
 - Color checks cover primary text, secondary text, custom accent extremes, outgoing

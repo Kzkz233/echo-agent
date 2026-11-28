@@ -9,6 +9,11 @@ import type { PluginContext } from './registry.ts';
 import type { Router } from './router.ts';
 import type { Automation } from './automation.ts';
 
+export function signalRequestId(owner: string, kind: string, requestId: string) {
+  return hasScopedSignalKey(kind)
+    ? 'trigger-' + createHash('sha256').update(JSON.stringify([owner, kind, requestId])).digest('hex')
+    : requestId;
+}
 const point = 'core.automation.signals@1';
 const descriptor = z.object({
   action: z.enum(['conversation', 'notice', 'either']),
@@ -21,6 +26,7 @@ const eventDescriptor = nextDescriptor.extend({
   messageSource: messageSource.default('trigger'),
   noticeSource: z.enum(['notification','review']).default('notification'),
 });
+const resultContext = z.object({ runKey: z.string().min(1).max(512).optional(), resumable: z.boolean().optional(), executionState: z.enum(['failed','running','succeeded']).optional(), workSessionId: id.optional(), evidenceIds: z.array(z.string().max(512)).max(100).optional(), reviewable: z.boolean().optional() });
 export const triggerAction = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('task'),
@@ -35,7 +41,7 @@ export const triggerAction = z.discriminatedUnion('action', [
     delivery: deliveryPlan.optional(),
     recordOnly: z.boolean().default(false),
     reportPrompt: z.string().max(10000).optional(),
-    resultContext: z.object({ workSessionId: id.optional(), evidenceIds: z.array(z.string().max(512)).max(100).optional(), reviewable: z.boolean().optional() }).optional(),
+    resultContext: resultContext.optional(),
     messageSource: messageSource.optional(),
     kind: id,
     requestId: id,
@@ -50,6 +56,7 @@ export const triggerAction = z.discriminatedUnion('action', [
   }),
   z.object({
     action: z.literal('notice'),
+    resultContext: resultContext.optional(),
     delivery: deliveryPlan.optional(),
     kind: id,
     requestId: id,
@@ -151,17 +158,12 @@ export class TriggerActions {
       return { state: 'accepted' as const };
     }
     if (input.task) invariant(input.task.type.startsWith(owner + '.'), 'trigger_task_owner','任务结果必须属于事件来源插件。');
-    const requestId = hasScopedSignalKey(source.id)
-      ? 'trigger-' +
-        createHash('sha256')
-          .update(JSON.stringify([owner, input.kind, input.requestId]))
-          .digest('hex')
-      : input.requestId;
+    const requestId = signalRequestId(owner, source.id, input.requestId);
     if (input.action === 'notice') {
       if (input.conversationId) await this.router.taskResults.submit({
         id: requestId + '.record', conversationId: input.conversationId, text: input.title + '\n' + input.text,
         source: type.noticeSource === 'notification' ? 'trigger' : type.noticeSource, task: source.label.slice(0, 160), report: false,
-        context: { tasks: input.task ? [input.task] : undefined, outputId:requestId },
+        context: { ...input.resultContext, tasks: input.task ? [input.task] : undefined, outputId:requestId },
       }, signal);
       if (this.deliveries && input.conversationId) {
         const conversation=this.router.store.conversation(input.conversationId);

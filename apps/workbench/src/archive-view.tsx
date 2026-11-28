@@ -1,7 +1,8 @@
+import { AppTime } from './message-time.tsx';
 import { libraryLabel } from './library-label.ts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { rpc, mediaURL } from './client.ts';
-import { t, locale } from './i18n.ts';
+import { t } from './i18n.ts';
 import {
   Button,
   EmptyState,
@@ -257,7 +258,7 @@ export function ArchiveView({ page, data, act }: any) {
                       ? (item.bytes / 1048576).toFixed(1) + ' MB'
                       : Math.ceil(item.bytes / 1024) + ' KB'}
                   </td>
-                  <td>{new Date(item.updatedAt).toLocaleDateString(locale())}</td>
+                  <td><AppTime at={item.updatedAt} dateOnly/></td>
                   <td>
                     <button className="text-button" onClick={() => void open(item)}>
                       {t('下载原件')}

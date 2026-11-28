@@ -38,7 +38,7 @@ seedProfile(
   }),
 );
 try {
-  for (const name of ['hina', 'miyu'])
+  for (const name of ['aria', 'coda'])
     await call('persona.character.commit', {
       requestId: name,
       draft: characterDraft.parse({
@@ -48,7 +48,7 @@ try {
         configurations: {
           avatar: {
             enabled: true,
-            scale: name === 'hina' ? 1.4 : 0.7,
+            scale: name === 'aria' ? 1.4 : 0.7,
             roam: false,
             assetDirectory: join(project, 'apps/workbench/public/assets/starter-characters', name),
             animationClips: { idle: 'idle', working: 'running', speaking: 'waving' },
@@ -63,13 +63,13 @@ try {
     const ordered = [...value.instances].sort((a:any,b:any)=>a.left-b.left);
     return ordered[0].left + ordered[0].width <= ordered[1].left ? value : undefined;
   });
-  const [hina, miyu] = ['hina', 'miyu'].map((id) =>
+  const [aria, coda] = ['aria', 'coda'].map((id) =>
     status.instances.find((n: any) => n.personaId === id),
   );
-  assert.notEqual(hina.pid, miyu.pid);
-  assert.notEqual(hina.left, miyu.left);
-  assert.notEqual(hina.width, miyu.width);
-  for (const name of ['hina', 'miyu'])
+  assert.notEqual(aria.pid, coda.pid);
+  assert.notEqual(aria.left, coda.left);
+  assert.notEqual(aria.width, coda.width);
+  for (const name of ['aria', 'coda'])
     app.router.notice({
       conversationId: 'main-' + name,
       requestId: name + '-notice',
@@ -86,23 +86,23 @@ try {
       : undefined;
   });
   // Test only owned fixture windows by exact PID. No real provider or user window is touched.
-  replyToNative(hina.pid, 'Hina input fixture');
+  replyToNative(aria.pid, 'Aria input fixture');
   await wait(async () =>
-    app.store.allMessages('main-hina').some((m) => m.source === 'human') ? true : undefined,
+    app.store.allMessages('main-aria').some((m) => m.source === 'human') ? true : undefined,
   );
-  assert.equal(app.store.allMessages('main-miyu').filter((m) => m.source === 'human').length, 0);
-  replyToNative(miyu.pid, 'Miyu input fixture');
+  assert.equal(app.store.allMessages('main-coda').filter((m) => m.source === 'human').length, 0);
+  replyToNative(coda.pid, 'Coda input fixture');
   await wait(async () =>
-    app.store.allMessages('main-miyu').some((m) => m.source === 'human') ? true : undefined,
+    app.store.allMessages('main-coda').some((m) => m.source === 'human') ? true : undefined,
   );
-  assert.equal(app.store.allMessages('main-hina').filter((m) => m.source === 'human').length, 1);
-  await call('characters.setActive', { personaId: 'hina', enabled: false, revision: 0 });
+  assert.equal(app.store.allMessages('main-aria').filter((m) => m.source === 'human').length, 1);
+  await call('characters.setActive', { personaId: 'aria', enabled: false, revision: 0 });
   await wait(async () => {
     const state = await call('avatar.status');
-    return state.count === 1 && state.instances[0].personaId === 'miyu' ? true : undefined;
+    return state.count === 1 && state.instances[0].personaId === 'coda' ? true : undefined;
   });
-  assert.equal((await call('avatar.status', { personaId: 'miyu' })).pid, miyu.pid);
-  await call('characters.setActive', { personaId: 'hina', enabled: true, revision: 1 });
+  assert.equal((await call('avatar.status', { personaId: 'coda' })).pid, coda.pid);
+  await call('characters.setActive', { personaId: 'aria', enabled: true, revision: 1 });
   await wait(async () => ((await call('avatar.status')).count === 2 ? true : undefined));
   assert.equal(backend.calls.length, 2);
   await call('avatar.setVisible', {visible:false});

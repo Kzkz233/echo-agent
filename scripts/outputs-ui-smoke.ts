@@ -52,7 +52,7 @@ await app.registry.call(
   { profileId: 'fixture', requestId: 'examples' },
   internal,
 );
-const role = await app.registry.call('persona.character.read', { id: 'example-hina' }, internal);
+const role = await app.registry.call('persona.character.read', { id: 'example-aria' }, internal);
 await app.registry.call(
   'channels.bind',
   {
@@ -70,9 +70,9 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } }),
 page.on('pageerror', (error) => errors.push(error.message));
 page.setDefaultTimeout(15000);
 try {
-  await page.goto(`http://127.0.0.1:${http.port}/?persona=example-hina#token=${http.token}`);
-  await page.getByRole('button', { name: '配置角色', exact: true }).click();
-  await page.getByLabel('角色人设', { exact: true }).waitFor();
+  await page.goto(`http://127.0.0.1:${http.port}/?persona=example-aria#token=${http.token}`);
+  await page.getByRole('button', { name: '配置伙伴', exact: true }).click();
+  await page.getByLabel('伙伴人设', { exact: true }).waitFor();
   await page.getByRole('button', { name: '自动化任务', exact: true }).last().click();
   await page.locator('.task-tabs').getByRole('button', { name: '日常交流', exact: true }).click();
   const options = page.locator('.output-targets');
@@ -80,9 +80,9 @@ try {
   await options.getByRole('checkbox', { name: /^桌宠气泡/ }).uncheck();
   await options.getByRole('checkbox', { name: /Example inbox/ }).check();
   await page.screenshot({ path: join(project, 'test-results/task-outputs.png') });
-  await page.getByRole('button', { name: '保存角色', exact: true }).click();
-  await page.getByRole('button', { name: '配置角色', exact: true }).waitFor();
-  const saved = app.care.rules().find((rule) => rule.id === 'example-hina-care')!;
+  await page.getByRole('button', { name: '保存伙伴', exact: true }).click();
+  await page.getByRole('button', { name: '配置伙伴', exact: true }).waitFor();
+  const saved = app.care.rules().find((rule) => rule.id === 'example-aria-care')!;
   assert.deepEqual(saved.outputTargets, ['channels.binding.fixture-binding']);
   backend.responder = (request) => submitFixtureReplies(request, 'SYNTHETIC_EXTERNAL_RESULT');
   await app.triggerActions.dispatch(

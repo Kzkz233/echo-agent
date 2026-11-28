@@ -140,10 +140,10 @@ try {
   await catalog.getByRole('button', { name: 'First paper' }).waitFor({ state: 'hidden' });
   await catalog.getByRole('button', { name: 'Second paper' }).click();
   await catalog.getByRole('heading', { name: 'Second paper' }).waitFor();
-  await tabs.getByRole('tab', { name: '角色记忆' }).click();
+  await tabs.getByRole('tab', { name: '伙伴记忆' }).click();
   await page
     .locator('[data-plugin-page="memory.library"]')
-    .getByRole('combobox', { name: '角色', exact: true })
+    .getByRole('combobox', { name: '伙伴', exact: true })
     .waitFor();
   await tabs.getByRole('tab', { name: '个人知识库' }).click();
   await page.getByRole('heading', { name: '个人知识库' }).waitFor();

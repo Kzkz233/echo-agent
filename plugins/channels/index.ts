@@ -1,6 +1,7 @@
 import { contributeMaintenance } from '../../packages/kernel/maintenance.ts';
 import { channelTextMode, deliveryPoint, replySubmission } from '../../packages/contracts/delivery.ts';
 import manifest from './echo-plugin.json' with { type: 'json' };
+import { providerSnapshot } from '../../packages/kernel/provider-snapshot.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { characterActive } from '../../packages/kernel/characters.ts';
@@ -25,7 +26,12 @@ const bindingSchema = z.object({
   automaticSources: z.array(z.enum(['care', 'review', 'notification', 'trigger'])).default([]),
   automaticTriggerKinds: z.array(id).max(100).default([]),
 });
-type Binding = z.infer<typeof bindingSchema> & { id: string };
+type Binding = z.infer<typeof bindingSchema> & { id: string; recipientKey?: string };
+const destinationId = (binding: Binding) => 'channels.binding.' + (binding.recipientKey ?? binding.id);
+// Keep the existing revision for all previously enabled bindings. Enabled is a
+// permission checked at send time; disabling a binding does not change its peer.
+const outputRevision = (binding: Binding) =>
+  createHash('sha256').update(JSON.stringify([binding.conversationId, binding.adapter, binding.peer, true])).digest('hex');
 const deliveryInput = z.object({
   conversationId: id,
   peer: z.string(),
@@ -108,10 +114,9 @@ export class Channels {
       return { accepted: false, reason: 'character_disabled', requestId };
     }
     const delivery = await this.deliveries.plan(binding.conversationId, 'human', [
-      'channels.binding.' + binding.id,
+      destinationId(binding),
       ...(binding.alsoBubble ? ['avatar.bubble'] : []),
-    ], {}, this.ctx.signal);
-    if (input.remoteMessageId) delivery.replyTo = input.remoteMessageId;
+    ], { replyTo: input.remoteMessageId }, this.ctx.signal);
     const received = this.store.document<any>('channel-inbound', requestId);
     if (received) return { accepted: received.state === 'accepted', requestId };
     const current = this.store.document<Binding>('channel-bindings', binding.id);
@@ -276,16 +281,47 @@ export class Channels {
             consumePermission: 'channels.deliver',
             cardinality: 'one',
           });
-        const outputRevision=(binding:Binding)=>createHash('sha256').update(JSON.stringify([binding.conversationId,binding.adapter,binding.peer,binding.enabled])).digest('hex');
+        const availability = 'channels.availability@1';
+        const status = z.object({ ready:z.boolean(), issue:z.string().max(500).optional() });
+        ctx.capabilities.define({
+          id: availability, description:'检查此绑定在当前伙伴和回复方式下能否发送',
+          input:z.object({personaId:id, conversationId:id, peer:z.string(), isReply:z.boolean()}),
+          output:status, providePermission:'channels.adapter', consumePermission:'channels.deliver',
+          cardinality:'one',
+        });
         ctx.capabilities.provide(deliveryPoint,'channels.outputs','会话通道',async (input,outputSignal)=>{
-          if(input.action==='list')return{targets:this.bindings().filter(b=>b.enabled&&b.conversationId===input.conversationId).map(b=>({
-            id:'channels.binding.'+b.id,label:(ctx.capabilities.list('channels.send@1').find(p=>p.id===b.adapter)?.label??b.adapter)+' · '+b.peer,
-            presentation:'external',style:b.adapter === 'qq.bot' ? 'external' : b.adapter,
-            supportsImages:ctx.capabilities.list('channels.image-adapters@1').some(p=>p.id===b.adapter&&p.state==='active'),
-            revision:outputRevision(b),ready:ctx.capabilities.list('channels.send@1').some(p=>p.id===b.adapter&&p.state==='active'),
-            legacySources:[...b.automaticSources,...(b.automaticTriggerKinds??[]).map(kind=>'signal:'+kind),...(b.automaticSources.includes('notification')?['review']:[])],
-          }))};
-          const binding=this.bindings().find(b=>'channels.binding.'+b.id===input.targetId), envelope=input.envelope;
+          if (input.action === 'list') {
+            const senders = ctx.capabilities.list('channels.send@1');
+            const checks = ctx.capabilities.list(availability);
+            const images = ctx.capabilities.list('channels.image-adapters@1');
+            const targets = await Promise.all(this.bindings().filter(b => b.conversationId === input.conversationId).map(async binding => {
+              const sender = senders.find(p => p.id === binding.adapter);
+              const check = checks.find(p => p.id === binding.adapter);
+              let eligibility: z.infer<typeof status> = binding.enabled
+                ? { ready: sender?.state === 'active' }
+                : { ready: false, issue: '通道绑定已停用。' };
+              if (eligibility.ready && check) {
+                try {
+                  eligibility = await providerSnapshot(signal => ctx.capabilities.invoke(availability, binding.adapter, {
+                    conversationId:input.conversationId, personaId:input.personaId, peer:binding.peer, isReply:!!input.isReply,
+                  }, signal), outputSignal) as z.infer<typeof status>;
+                } catch {
+                  eligibility = { ready:false, issue:'暂时无法确认渠道发送权限。' };
+                }
+              }
+              return {
+                ...eligibility, id:destinationId(binding),
+                label:(sender?.label ?? binding.adapter) + ' · ' + binding.peer,
+                presentation:'external', style:binding.adapter === 'qq.bot' ? 'external' : binding.adapter,
+                supportsImages:images.some(p => p.id === binding.adapter && p.state === 'active'),
+                revision:outputRevision(binding),
+                legacySources:!binding.enabled ? [] : [...binding.automaticSources, ...(binding.automaticTriggerKinds ?? []).map(kind => 'signal:' + kind),
+                  ...(binding.automaticSources.includes('notification') ? ['review'] : [])],
+              };
+            }));
+            return { targets };
+          }
+          const binding=this.bindings().find(b=>destinationId(b)===input.targetId), envelope=input.envelope;
           if(!binding||!binding.enabled||binding.conversationId!==envelope.conversationId||outputRevision(binding)!==input.revision)return{result:{state:input.action==='inspect'?'unknown':'skipped',reason:'通道绑定已改变。'}};
           const point=input.action==='inspect'?'channels.inspect@1':'channels.send@1';
           if(!ctx.capabilities.list(point).some(p=>p.id===binding.adapter&&p.state==='active'))return{result:{state:input.action==='inspect'?'unknown':'skipped',reason:'通道插件当前不可用。'}};
@@ -295,6 +331,11 @@ export class Channels {
             ? await readReplyImage(ctx.capabilities,message.meta.image,signal):undefined;
           const parts = envelope.title && envelope.parts
             ? [envelope.title + '\n' + envelope.parts[0], ...envelope.parts.slice(1)] : envelope.parts;
+          const current = this.store.document<Binding>('channel-bindings', binding.id);
+          if (!current?.enabled || destinationId(current) !== input.targetId || outputRevision(current) !== input.revision ||
+              this.store.conversation(envelope.conversationId)?.personaId !== envelope.personaId ||
+              !characterActive(this.store,envelope.personaId))
+            return {result:{state:'skipped',reason:'通道绑定或伙伴权限已改变。'}};
           const result=await ctx.capabilities.invoke(point,binding.adapter,{conversationId:envelope.conversationId,peer:binding.peer,
             text:[envelope.title,envelope.text].filter(Boolean).join('\n'),messageId:envelope.messageId??envelope.id,
             replyTo:envelope.plan.replyTo,idempotencyKey:input.idempotencyKey,image,
@@ -352,7 +393,10 @@ export class Channels {
             );
             const previous = v.id ? this.store.document<Binding>('channel-bindings', v.id) : undefined;
             const textMode = v.textMode ?? (previous && previous.adapter === v.adapter ? previous.textMode : undefined);
-            const row = { ...v, textMode, id: v.id ?? randomUUID() };
+            const changedRecipient = previous && (previous.adapter !== v.adapter || previous.peer !== v.peer ||
+              previous.conversationId !== v.conversationId);
+            const recipientKey = changedRecipient ? randomUUID() : previous?.recipientKey;
+            const row = { ...v, textMode, id: v.id ?? randomUUID(), ...(recipientKey && { recipientKey }) };
             this.store.put('channel-bindings', row.id, row);
             this.events.emit('channels.updated', {});
             return row;

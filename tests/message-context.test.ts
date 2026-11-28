@@ -121,7 +121,7 @@ test('a plugin can describe its own source; unloading cannot change already capt
     renderMessageText(fake.calls[1].messages.find((message) => message.text === 'EVENT BODY')!),
     snapshot,
   );
-  assert.equal(fake.calls[1].messages.at(-1)!.messageContext?.channel, 'Role workbench');
+  assert.equal(fake.calls[1].messages.at(-1)!.messageContext?.channel, 'Companion workbench');
   assert.equal(fake.calls[1].messages.at(-1)!.messageContext?.sender, 'user');
   assert.equal(
     fake.calls[1].messages[0].text,

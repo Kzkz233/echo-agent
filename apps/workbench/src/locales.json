@@ -1,401 +1,5 @@
 [
   [
-    "检查点待完成",
-    "Checkpoint incomplete"
-  ],
-  [
-    "已暂存建议",
-    "Proposal saved"
-  ],
-  [
-    "登录 Windows 后启动 Echo",
-    "Start Echo when I sign in to Windows"
-  ],
-  [
-    "登录后在系统托盘运行，点击托盘图标可打开主窗口。",
-    "Echo runs in the system tray at sign-in. Click its icon to open the main window."
-  ],
-  [
-    "Windows 已禁用这个启动项，可在系统的「启动应用」中重新启用。",
-    "Windows disabled this startup app. You can enable it in Windows Startup Apps."
-  ],
-  [
-    "此启动项由另一份 Echo 安装或数据目录使用。",
-    "Another Echo installation or data directory owns this startup entry."
-  ],
-  [
-    "任务执行",
-    "Task execution"
-  ],
-  [
-    "上下文压缩",
-    "Context compaction"
-  ],
-  [
-    "主会话接棒",
-    "Main conversation handoff"
-  ],
-  [
-    "整理收尾",
-    "Review finalization"
-  ],
-  [
-    "网络连接中断",
-    "Network connection interrupted"
-  ],
-  [
-    "请求超时",
-    "Request timed out"
-  ],
-  [
-    "服务拒绝访问",
-    "Service denied access"
-  ],
-  [
-    "服务额度不足",
-    "Service quota exhausted"
-  ],
-  [
-    "请求受限",
-    "Rate limited"
-  ],
-  [
-    "上游服务错误",
-    "Upstream service error"
-  ],
-  [
-    "模型长度限制",
-    "Model length limit"
-  ],
-  [
-    "查看错误详情",
-    "See error details"
-  ],
-  [
-    "已连通模型目录。推理结果可在续跑后核对。",
-    "Model catalog reached. Check the inference result after resuming."
-  ],
-  [
-    "检查模型连接",
-    "Check model connection"
-  ],
-  [
-    "中断的运行",
-    "Interrupted runs"
-  ],
-  [
-    "已保存进度",
-    "Saved progress"
-  ],
-  [
-    "从断点续跑",
-    "Resume from checkpoint"
-  ],
-  [
-    "错误详情",
-    "Error details"
-  ],
-  [
-    "无法验证模型目录。",
-    "Could not verify the model catalog."
-  ],
-  [
-    "常规",
-    "General"
-  ],
-  [
-    "网络代理",
-    "Network proxy"
-  ],
-  [
-    "内置模型服务共用此设置，适用于聊天、后台任务、上下文压缩和向量请求。本机回环地址始终直连。",
-    "Built-in model services share this setting for chats, background tasks, context compaction, and embedding requests. Loopback addresses always connect directly."
-  ],
-  [
-    "模型连接方式",
-    "Model connection mode"
-  ],
-  [
-    "直接连接",
-    "Direct connection"
-  ],
-  [
-    "手动代理",
-    "Manual proxy"
-  ],
-  [
-    "优先使用 HTTP(S) 代理环境变量，Windows 桌面也支持系统自动代理规则（PAC）。",
-    "HTTP(S) proxy environment variables take priority. On Windows, automatic system proxy rules (PAC) are also supported."
-  ],
-  [
-    "代理地址",
-    "Proxy address"
-  ],
-  [
-    "填写 HTTP 或 HTTPS 代理的地址和端口。",
-    "Enter the HTTP or HTTPS proxy address and port."
-  ],
-  [
-    "请输入有效的 HTTP 或 HTTPS 代理地址。",
-    "Enter a valid HTTP or HTTPS proxy address."
-  ],
-  [
-    "已保存，下次请求生效。",
-    "Saved. Applies to the next request."
-  ],
-  [
-    "验证模型服务",
-    "Verify a model service"
-  ],
-  [
-    "模型目录连接成功。",
-    "Successfully connected to the model catalog."
-  ],
-  [
-    "工具授权",
-    "Tool permissions"
-  ],
-  [
-    "高级模型设置",
-    "Advanced model settings"
-  ],
-  [
-    "高级任务设置",
-    "Advanced task settings"
-  ],
-  [
-    "模型用途",
-    "Model purposes"
-  ],
-  [
-    "聊天模型",
-    "Chat models"
-  ],
-  [
-    "待连接",
-    "Not connected"
-  ],
-  [
-    "默认文本索引",
-    "Default text index"
-  ],
-  [
-    "其他渠道的表达风格",
-    "Other channel styles"
-  ],
-  [
-    "调整渠道表达",
-    "Edit channel style"
-  ],
-  [
-    "提议修改长期人设",
-    "Propose identity changes"
-  ],
-  [
-    "调整已有任务",
-    "Adjust existing tasks"
-  ],
-  [
-    "按已启用的功能创建任务模板，任务与桌宠初始暂停。",
-    "Templates use enabled features. Tasks and desktop companions start paused."
-  ],
-  [
-    "选择一个可聊天的模型。屏幕观察可以另选视觉模型。",
-    "Choose a model for chat. Observation can use a separate vision model."
-  ],
-  [
-    "请求已处理",
-    "Request processed"
-  ],
-  [
-    "正在加载…",
-    "Loading…"
-  ],
-  [
-    "没有匹配条目",
-    "No matching items"
-  ],
-  [
-    "打开知识条目",
-    "Open knowledge entry"
-  ],
-  [
-    "Zotero 文献连接器",
-    "Zotero Library Connector"
-  ],
-  [
-    "短评",
-    "Comment"
-  ],
-  [
-    "评分",
-    "Rating"
-  ],
-  [
-    "入库状态",
-    "Import status"
-  ],
-  [
-    "索引状态",
-    "Index status"
-  ],
-  [
-    "等待入库",
-    "Queued for import"
-  ],
-  [
-    "入库中",
-    "Importing"
-  ],
-  [
-    "入库失败",
-    "Import failed"
-  ],
-  [
-    "已入库",
-    "Imported"
-  ],
-  [
-    "未入库",
-    "Not imported"
-  ],
-  [
-    "状态不可用",
-    "Status unavailable"
-  ],
-  [
-    "已索引",
-    "Indexed"
-  ],
-  [
-    "未索引",
-    "Not indexed"
-  ],
-  [
-    "部分索引",
-    "Partially indexed"
-  ],
-  [
-    "导入或复用 PDF",
-    "Import or reuse PDF"
-  ],
-  [
-    "普通记忆",
-    "General memories"
-  ],
-  [
-    "类别",
-    "Category"
-  ],
-  [
-    "插件工具授权",
-    "Plugin tool access"
-  ],
-  [
-    "交互操作",
-    "Interact"
-  ],
-  [
-    "搜索插件或工具",
-    "Search plugins or tools"
-  ],
-  [
-    "工具已注册",
-    "Tools registered"
-  ],
-  [
-    "配置连接",
-    "Configure connection"
-  ],
-  [
-    "已配置",
-    "Configured"
-  ],
-  [
-    "未找到匹配的工具",
-    "No matching tools"
-  ],
-  [
-    "尚未配置允许的网站",
-    "No allowed websites configured"
-  ],
-  [
-    "尚未配置允许的应用",
-    "No allowed applications configured"
-  ],
-  [
-    "尚未配置文献库连接",
-    "Library connection not configured"
-  ],
-  [
-    "在「角色功能」的「插件工具授权」中选择可用工具。外部工具可能执行写入操作。",
-    "Choose tools under Character features → Plugin tool access. External tools may write data."
-  ],
-  [
-    "迁移到另一台设备，保留任务设置和已安装扩展",
-    "Migrate to another device with task settings and installed extensions"
-  ],
-  [
-    "首次启动迁入库前，请先停止旧设备的自动化。迁入的扩展需手动启用，凭据需重新配置。",
-    "Stop automation on the old device before opening the migrated data. Re-enable extensions and configure credentials on the new device."
-  ],
-  [
-    "浏览器操作",
-    "Browser Use"
-  ],
-  [
-    "在独立的浏览器会话中阅读和操作已授权的网站。",
-    "Read and interact with approved sites in an isolated browser session."
-  ],
-  [
-    "允许的网站，每行一个 HTTPS 来源",
-    "Allowed sites, one HTTPS origin per line"
-  ],
-  [
-    "浏览器",
-    "Browser"
-  ],
-  [
-    "Windows 桌面操作",
-    "Windows Computer Use"
-  ],
-  [
-    "通过 Windows 辅助功能读取获准的前台窗口，按控件执行操作。",
-    "Read approved foreground windows and interact with their Windows accessibility controls."
-  ],
-  [
-    "允许操作的应用，每行一个 EXE 完整路径",
-    "Allowed applications, one full executable path per line"
-  ],
-  [
-    "Zotero",
-    "Zotero"
-  ],
-  [
-    "连接并刷新",
-    "Connect and refresh"
-  ],
-  [
-    "本机文献库",
-    "Local library"
-  ],
-  [
-    "连接 Zotero 文献库",
-    "Connect Zotero library"
-  ],
-  [
-    "检索本机个人文献库，管理分组和笔记，关联已有的知识条目。",
-    "Search your local library, manage collections and notes, and link indexed documents."
-  ],
-  [
-    "Zotero 本机服务 ID",
-    "Local Zotero server ID"
-  ],
-  [
-    "本地 API 凭据引用",
-    "Local API credential reference"
-  ],
-  [
     "提供方不可用",
     "(provider unavailable)"
   ],
@@ -552,8 +156,8 @@
     "Channels"
   ],
   [
-    "角色渲染器",
-    "Character renderer"
+    "伙伴渲染器",
+    "Companion renderer"
   ],
   [
     "检查登录状态",
@@ -788,24 +392,24 @@
     "MCP tools"
   ],
   [
-    "角色可用的应用能力",
-    "Application capabilities granted to this character"
+    "伙伴可用的应用能力",
+    "Application capabilities granted to this companion"
   ],
   [
-    "应用设置决定全局上限；这里决定这个角色能调用哪些共享模块。",
-    "Application settings set the global ceiling; this controls which shared tools this character can call."
+    "应用设置决定全局上限；这里决定这个伙伴能调用哪些共享模块。",
+    "Application settings set the global ceiling; this controls which shared tools this companion can call."
   ],
   [
     "共享模块",
     "Shared module"
   ],
   [
-    "应用级许可构成全局上限；角色还需单独获准才能使用对应工具。默认只开放读取。",
-    "Application permissions set the global ceiling. Each character must also be granted access to character-level tools. Only read access is enabled by default."
+    "应用级许可构成全局上限；伙伴还需单独获准才能使用对应工具。默认只开放读取。",
+    "Application permissions set the global ceiling. Each companion must also be granted access to companion-level tools. Only read access is enabled by default."
   ],
   [
-    "角色级能力 · 在角色配置中单独授予",
-    "Character-level · Grant per character"
+    "伙伴级能力 · 在伙伴配置中单独授予",
+    "Companion-level · Grant per companion"
   ],
   [
     "应用级能力 · 此处设置全局上限",
@@ -932,8 +536,8 @@
     "Pending decisions and receipts"
   ],
   [
-    "角色",
-    "Persona"
+    "伙伴",
+    "Companion"
   ],
   [
     "插件",
@@ -1288,8 +892,8 @@
     "Conversation title"
   ],
   [
-    "会话角色",
-    "Conversation persona"
+    "会话伙伴",
+    "Conversation companion"
   ],
   [
     "会话设置",
@@ -1340,8 +944,8 @@
     "Inference task routes"
   ],
   [
-    "此处选择角色启用哪些功能；模块本身在插件页全局启停。",
-    "Select the features enabled for this character; modules themselves are enabled globally in Plugins."
+    "此处选择伙伴启用哪些功能；模块本身在插件页全局启停。",
+    "Select the features enabled for this companion; modules themselves are enabled globally in Plugins."
   ],
   [
     "保存后端",
@@ -1360,8 +964,8 @@
     "Save draft"
   ],
   [
-    "保存角色",
-    "Save persona"
+    "保存伙伴",
+    "Save companion"
   ],
   [
     "保存记忆",
@@ -1456,8 +1060,8 @@
     "All accounts"
   ],
   [
-    "关联角色",
-    "Linked persona"
+    "关联伙伴",
+    "Linked companion"
   ],
   [
     "关键词阈值",
@@ -1936,8 +1540,8 @@
     "Search conversations"
   ],
   [
-    "搜索对话或角色",
-    "Search conversations or personas"
+    "搜索对话或伙伴",
+    "Search conversations or companions"
   ],
   [
     "搜索插件",
@@ -2032,8 +1636,8 @@
     "More options"
   ],
   [
-    "更换素材可提供 PNG 帧图集及对应 manifest。角色素材使用自身的许可。",
-    "Use a PNG frame atlas and its manifest. Character assets retain their own licenses."
+    "更换素材可提供 PNG 帧图集及对应 manifest。伙伴素材使用自身的许可。",
+    "Use a PNG frame atlas and its manifest. Companion assets retain their own licenses."
   ],
   [
     "最多召回",
@@ -2316,7 +1920,7 @@
     "Use + on a date to add an entry, or select one to edit."
   ],
   [
-    "点击气泡、右键或双击角色打开输入气泡。Ctrl+Enter 发送，Enter 换行，Esc 收起；输入会沿用所选会话的人格、记忆和推理后端。",
+    "点击气泡、右键或双击伙伴打开输入气泡。Ctrl+Enter 发送，Enter 换行，Esc 收起；输入会沿用所选会话的人格、记忆和推理后端。",
     "Click a bubble, right-click, or double-click the avatar to reply. Enter sends; Shift+Enter adds a line; Esc cancels."
   ],
   [
@@ -2422,10 +2026,6 @@
   [
     "确认续跑",
     "Resume"
-  ],
-  [
-    "示例素材：pzUH · Cute Girl · CC0",
-    "Sample: pzUH · Cute Girl · CC0"
   ],
   [
     "离开前放弃修改？",
@@ -2584,15 +2184,15 @@
     "Visual observation"
   ],
   [
-    "角色",
-    "Persona"
+    "伙伴",
+    "Companion"
   ],
   [
-    "角色、已保存的记忆和知识档案会保留。此操作无法撤销。",
-    "Personas, saved memories, and archives are kept. Deleting the chat cannot be undone."
+    "伙伴、已保存的记忆和知识档案会保留。此操作无法撤销。",
+    "Companions, saved memories, and archives are kept. Deleting the chat cannot be undone."
   ],
   [
-    "角色缩放",
+    "伙伴缩放",
     "Avatar scale"
   ],
   [
@@ -2828,8 +2428,8 @@
     "(Empty body)"
   ],
   [
-    "＋ 新角色",
-    "＋ New persona"
+    "＋ 新伙伴",
+    "＋ New companion"
   ],
   [
     "＋ 添加",
@@ -3124,7 +2724,7 @@
     "Use the chat route"
   ],
   [
-    "点击气泡、右键或双击角色打开输入气泡。Enter 发送，Shift+Enter 换行，Esc 取消；输入会沿用所选会话的人格、记忆和推理后端。",
+    "点击气泡、右键或双击伙伴打开输入气泡。Enter 发送，Shift+Enter 换行，Esc 取消；输入会沿用所选会话的人格、记忆和推理后端。",
     "Click the bubble, right-click, or double-click the avatar to reply. Enter sends, Shift+Enter adds a line, and Esc cancels."
   ],
   [
@@ -3264,8 +2864,8 @@
     "API embeddings"
   ],
   [
-    "角色提示词",
-    "Persona prompts"
+    "伙伴提示词",
+    "Companion prompts"
   ],
   [
     "插件设置",
@@ -3292,8 +2892,8 @@
     "New conversation"
   ],
   [
-    "新角色",
-    "New persona"
+    "新伙伴",
+    "New companion"
   ],
   [
     "新的后端",
@@ -3420,8 +3020,8 @@
     "Backend reconnected"
   ],
   [
-    "新角色",
-    "New persona"
+    "新伙伴",
+    "New companion"
   ],
   [
     "技术回执",
@@ -3496,8 +3096,8 @@
     "Register folders, import originals and maintain one knowledge document per source."
   ],
   [
-    "独立角色与观察偏好，按会话选择是否注入。",
-    "Independent personas and observation preferences, with per-conversation injection controls."
+    "独立伙伴与观察偏好，按会话选择是否注入。",
+    "Independent companions and observation preferences, with per-conversation injection controls."
   ],
   [
     "统一收件箱与渠道回执；未知投递不重发，新增渠道可由插件贡献。",
@@ -3540,12 +3140,12 @@
     "Knowledge Library"
   ],
   [
-    "角色设定",
-    "Persona Profiles"
+    "伙伴设定",
+    "Companion Profiles"
   ],
   [
-    "角色记忆",
-    "Persona Memory"
+    "伙伴记忆",
+    "Companion Memory"
   ],
   [
     "主动交流",
@@ -3996,16 +3596,16 @@
     "Reflection saved"
   ],
   [
-    "角色主观想法",
-    "Persona reflections"
+    "伙伴主观想法",
+    "Companion reflections"
   ],
   [
     "记录想法",
     "Add reflection"
   ],
   [
-    "想法所属角色",
-    "Reflection persona"
+    "想法所属伙伴",
+    "Reflection companion"
   ],
   [
     "参与会话背景 {count} 条",
@@ -4092,7 +3692,7 @@
     "Save reflection"
   ],
   [
-    "角色主动交流",
+    "伙伴主动交流",
     "Proactive conversation"
   ],
   [
@@ -4136,8 +3736,8 @@
     "Not triggered yet"
   ],
   [
-    "已接入的角色背景",
-    "Connected persona context"
+    "已接入的伙伴背景",
+    "Connected companion context"
   ],
   [
     "近期表达",
@@ -4364,8 +3964,8 @@
     "Task settings saved"
   ],
   [
-    "按时段与交流节奏发起角色会话，可结合当前主观想法和上下文，向桌宠或已绑定通道展示表达。",
-    "Starts persona conversations on a schedule, using reflections and context, and presents expressions through the avatar or connected channels."
+    "按时段与交流节奏发起伙伴会话，可结合当前主观想法和上下文，向桌宠或已绑定通道展示表达。",
+    "Starts companion conversations on a schedule, using reflections and context, and presents expressions through the avatar or connected channels."
   ],
   [
     "连接多个邮箱，按文件夹同步与检索邮件，按需读取正文并管理草稿。",
@@ -4380,8 +3980,8 @@
     "Connects a conversation to a QQ bot, with gateway reconnection and receipts for message segments."
   ],
   [
-    "维护角色自己的看法、好奇与感受，参与记忆整理，并为会话和主动交流提供当前主观状态。",
-    "Maintains a persona's viewpoints, curiosity and feelings through review and provides current reflections to conversations."
+    "维护伙伴自己的看法、好奇与感受，参与记忆整理，并为会话和主动交流提供当前主观状态。",
+    "Maintains a companion's viewpoints, curiosity and feelings through review and provides current reflections to conversations."
   ],
   [
     "向启用人格记忆的会话注入当前想法",
@@ -4532,16 +4132,16 @@
     "Conversation workspace"
   ],
   [
-    "角色与记忆",
-    "Persona and memory"
+    "伙伴与记忆",
+    "Companion and memory"
   ],
   [
-    "角色设定",
-    "Persona profiles"
+    "伙伴设定",
+    "Companion profiles"
   ],
   [
-    "角色记忆",
-    "Persona memory"
+    "伙伴记忆",
+    "Companion memory"
   ],
   [
     "主动交流",
@@ -4748,8 +4348,8 @@
     "Conversation chat"
   ],
   [
-    "人格 角色",
-    "Persona character"
+    "人格 伙伴",
+    "Personality and companion"
   ],
   [
     "记忆 召回",
@@ -4984,8 +4584,8 @@
     "Actual time (minutes)"
   ],
   [
-    "角色主观想法",
-    "Persona Reflections"
+    "伙伴主观想法",
+    "Companion Reflections"
   ],
   [
     "素材导入",
@@ -5100,8 +4700,8 @@
     "Executes the reviewed action. Check its destination and contents."
   ],
   [
-    "角色档案",
-    "Persona archives"
+    "伙伴档案",
+    "Companion archives"
   ],
   [
     "整理报告",
@@ -5196,8 +4796,8 @@
     "Calendar entries"
   ],
   [
-    "已同步邮件（按角色）",
-    "Synced email (by persona)"
+    "已同步邮件（按伙伴）",
+    "Synced email (by companion)"
   ],
   [
     "网络连接",
@@ -5232,20 +4832,12 @@
     "Avatar assets"
   ],
   [
-    "Cute Girl · 内置帧动画",
-    "Cute Girl · Bundled animation"
-  ],
-  [
     "外部素材目录",
     "External asset directory"
   ],
   [
     "帧",
     "frames"
-  ],
-  [
-    "pzUH · CC0-1.0",
-    "pzUH · CC0-1.0"
   ],
   [
     "桌宠素材已切换",
@@ -5484,8 +5076,8 @@
     "Memory Library"
   ],
   [
-    "角色资料库",
-    "Persona Library"
+    "伙伴资料库",
+    "Companion Library"
   ],
   [
     "观察档案库",
@@ -5904,8 +5496,8 @@
     "DSH SDK handshake succeeded; upstream credentials were not verified with inference."
   ],
   [
-    "观察任务请在角色配置中编辑",
-    "Edit observation tasks in character settings"
+    "观察任务请在伙伴配置中编辑",
+    "Edit observation tasks in companion settings"
   ],
   [
     "连接测试完成",
@@ -5924,16 +5516,16 @@
     "Connection unavailable"
   ],
   [
-    "这里配置知识库与语义索引等共享处理的默认后端；会话、观察和记忆整理使用的角色后端在角色配置中绑定。",
-    "Set shared defaults for knowledge and semantic indexing. Character settings select backends for chat, observation, and memory review."
+    "这里配置知识库与语义索引等共享处理的默认后端；会话、观察和记忆整理使用的伙伴后端在伙伴配置中绑定。",
+    "Set shared defaults for knowledge and semantic indexing. Companion settings select backends for chat, observation, and memory review."
   ],
   [
     "这是知识库导入使用的共享解析默认值；每次导入仍可选择其他已启用的解析器。",
     "This is the shared default for knowledge imports. Each import can use another enabled parser."
   ],
   [
-    "任务配置统一在角色配置中管理",
-    "Manage task settings in character configuration"
+    "任务配置统一在伙伴配置中管理",
+    "Manage task settings in companion configuration"
   ],
   [
     "忽略遮挡的窗口",
@@ -6176,8 +5768,8 @@
     "Manually registered"
   ],
   [
-    "记忆所属角色",
-    "Memory persona"
+    "记忆所属伙伴",
+    "Memory companion"
   ],
   [
     "记忆分类",
@@ -6216,8 +5808,8 @@
     "EmbeddingGemma 2"
   ],
   [
-    "所有角色",
-    "All characters"
+    "所有伙伴",
+    "All companions"
   ],
   [
     "关联会话",
@@ -6272,20 +5864,20 @@
     "Observation task removed"
   ],
   [
-    "角色列表",
-    "Character list"
+    "伙伴列表",
+    "Companion list"
   ],
   [
-    "管理角色设定，按会话选择是否注入。",
-    "Manage character profiles and choose which conversations use them."
+    "管理伙伴设定，按会话选择是否注入。",
+    "Manage companion profiles and choose which conversations use them."
   ],
   [
     "上次互动已生成回复。",
     "Last interaction generated a reply."
   ],
   [
-    "上次互动由角色主动跳过。",
-    "The character skipped the last interaction."
+    "上次互动由伙伴主动跳过。",
+    "The companion skipped the last interaction."
   ],
   [
     "上次互动的模型返回为空，没有生成气泡。",
@@ -6294,22 +5886,6 @@
   [
     "上次互动未完成，请查看运行诊断。",
     "The last interaction failed. See runtime diagnostics."
-  ],
-  [
-    "上次观察已记录，未唤起角色。",
-    "The last observation was recorded without starting an interaction."
-  ],
-  [
-    "观察互动已排队。",
-    "The observation interaction is queued."
-  ],
-  [
-    "观察互动排队超时，已保留记录。",
-    "The observation expired while queued. Its record was kept."
-  ],
-  [
-    "角色正在处理观察结果。",
-    "The character is processing the observation."
   ],
   [
     "采样暂缓",
@@ -6592,8 +6168,8 @@
     "Review guidance"
   ],
   [
-    "此角色的全部任务",
-    "All tasks for this character"
+    "此伙伴的全部任务",
+    "All tasks for this companion"
   ],
   [
     "只读取所选任务",
@@ -6756,24 +6332,24 @@
     "Review and activate"
   ],
   [
-    "角色配置",
-    "Character configuration"
+    "伙伴配置",
+    "Companion configuration"
   ],
   [
-    "编辑角色",
-    "Edit character"
+    "编辑伙伴",
+    "Edit companion"
   ],
   [
-    "创建角色",
-    "Create character"
+    "添加伙伴",
+    "Add companion"
   ],
   [
-    "角色配置步骤",
-    "Character setup steps"
+    "伙伴配置步骤",
+    "Companion setup steps"
   ],
   [
-    "导入角色包",
-    "Import character package"
+    "导入伙伴包",
+    "Import companion package"
   ],
   [
     "请先启用所需插件",
@@ -6784,12 +6360,12 @@
     "Manage plugins"
   ],
   [
-    "角色名称",
-    "Character name"
+    "伙伴名称",
+    "Companion name"
   ],
   [
-    "角色人设",
-    "Persona"
+    "伙伴人设",
+    "Companion personality"
   ],
   [
     "表达风格",
@@ -6852,8 +6428,8 @@
     "Enable after creation"
   ],
   [
-    "未命名角色",
-    "Unnamed character"
+    "未命名伙伴",
+    "Unnamed companion"
   ],
   [
     "启用能力",
@@ -6872,24 +6448,24 @@
     "Next"
   ],
   [
-    "角色配置已保存",
-    "Character configuration saved"
+    "伙伴配置已保存",
+    "Companion configuration saved"
   ],
   [
-    "角色包已导出",
-    "Character package exported"
+    "伙伴包已导出",
+    "Companion package exported"
   ],
   [
-    "导出角色包",
-    "Export character package"
+    "导出伙伴包",
+    "Export companion package"
   ],
   [
-    "配置角色",
-    "Configure character"
+    "配置伙伴",
+    "Configure companion"
   ],
   [
-    "完成角色配置后开始交流",
-    "Configure this character to start a conversation"
+    "完成伙伴配置后开始交流",
+    "Configure this companion to start a conversation"
   ],
   [
     "等待执行",
@@ -6989,7 +6565,7 @@
   ],
   [
     "请谁回应",
-    "Responding characters"
+    "Responding companions"
   ],
   [
     "发送",
@@ -7000,8 +6576,8 @@
     "Select or create a group"
   ],
   [
-    "角色与群聊",
-    "Characters and groups"
+    "伙伴与群聊",
+    "Companions and groups"
   ],
   [
     "设置",
@@ -7012,8 +6588,8 @@
     "Pending confirmation"
   ],
   [
-    "角色能力",
-    "Character capabilities"
+    "伙伴能力",
+    "Companion capabilities"
   ],
   [
     "主会话",
@@ -7028,16 +6604,16 @@
     "Project Delegation"
   ],
   [
-    "角色委派项目工作，跟踪执行、确认、检查点与结果回流。",
-    "Characters delegate project work with execution, confirmations, checkpoints and results."
+    "伙伴委派项目工作，跟踪执行、确认、检查点与结果回流。",
+    "Companions delegate project work with execution, confirmations, checkpoints and results."
   ],
   [
-    "多角色群聊",
-    "Character Group Conversations"
+    "多伙伴群聊",
+    "Companion Group Conversations"
   ],
   [
-    "以明确署名组织多角色交流、共享背景与协作。",
-    "Attributed conversations, shared context and collaboration between characters."
+    "以明确署名组织多伙伴交流、共享背景与协作。",
+    "Attributed conversations, shared context and collaboration between companions."
   ],
   [
     "允许观察的来源",
@@ -7084,8 +6660,8 @@
     "Bundled asset"
   ],
   [
-    "核对角色包",
-    "Review character package"
+    "核对伙伴包",
+    "Review companion package"
   ],
   [
     "任务模板",
@@ -7096,8 +6672,8 @@
     "Asset size"
   ],
   [
-    "包含角色设定、任务提示词及所选素材。请确认这些内容适合分享。",
-    "Includes persona text, task prompts and selected assets. Check that these contents are suitable for sharing."
+    "包含伙伴设定、任务提示词及所选素材。请确认这些内容适合分享。",
+    "Includes companion text, task prompts and selected assets. Check that these contents are suitable for sharing."
   ],
   [
     "核对并恢复群聊",
@@ -7116,16 +6692,16 @@
     "Project results"
   ],
   [
-    "角色知识",
-    "Role knowledge"
+    "伙伴知识",
+    "Companion knowledge"
   ],
   [
     "可用知识库",
     "Available knowledge libraries"
   ],
   [
-    "在角色的「配置角色」中调整此能力。",
-    "Adjust this capability in the character configuration."
+    "在伙伴的「配置伙伴」中调整此能力。",
+    "Adjust this capability in the companion configuration."
   ],
   [
     "添加 Worker",
@@ -7336,11 +6912,11 @@
     "Delegation policy"
   ],
   [
-    "主角色委派提示词",
+    "主会话委派提示词",
     "Lead delegation instructions"
   ],
   [
-    "任务结束后由主角色接棒",
+    "任务结束后由主会话接棒",
     "Return control to the lead after completion"
   ],
   [
@@ -7372,8 +6948,8 @@
     "Reviewed without resending"
   ],
   [
-    "运行配置由角色管理",
-    "Runtime configuration belongs to the character"
+    "运行配置由伙伴管理",
+    "Runtime configuration belongs to the companion"
   ],
   [
     "工作空间与权限",
@@ -7405,7 +6981,7 @@
   ],
   [
     "近期惦记、想主动关心或接着聊的事。长期感受和稳定偏好仍放在记忆里。",
-    "Things the character currently cares about or wants to revisit. Lasting feelings and preferences belong in memory."
+    "Things the companion currently cares about or wants to revisit. Lasting feelings and preferences belong in memory."
   ],
   [
     "编辑关注",
@@ -7428,7 +7004,7 @@
     "Sources and basis"
   ],
   [
-    "维护角色近期在意、想主动关心和接着聊的事；与长期记忆分工，参与记忆整理和主动交流。",
+    "维护伙伴近期在意、想主动关心和接着聊的事；与长期记忆分工，参与记忆整理和主动交流。",
     "Keep current concerns and topics to revisit, alongside long-term memory and memory review."
   ],
   [
@@ -7488,16 +7064,16 @@
     "All Echo conversations and observation tasks"
   ],
   [
-    "当前角色",
-    "Current character"
+    "当前伙伴",
+    "Current companion"
   ],
   [
     "邮件触发提醒",
     "Email Triggers"
   ],
   [
-    "增强邮件同步：按邮箱、发件人和主题筛选新邮件，合并通知或触发角色提醒；历史回填不触发。",
-    "Extend email sync with filtered new-mail notifications or character reminders. Historical imports do not trigger alerts."
+    "增强邮件同步：按邮箱、发件人和主题筛选新邮件，合并通知或触发伙伴提醒；历史回填不触发。",
+    "Extend email sync with filtered new-mail notifications or companion reminders. Historical imports do not trigger alerts."
   ],
   [
     "新邮件触发提醒",
@@ -7552,8 +7128,8 @@
     "Notification without model inference"
   ],
   [
-    "由角色判断并提醒",
-    "Let the character assess and respond"
+    "由伙伴判断并提醒",
+    "Let the companion assess and respond"
   ],
   [
     "合并提醒间隔（分钟）",
@@ -7620,8 +7196,8 @@
     "ChatStick"
   ],
   [
-    "为角色配置带有语义的聊天表情，可随回复展示或经已绑定渠道投递。",
-    "Configure character stickers that can appear in replies or be delivered through a bound channel."
+    "为伙伴配置带有语义的聊天表情，可随回复展示或经已绑定渠道投递。",
+    "Configure companion stickers that can appear in replies or be delivered through a bound channel."
   ],
   [
     "添加聊天表情",
@@ -7648,12 +7224,12 @@
     "Sticker image"
   ],
   [
-    "允许角色使用",
-    "Allow character to use this sticker"
+    "允许伙伴使用",
+    "Allow companion to use this sticker"
   ],
   [
-    "这个角色还没有聊天表情。",
-    "This character has no chat stickers yet."
+    "这个伙伴还没有聊天表情。",
+    "This companion has no chat stickers yet."
   ],
   [
     "移除聊天表情",
@@ -7708,8 +7284,8 @@
     "Use the shared default embedding model"
   ],
   [
-    "跟随角色主模型",
-    "Use the character's main model"
+    "跟随伙伴主模型",
+    "Use the companion's main model"
   ],
   [
     "文档解析连接",
@@ -7736,8 +7312,8 @@
     "Shared embeddings"
   ],
   [
-    "角色记忆向量",
-    "Character memory embeddings"
+    "伙伴记忆向量",
+    "Companion memory embeddings"
   ],
   [
     "自动适配",
@@ -7872,8 +7448,8 @@
     "Output token parameter"
   ],
   [
-    "权限在角色配置中管理",
-    "Manage permissions in character settings"
+    "权限在伙伴配置中管理",
+    "Manage permissions in companion settings"
   ],
   [
     "逐次审批",
@@ -7964,8 +7540,8 @@
     "Delete service"
   ],
   [
-    "角色资料",
-    "Character profile"
+    "伙伴资料",
+    "Companion profile"
   ],
   [
     "模型与权限",
@@ -8016,8 +7592,8 @@
     "Extension unavailable; settings retained"
   ],
   [
-    "角色设置分类",
-    "Character settings categories"
+    "伙伴设置分类",
+    "Companion settings categories"
   ],
   [
     "内置执行器",
@@ -8052,8 +7628,8 @@
     "Execution model"
   ],
   [
-    "跟随角色默认",
-    "Use character default"
+    "跟随伙伴默认",
+    "Use companion default"
   ],
   [
     "请在执行器插件中添加可用的执行配置。",
@@ -8092,8 +7668,8 @@
     "Configure model services"
   ],
   [
-    "请在角色配置中选择语言模型。",
-    "Choose a language model in character settings."
+    "请在伙伴配置中选择语言模型。",
+    "Choose a language model in companion settings."
   ],
   [
     "请先选择语言模型。",
@@ -8152,8 +7728,8 @@
     "Configurations using this model"
   ],
   [
-    "请先解除角色、会话和任务对此模型的引用。",
-    "Remove character, conversation and task references before deleting this model."
+    "请先解除伙伴、会话和任务对此模型的引用。",
+    "Remove companion, conversation and task references before deleting this model."
   ],
   [
     "文件管理保存 PDF、Office、图片等来源文件；知识库保存整理后的正文，并关联这些原件。",
@@ -8396,8 +7972,8 @@
     "Leave blank to use the executor default"
   ],
   [
-    "创建角色后，可在这里绑定消息通道。",
-    "After creating the character, bind messaging channels here."
+    "添加伙伴后，可在这里绑定消息通道。",
+    "After creating the companion, bind messaging channels here."
   ],
   [
     "待执行迁移",
@@ -8520,12 +8096,12 @@
     "Tasks"
   ],
   [
-    "角色关切",
-    "Character concerns"
+    "伙伴关切",
+    "Companion concerns"
   ],
   [
-    "暂时没有角色关切",
-    "No character concerns yet"
+    "暂时没有伙伴关切",
+    "No companion concerns yet"
   ],
   [
     "交给子任务执行，并保留工作记录和成果。",
@@ -8536,8 +8112,8 @@
     "Configure an automation"
   ],
   [
-    "在角色配置中选择任务类型、触发条件与执行参数。",
-    "Choose task types, trigger conditions and execution settings in character configuration."
+    "在伙伴配置中选择任务类型、触发条件与执行参数。",
+    "Choose task types, trigger conditions and execution settings in companion configuration."
   ],
   [
     "当前任务",
@@ -8556,8 +8132,8 @@
     "No tasks yet"
   ],
   [
-    "角色关切",
-    "Character Concerns"
+    "伙伴关切",
+    "Companion Concerns"
   ],
   [
     "检索增强不可用时",
@@ -8604,7 +8180,7 @@
     "Core memory proposal guidance"
   ],
   [
-    "允许角色自主委派",
+    "允许伙伴自主委派",
     "Allow autonomous delegation"
   ],
   [
@@ -8732,7 +8308,7 @@
     "Task Delegation"
   ],
   [
-    "角色委派工作，跟踪执行、确认、检查点与结果回流。",
+    "伙伴委派工作，跟踪执行、确认、检查点与结果回流。",
     "Delegate work and track execution, approvals, checkpoints and results."
   ],
   [
@@ -8764,12 +8340,12 @@
     "Declare supported reasoning levels"
   ],
   [
-    "仅在上游未提供元数据时，按接口文档填写。角色与任务分别选择实际使用的强度。",
-    "Use the API documentation when upstream metadata is unavailable. Characters and tasks select their own reasoning level."
+    "仅在上游未提供元数据时，按接口文档填写。伙伴与任务分别选择实际使用的强度。",
+    "Use the API documentation when upstream metadata is unavailable. Companions and tasks select their own reasoning level."
   ],
   [
-    "暂无角色档案",
-    "No character archives yet"
+    "暂无伙伴档案",
+    "No companion archives yet"
   ],
   [
     "继续阅读",
@@ -8860,12 +8436,12 @@
     "Document libraries, provenance, attachments, versions, parsing and retrieval."
   ],
   [
-    "角色系统",
-    "Character System"
+    "伙伴系统",
+    "Companion System"
   ],
   [
-    "管理角色身份、人设、权限、主会话与功能配置。",
-    "Manage character identities, profiles, permissions, main conversations and features."
+    "管理伙伴身份、人设、权限、主会话与功能配置。",
+    "Manage companion identities, profiles, permissions, main conversations and features."
   ],
   [
     "提供语义与混合检索、查询优化和结果重排，使用共享模型与索引。",
@@ -8908,24 +8484,24 @@
     "Could not read the image"
   ],
   [
-    "角色已停用",
-    "Character disabled"
+    "伙伴已停用",
+    "Companion disabled"
   ],
   [
-    "停用角色",
-    "Disable character"
+    "停用伙伴",
+    "Disable companion"
   ],
   [
-    "启用角色",
-    "Enable character"
+    "启用伙伴",
+    "Enable companion"
   ],
   [
     "任务、会话和桌宠已暂停，配置与历史保留。",
     "Tasks, conversations and avatar are paused. Settings and history are preserved."
   ],
   [
-    "启用角色后继续交流",
-    "Enable this character to continue chatting"
+    "启用伙伴后继续交流",
+    "Enable this companion to continue chatting"
   ],
   [
     "从示例开始",
@@ -8944,24 +8520,24 @@
     "View examples"
   ],
   [
-    "角色 · 记忆 · 桌宠 · 自动化",
-    "Character · Memory · Avatar · Automation"
+    "伙伴 · 记忆 · 桌宠 · 自动化",
+    "Companion · Memory · Avatar · Automation"
   ],
   [
-    "包含可编辑的记忆整理、主动交流和实时观察任务。任务与桌宠初始关闭，可在角色配置中分别启用。",
-    "Includes editable memory review, proactive chat and observation tasks. Tasks and avatars start off; enable each in character settings."
+    "包含可编辑的记忆整理、主动交流和实时观察任务。任务与桌宠初始关闭，可在伙伴配置中分别启用。",
+    "Includes editable memory review, proactive chat and observation tasks. Tasks and avatars start off; enable each in companion settings."
   ],
   [
     "创建时启用所需插件；不会发送消息或采集屏幕。",
     "Creating examples enables their plugins, without sending messages or capturing the screen."
   ],
   [
-    "打开示例角色",
-    "Open example characters"
+    "打开示例伙伴",
+    "Open example companions"
   ],
   [
-    "创建两个角色及群聊",
-    "Create characters and group"
+    "创建两个伙伴及群聊",
+    "Create companions and group"
   ],
   [
     "单次输出上限（tokens）",
@@ -9128,12 +8704,12 @@
     "Use one multimodal model across features, with reasoning off by default. Local semantic search uses the bundled BGE model."
   ],
   [
-    "启用通用插件和角色工具权限；邮箱、QQ 与屏幕观察需要自行配置账号或授权。",
-    "Enables general plugins and character tools. Email, QQ and screen observation require your account or capture configuration."
+    "启用通用插件和伙伴工具权限；邮箱、QQ 与屏幕观察需要自行配置账号或授权。",
+    "Enables general plugins and companion tools. Email, QQ and screen observation require your account or capture configuration."
   ],
   [
-    "更新两位示例角色的人设、提示词、功能和模型配置？已有会话与记忆会保留。",
-    "Update both example characters' personas, prompts, features and model settings? Existing conversations and memories will be preserved."
+    "更新两位示例伙伴的人设、提示词、功能和模型配置？已有会话与记忆会保留。",
+    "Update both example companions' companions, prompts, features and model settings? Existing conversations and memories will be preserved."
   ],
   [
     "更新示例配置",
@@ -9244,8 +8820,8 @@
     "Inactive"
   ],
   [
-    "允许主角色委派子任务",
-    "Allow the main character to delegate subtasks"
+    "允许主会话委派子任务",
+    "Allow the main conversation to delegate subtasks"
   ],
   [
     "额外允许的执行模型",
@@ -9272,28 +8848,28 @@
     "Maximum execution timeout (minutes)"
   ],
   [
-    "主角色委派指引",
-    "Delegation instructions for the main character"
+    "主会话委派指引",
+    "Delegation instructions for the main conversation"
   ],
   [
-    "子任务结束后由主角色接棒",
-    "Return completed subtasks to the main character"
+    "子任务结束后由主会话接棒",
+    "Return completed subtasks to the main conversation"
   ],
   [
     "接棒与验收指引",
     "Handoff and acceptance instructions"
   ],
   [
-    "主会话模型始终可用；这里只选择允许主角色为子任务使用的其他模型。",
-    "The main conversation model is always available. Select additional models the character may use for subtasks."
+    "主会话模型始终可用；这里只选择允许主会话为子任务使用的其他模型。",
+    "The main conversation model is always available. Select additional models the companion may use for subtasks."
   ],
   [
-    "主角色可在这些目录内为每个子任务选择工作位置；勾选写入才允许修改。",
-    "The character may choose a working directory within these roots for each subtask. Writes require explicit permission."
+    "主会话可在这些目录内为每个子任务选择工作位置；勾选写入才允许修改。",
+    "The companion may choose a working directory within these roots for each subtask. Writes require explicit permission."
   ],
   [
-    "每个子任务只取得本次请求的工具权限，不能超出角色和应用的授权。",
-    "Each subtask receives only the tools requested for that task, within the character and application permissions."
+    "每个子任务只取得本次请求的工具权限，不能超出伙伴和应用的授权。",
+    "Each subtask receives only the tools requested for that task, within the companion and application permissions."
   ],
   [
     "执行时仍需确认；终端不是仅限目录的沙箱。",
@@ -9444,8 +9020,8 @@
     "The retention percentage uses the effective context limit. The full transcript is retained."
   ],
   [
-    "在这里选择角色工具。对外 MCP 在应用设置中单独管理。",
-    "Choose character tools here. External MCP access is managed separately in app settings."
+    "在这里选择伙伴工具。对外 MCP 在应用设置中单独管理。",
+    "Choose companion tools here. External MCP access is managed separately in app settings."
   ],
   [
     "可委派",
@@ -9528,8 +9104,8 @@
     "Sticker catalog"
   ],
   [
-    "角色关注",
-    "Character concerns"
+    "伙伴关注",
+    "Companion concerns"
   ],
   [
     "渠道约定",
@@ -9544,8 +9120,8 @@
     "User messages"
   ],
   [
-    "角色回复",
-    "Character replies"
+    "伙伴回复",
+    "Companion replies"
   ],
   [
     "导入记录",
@@ -9556,8 +9132,8 @@
     "Current tool calls and results"
   ],
   [
-    "压缩会话时保留，随角色和插件设置更新。",
-    "Retained during compaction and refreshed with character and plugin settings."
+    "压缩会话时保留，随伙伴和插件设置更新。",
+    "Retained during compaction and refreshed with companion and plugin settings."
   ],
   [
     "压缩会话时保留，随可用工具更新。",
@@ -9640,8 +9216,8 @@
     "Allow granted Echo tools"
   ],
   [
-    "角色工具授权与文件权限分别设置。业务审批由对应工具处理。",
-    "Character tool grants are separate from file access. Each tool handles its own business approvals."
+    "伙伴工具授权与文件权限分别设置。业务审批由对应工具处理。",
+    "Companion tool grants are separate from file access. Each tool handles its own business approvals."
   ],
   [
     "知识分组",
@@ -9652,8 +9228,8 @@
     "Membership snapshot"
   ],
   [
-    "设置外部 MCP 客户端可以调用的工具。角色工具在角色配置中授权。",
-    "Choose tools available to external MCP clients. Grant character tools in character settings."
+    "设置外部 MCP 客户端可以调用的工具。伙伴工具在伙伴配置中授权。",
+    "Choose tools available to external MCP clients. Grant companion tools in companion settings."
   ],
   [
     "本次续跑输出上限（tokens）",
@@ -9816,10 +9392,6 @@
     "Skeletal asset"
   ],
   [
-    "Cute Girl · 内置骨骼示例",
-    "Cute Girl · Bundled skeletal example"
-  ],
-  [
     "根骨骼",
     "bones"
   ],
@@ -9848,8 +9420,8 @@
     "Use the application review default or model policy when blank. Thinking may count toward this limit."
   ],
   [
-    "应用和角色的工具授权仍然生效。工具自身的审批由该工具处理。",
-    "Application and character grants still apply. Tools retain their own approval flow."
+    "应用和伙伴的工具授权仍然生效。工具自身的审批由该工具处理。",
+    "Application and companion grants still apply. Tools retain their own approval flow."
   ],
   [
     "仅适用于内置执行器。由主会话逐个任务选择，执行仍以当前系统账户权限为准。",
@@ -9928,12 +9500,12 @@
     "Confirm each granted change"
   ],
   [
-    "按角色授权直接调用",
-    "Run tools granted to this character"
+    "按伙伴授权直接调用",
+    "Run tools granted to this companion"
   ],
   [
-    "调用范围由角色的工具授权决定。核心记忆等业务审批仍由对应工具处理。",
-    "The character tool grants set the scope. Tools still handle their own approvals, such as core memory changes."
+    "调用范围由伙伴的工具授权决定。核心记忆等业务审批仍由对应工具处理。",
+    "The companion tool grants set the scope. Tools still handle their own approvals, such as core memory changes."
   ],
   [
     "允许写入项目目录",
@@ -10000,8 +9572,8 @@
     "Workspaces and file permissions"
   ],
   [
-    "角色功能",
-    "Character features"
+    "伙伴功能",
+    "Companion features"
   ],
   [
     "应用工具权限",
@@ -10056,8 +9628,8 @@
     "The main chat reviews file changes in authorized folders. You still approve terminal commands."
   ],
   [
-    "选择此角色使用的功能。插件安装与启停在应用设置中管理。",
-    "Choose features for this character. Manage plugins in app settings."
+    "选择此伙伴使用的功能。插件安装与启停在应用设置中管理。",
+    "Choose features for this companion. Manage plugins in app settings."
   ],
   [
     "自动分条",
@@ -10084,8 +9656,8 @@
     "Use a conversational tone and lead with the point. Keep the desktop bubble to one or two sentences."
   ],
   [
-    "留空沿用角色人设",
-    "Leave blank to use the character’s own style"
+    "留空沿用伙伴人设",
+    "Leave blank to use the companion’s own style"
   ],
   [
     "{channel} 回复风格",
@@ -10100,7 +9672,7 @@
     "Action awaiting approval"
   ],
   [
-    "本机其他应用可通过 MCP 调用勾选的读取工具。由角色委派的子任务按任务单独授权。",
+    "本机其他应用可通过 MCP 调用勾选的读取工具。由伙伴委派的子任务按任务单独授权。",
     "Other local apps can use the selected read tools through MCP. Delegated workers get their own per-task grants."
   ],
   [
@@ -10128,8 +9700,8 @@
     "Enable connection"
   ],
   [
-    "使用 DeepSeek 官方 Search 和 Fetch API。调用计入你的 DeepSeek 账户，工具在角色权限中单独授权。",
-    "Uses the official DeepSeek Search and Fetch APIs. Calls are billed to your DeepSeek account. Grant tools separately in character settings."
+    "使用 DeepSeek 官方 Search 和 Fetch API。调用计入你的 DeepSeek 账户，工具在伙伴权限中单独授权。",
+    "Uses the official DeepSeek Search and Fetch APIs. Calls are billed to your DeepSeek account. Grant tools separately in companion settings."
   ],
   [
     "传输方式",
@@ -10180,8 +9752,8 @@
     "Remove MCP server?"
   ],
   [
-    "该服务器的工具将从角色的可用工具中移除。",
-    "This server’s tools will no longer be available to characters."
+    "该服务器的工具将从伙伴的可用工具中移除。",
+    "This server’s tools will no longer be available to companions."
   ],
   [
     "已移除",
@@ -10196,8 +9768,8 @@
     "Discovering tools does not verify the API key or perform a search."
   ],
   [
-    "请在角色的应用工具权限中授权。外部服务器的工具可能执行写入操作。",
-    "Grant these tools in the character’s app tool permissions. External servers may perform write operations."
+    "请在伙伴的应用工具权限中授权。外部服务器的工具可能执行写入操作。",
+    "Grant these tools in the companion’s app tool permissions. External servers may perform write operations."
   ],
   [
     "组件与插件",
@@ -10344,8 +9916,8 @@
     "Rolled back automatically"
   ],
   [
-    "回滚恢复程序版本。角色、会话和资料保留当前数据，更新前数据库快照单独保存。",
-    "Rollback restores the application version. Characters, conversations and documents keep their current data. A separate database snapshot is saved before updating."
+    "回滚恢复程序版本。伙伴、会话和资料保留当前数据，更新前数据库快照单独保存。",
+    "Rollback restores the application version. Companions, conversations and documents keep their current data. A separate database snapshot is saved before updating."
   ],
   [
     "无法打开设置窗口：{reason}",
@@ -10368,8 +9940,8 @@
     "Model output"
   ],
   [
-    "还没有整理记录。请在角色的自动化任务中配置并运行记忆整理。",
-    "No reviews yet. Configure and run a memory review in the character’s automation tasks."
+    "还没有整理记录。请在伙伴的自动化任务中配置并运行记忆整理。",
+    "No reviews yet. Configure and run a memory review in the companion’s automation tasks."
   ],
   [
     "忽略的叠加窗口",
@@ -10434,10 +10006,6 @@
   [
     "请粘贴本地文件路径。",
     "Paste the local file path."
-  ],
-  [
-    "温柔而有主见，把难题理清，也把小事放在心上。",
-    "Warm and thoughtful, with a mind of her own and an eye for the little things."
   ],
   [
     "好奇又有行动力，陪你把灵感变成值得期待的小作品。",
@@ -10524,8 +10092,8 @@
     "Context configuration"
   ],
   [
-    "沿用角色配置",
-    "Use role settings"
+    "沿用伙伴配置",
+    "Use companion settings"
   ],
   [
     "单次模型输出上限（tokens）",
@@ -10668,7 +10236,7 @@
     "Cache write"
   ],
   [
-    "角色主工作会话",
+    "伙伴主工作会话",
     "Main work conversation"
   ],
   [
@@ -11072,8 +10640,8 @@
     "Default reasoning effort"
   ],
   [
-    "自动适配只读取接口声明的能力；上游未提供时，请按接口文档选择参数格式。角色与任务可覆盖默认强度。",
-    "Automatic mode uses declared capabilities. If unavailable, choose a parameter format from the API documentation. Roles and tasks can override the default effort."
+    "自动适配只读取接口声明的能力；上游未提供时，请按接口文档选择参数格式。伙伴与任务可覆盖默认强度。",
+    "Automatic mode uses declared capabilities. If unavailable, choose a parameter format from the API documentation. Companions and tasks can override the default effort."
   ],
   [
     "正式回答与上下文压缩均沿用此上限；会话或任务的输出配置优先。",
@@ -11116,6 +10684,414 @@
     "Leave blank to use the model's declared output capacity, or the general default when unknown. This limits one response, not the total task. Sessions and tasks may override it."
   ],
   [
+    "插件工具授权",
+    "Plugin tool access"
+  ],
+  [
+    "交互操作",
+    "Interact"
+  ],
+  [
+    "搜索插件或工具",
+    "Search plugins or tools"
+  ],
+  [
+    "工具已注册",
+    "Tools registered"
+  ],
+  [
+    "配置连接",
+    "Configure connection"
+  ],
+  [
+    "已配置",
+    "Configured"
+  ],
+  [
+    "未找到匹配的工具",
+    "No matching tools"
+  ],
+  [
+    "尚未配置允许的网站",
+    "No allowed websites configured"
+  ],
+  [
+    "尚未配置允许的应用",
+    "No allowed applications configured"
+  ],
+  [
+    "尚未配置文献库连接",
+    "Library connection not configured"
+  ],
+  [
+    "在「伙伴功能」的「插件工具授权」中选择可用工具。外部工具可能执行写入操作。",
+    "Choose tools under Companion features → Plugin tool access. External tools may write data."
+  ],
+  [
+    "常规",
+    "General"
+  ],
+  [
+    "网络代理",
+    "Network proxy"
+  ],
+  [
+    "内置模型服务共用此设置，适用于聊天、后台任务、上下文压缩和向量请求。本机回环地址始终直连。",
+    "Built-in model services share this setting for chats, background tasks, context compaction, and embedding requests. Loopback addresses always connect directly."
+  ],
+  [
+    "模型连接方式",
+    "Model connection mode"
+  ],
+  [
+    "直接连接",
+    "Direct connection"
+  ],
+  [
+    "手动代理",
+    "Manual proxy"
+  ],
+  [
+    "优先使用 HTTP(S) 代理环境变量，Windows 桌面也支持系统自动代理规则（PAC）。",
+    "HTTP(S) proxy environment variables take priority. On Windows, automatic system proxy rules (PAC) are also supported."
+  ],
+  [
+    "代理地址",
+    "Proxy address"
+  ],
+  [
+    "填写 HTTP 或 HTTPS 代理的地址和端口。",
+    "Enter the HTTP or HTTPS proxy address and port."
+  ],
+  [
+    "请输入有效的 HTTP 或 HTTPS 代理地址。",
+    "Enter a valid HTTP or HTTPS proxy address."
+  ],
+  [
+    "已保存，下次请求生效。",
+    "Saved. Applies to the next request."
+  ],
+  [
+    "验证模型服务",
+    "Verify a model service"
+  ],
+  [
+    "模型目录连接成功。",
+    "Successfully connected to the model catalog."
+  ],
+  [
+    "无法验证模型目录。",
+    "Could not verify the model catalog."
+  ],
+  [
+    "登录 Windows 后启动 Echo",
+    "Start Echo when I sign in to Windows"
+  ],
+  [
+    "登录后在系统托盘运行，点击托盘图标可打开主窗口。",
+    "Echo runs in the system tray at sign-in. Click its icon to open the main window."
+  ],
+  [
+    "Windows 已禁用这个启动项，可在系统的「启动应用」中重新启用。",
+    "Windows disabled this startup app. You can enable it in Windows Startup Apps."
+  ],
+  [
+    "此启动项由另一份 Echo 安装或数据目录使用。",
+    "Another Echo installation or data directory owns this startup entry."
+  ],
+  [
+    "任务执行",
+    "Task execution"
+  ],
+  [
+    "上下文压缩",
+    "Context compaction"
+  ],
+  [
+    "主会话接棒",
+    "Main conversation handoff"
+  ],
+  [
+    "整理收尾",
+    "Review finalization"
+  ],
+  [
+    "网络连接中断",
+    "Network connection interrupted"
+  ],
+  [
+    "请求超时",
+    "Request timed out"
+  ],
+  [
+    "服务拒绝访问",
+    "Service denied access"
+  ],
+  [
+    "服务额度不足",
+    "Service quota exhausted"
+  ],
+  [
+    "请求受限",
+    "Rate limited"
+  ],
+  [
+    "上游服务错误",
+    "Upstream service error"
+  ],
+  [
+    "模型长度限制",
+    "Model length limit"
+  ],
+  [
+    "查看错误详情",
+    "See error details"
+  ],
+  [
+    "已连通模型目录。推理结果可在续跑后核对。",
+    "Model catalog reached. Check the inference result after resuming."
+  ],
+  [
+    "检查模型连接",
+    "Check model connection"
+  ],
+  [
+    "中断的运行",
+    "Interrupted runs"
+  ],
+  [
+    "已保存进度",
+    "Saved progress"
+  ],
+  [
+    "从断点续跑",
+    "Resume from checkpoint"
+  ],
+  [
+    "错误详情",
+    "Error details"
+  ],
+  [
+    "已暂存建议",
+    "Proposal saved"
+  ],
+  [
+    "检查点待完成",
+    "Checkpoint incomplete"
+  ],
+  [
+    "高级模型设置",
+    "Advanced model settings"
+  ],
+  [
+    "高级任务设置",
+    "Advanced task settings"
+  ],
+  [
+    "模型用途",
+    "Model purposes"
+  ],
+  [
+    "聊天模型",
+    "Chat models"
+  ],
+  [
+    "待连接",
+    "Not connected"
+  ],
+  [
+    "默认文本索引",
+    "Default text index"
+  ],
+  [
+    "其他渠道的表达风格",
+    "Other channel styles"
+  ],
+  [
+    "调整渠道表达",
+    "Edit channel style"
+  ],
+  [
+    "提议修改长期人设",
+    "Propose identity changes"
+  ],
+  [
+    "调整已有任务",
+    "Adjust existing tasks"
+  ],
+  [
+    "按已启用的功能创建任务模板，任务与桌宠初始暂停。",
+    "Templates use enabled features. Tasks and desktop companions start paused."
+  ],
+  [
+    "选择一个可聊天的模型。屏幕观察可以另选视觉模型。",
+    "Choose a model for chat. Observation can use a separate vision model."
+  ],
+  [
+    "请求已处理",
+    "Request processed"
+  ],
+  [
+    "正在加载…",
+    "Loading…"
+  ],
+  [
+    "没有匹配条目",
+    "No matching items"
+  ],
+  [
+    "打开知识条目",
+    "Open knowledge entry"
+  ],
+  [
+    "Zotero 文献连接器",
+    "Zotero Library Connector"
+  ],
+  [
+    "短评",
+    "Comment"
+  ],
+  [
+    "评分",
+    "Rating"
+  ],
+  [
+    "入库状态",
+    "Import status"
+  ],
+  [
+    "索引状态",
+    "Index status"
+  ],
+  [
+    "等待入库",
+    "Queued for import"
+  ],
+  [
+    "入库中",
+    "Importing"
+  ],
+  [
+    "入库失败",
+    "Import failed"
+  ],
+  [
+    "已入库",
+    "Imported"
+  ],
+  [
+    "未入库",
+    "Not imported"
+  ],
+  [
+    "状态不可用",
+    "Status unavailable"
+  ],
+  [
+    "已索引",
+    "Indexed"
+  ],
+  [
+    "未索引",
+    "Not indexed"
+  ],
+  [
+    "部分索引",
+    "Partially indexed"
+  ],
+  [
+    "导入或复用 PDF",
+    "Import or reuse PDF"
+  ],
+  [
+    "普通记忆",
+    "General memories"
+  ],
+  [
+    "类别",
+    "Category"
+  ],
+  [
+    "迁移到另一台设备，保留任务设置和已安装扩展",
+    "Migrate to another device with task settings and installed extensions"
+  ],
+  [
+    "首次启动迁入库前，请先停止旧设备的自动化。迁入的扩展需手动启用，凭据需重新配置。",
+    "Stop automation on the old device before opening the migrated data. Re-enable extensions and configure credentials on the new device."
+  ],
+  [
+    "浏览器操作",
+    "Browser Use"
+  ],
+  [
+    "在独立的浏览器会话中阅读和操作已授权的网站。",
+    "Read and interact with approved sites in an isolated browser session."
+  ],
+  [
+    "允许的网站，每行一个 HTTPS 来源",
+    "Allowed sites, one HTTPS origin per line"
+  ],
+  [
+    "浏览器",
+    "Browser"
+  ],
+  [
+    "Windows 桌面操作",
+    "Windows Computer Use"
+  ],
+  [
+    "通过 Windows 辅助功能读取获准的前台窗口，按控件执行操作。",
+    "Read approved foreground windows and interact with their Windows accessibility controls."
+  ],
+  [
+    "允许操作的应用，每行一个 EXE 完整路径",
+    "Allowed applications, one full executable path per line"
+  ],
+  [
+    "Zotero",
+    "Zotero"
+  ],
+  [
+    "连接并刷新",
+    "Connect and refresh"
+  ],
+  [
+    "本机文献库",
+    "Local library"
+  ],
+  [
+    "连接 Zotero 文献库",
+    "Connect Zotero library"
+  ],
+  [
+    "检索本机个人文献库，管理分组和笔记，关联已有的知识条目。",
+    "Search your local library, manage collections and notes, and link indexed documents."
+  ],
+  [
+    "Zotero 本机服务 ID",
+    "Local Zotero server ID"
+  ],
+  [
+    "本地 API 凭据引用",
+    "Local API credential reference"
+  ],
+  [
+    "上次观察已记录，未唤起伙伴。",
+    "The last observation was recorded without starting an interaction."
+  ],
+  [
+    "观察互动已排队。",
+    "The observation interaction is queued."
+  ],
+  [
+    "观察互动排队超时，已保留记录。",
+    "The observation expired while queued. Its record was kept."
+  ],
+  [
+    "伙伴正在处理观察结果。",
+    "The companion is processing the observation."
+  ],
+  [
     "在此日期新增 ",
     "Add entry on "
   ],
@@ -11152,10 +11128,6 @@
     "Edit concern "
   ],
   [
-    "使用模型默认",
-    "Use model default"
-  ],
-  [
     "任务指定",
     "Task setting"
   ],
@@ -11176,8 +11148,8 @@
     "Run details"
   ],
   [
-    "旧草稿缺少编辑基线，请从角色资料重新编辑。",
-    "This older draft has no edit baseline. Open the character profile to edit it."
+    "旧草稿缺少编辑基线，请从伙伴资料重新编辑。",
+    "This older draft has no edit baseline. Open the companion profile to edit it."
   ],
   [
     "已记入主会话",
@@ -11256,12 +11228,12 @@
     "Reply style"
   ],
   [
-    "角色记忆已启用。可在角色资料中查看和纠正记忆。",
-    "Memory is on. Review and correct memories in the role profile."
+    "伙伴记忆已启用。可在伙伴资料中查看和纠正记忆。",
+    "Memory is on. Review and correct memories in the companion profile."
   ],
   [
-    "查找角色设置",
-    "Find a role setting"
+    "查找伙伴设置",
+    "Find a companion setting"
   ],
   [
     "查看后台工作会话",
@@ -11288,24 +11260,24 @@
     "Add an email account"
   ],
   [
-    "角色可用工具",
-    "Role tools"
+    "伙伴可用工具",
+    "Companion tools"
   ],
   [
     "观察白名单",
     "Observation allowlist"
   ],
   [
-    "角色授权",
-    "Role permissions"
+    "伙伴授权",
+    "Companion permissions"
   ],
   [
-    "选择角色",
-    "Choose a role"
+    "选择伙伴",
+    "Choose a companion"
   ],
   [
-    "为角色授权",
-    "Manage role permissions"
+    "为伙伴授权",
+    "Manage companion permissions"
   ],
   [
     "显示内置组件",
@@ -11532,6 +11504,14 @@
     "Select a single search scope"
   ],
   [
+    "使用模型默认",
+    "Use model default"
+  ],
+  [
+    "工具授权",
+    "Tool permissions"
+  ],
+  [
     "计划触发记录",
     "Scheduled occurrences"
   ],
@@ -11584,15 +11564,127 @@
     "Reminder destinations"
   ],
   [
-    "提醒角色",
-    "Reminder role"
+    "提醒伙伴",
+    "Reminder companion"
   ],
   [
     "沿用日程默认绑定",
     "Use the calendar’s default binding"
   ],
   [
-    "使用角色的提醒渠道",
-    "Use the role’s reminder destinations"
+    "使用伙伴的提醒渠道",
+    "Use the companion’s reminder destinations"
+  ],
+  [
+    "跟随应用时区",
+    "Use application time zone"
+  ],
+  [
+    "每日执行时间",
+    "Daily time"
+  ],
+  [
+    "已保存断点",
+    "Checkpoint saved"
+  ],
+  [
+    "触发时渠道不可用",
+    "Destination unavailable when triggered"
+  ],
+  [
+    "没有新材料",
+    "No new material"
+  ],
+  [
+    "输出目标当前不可用。",
+    "The destination is currently unavailable."
+  ],
+  [
+    "原有投递绑定已改变。",
+    "The original recipient binding has changed."
+  ],
+  [
+    "输出插件或原目标当前不可用。",
+    "The output plugin or original destination is unavailable."
+  ],
+  [
+    "伙伴或会话当前不可投递。",
+    "Delivery to this companion or conversation is unavailable."
+  ],
+  [
+    "本次任务只允许本机投递。",
+    "This task only allows local delivery."
+  ],
+  [
+    "暂时无法确认渠道发送权限。",
+    "Channel sending permission could not be confirmed."
+  ],
+  [
+    "QQ 发送服务尚未启用或就绪。",
+    "QQ sending is disabled or not ready."
+  ],
+  [
+    "QQ 当前仅允许回复收到的消息。",
+    "QQ currently allows replies to incoming messages only."
+  ],
+  [
+    "输出目标当前不支持文件。",
+    "This destination currently does not accept files."
+  ],
+  [
+    "通道绑定或伙伴权限已改变。",
+    "The channel binding or companion authorization has changed."
+  ],
+  [
+    "我的伙伴",
+    "My companions"
+  ],
+  [
+    "Aria · 内置静态桌宠",
+    "Aria · Built-in static pet"
+  ],
+  [
+    "照应日常的伙伴。聊到半截的故事，或想腾出来的一下午，都可以交给她。",
+    "A companion for everyday life, from the story you paused halfway through to an afternoon you want to keep free."
+  ],
+  [
+    "喜欢把点子做出来的伙伴。一起拆解问题、做小工具，也能聊一局游戏里最巧的一步。",
+    "A companion who likes making things. Build a small tool together or talk about the cleverest move in a game."
+  ],
+  [
+    "在此日期新增 ",
+    "Add entry on "
+  ],
+  [
+    "删除会话 ",
+    "Delete conversation "
+  ],
+  [
+    " · 暂停：请先核对未知执行",
+    " · blocked: reconcile unknown execution"
+  ],
+  [
+    " · v",
+    " · v"
+  ],
+  [
+    " · 已缓存正文",
+    " · Body cached"
+  ],
+  [
+    " 个附件",
+    " attachments"
+  ],
+  [
+    " 服务器",
+    " Server"
+  ],
+  [
+    " MB",
+    " MB"
+  ],
+  [
+    "编辑关注 ",
+    "Edit concern "
   ]
 ]

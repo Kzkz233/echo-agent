@@ -56,9 +56,9 @@ export function avatarPlugin(
         helper,
         async () => {
           const cfg = displayAvatar(store, personaId);
-          const bundled = existsSync(join(project, 'dist/web/assets/cute-girl/manifest.json'))
-            ? join(project, 'dist/web/assets/cute-girl')
-            : join(project, 'apps/workbench/public/assets/cute-girl');
+          const bundled = existsSync(join(project, 'dist/web/assets/starter-characters/aria/manifest.json'))
+            ? join(project, 'dist/web/assets/starter-characters/aria')
+            : join(project, 'apps/workbench/public/assets/starter-characters/aria');
           const fallback = {
             kind: 'frames' as const,
             directory: cfg.assetDirectory?.trim() || bundled,
@@ -117,7 +117,7 @@ export function avatarPlugin(
               'plugins/avatar/import-worker.ts',
               {
                 source,
-                name: 'Character package',
+                name: 'Companion package',
                 fps: 10,
                 root: join(dirname(store.path), 'avatar-assets'),
               },
@@ -166,7 +166,7 @@ export function avatarPlugin(
       });
       registry.register({
         name: 'avatar.profile',
-        description: '读取角色的桌宠设置',
+        description: '读取伙伴的桌宠设置',
         owner: 'avatar',
         permission: 'avatar.read',
         mcp: false,
@@ -176,7 +176,7 @@ export function avatarPlugin(
       });
       registry.register({
         name: 'avatar.clips',
-        description: '列出角色帧素材中的动作',
+        description: '列出伙伴帧素材中的动作',
         owner: 'avatar',
         permission: 'avatar.read',
         mcp: false,
@@ -193,9 +193,9 @@ export function avatarPlugin(
           }
           const root =
             profile.assetDirectory ||
-            (existsSync(join(project, 'dist/web/assets/cute-girl/manifest.json'))
-              ? join(project, 'dist/web/assets/cute-girl')
-              : join(project, 'apps/workbench/public/assets/cute-girl'));
+            (existsSync(join(project, 'dist/web/assets/starter-characters/aria/manifest.json'))
+              ? join(project, 'dist/web/assets/starter-characters/aria')
+              : join(project, 'apps/workbench/public/assets/starter-characters/aria'));
           const file = join(root, 'manifest.json');
           invariant((await stat(file)).size <= 2000000, 'avatar_manifest', '帧素材描述文件过大。');
           return [
@@ -210,7 +210,7 @@ export function avatarPlugin(
       });
       registry.register({
         name: 'avatar.configureRole',
-        description: '保存当前角色的桌宠配置；其他角色的桌宠保持独立',
+        description: '保存当前伙伴的桌宠配置；其他伙伴的桌宠保持独立',
         owner: 'avatar',
         permission: 'avatar.write',
         mcp: false,
@@ -238,7 +238,7 @@ export function avatarPlugin(
       });
       registry.register({
         name: 'avatar.setVisible',
-        description: '临时显示或收起所有已配置桌宠，不改变角色启用和桌宠配置',
+        description: '临时显示或收起所有已配置桌宠，不改变伙伴启用和桌宠配置',
         owner: 'avatar',
         permission: 'avatar.write',
         mcp: false,
@@ -258,7 +258,7 @@ export function avatarPlugin(
         mcp: false,
         input: z.object({}),
         output: z.array(frameMaterialSchema),
-        run: () => store.documents('avatar-assets'),
+        run: () => store.documents<any>('avatar-assets').filter(asset=>!asset.retired),
       });
       registry.register({
         name: 'avatar.select',
@@ -549,6 +549,7 @@ export function avatarPlugin(
           }
           if (
             (e.type === 'settings.changed' && e.data.pluginId === 'avatar') ||
+            e.type === 'avatar.resized' ||
             e.type === 'preferences.changed' ||
             e.type === 'characters.updated' ||
             e.type === 'character.activity.changed' ||

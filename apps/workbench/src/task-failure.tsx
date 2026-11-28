@@ -1,7 +1,8 @@
+import { AppTime } from './message-time.tsx';
 import { useEffect, useState } from 'react';
 import { failedTaskRuns, type FailedTaskRun, type TaskFailure } from '../../../packages/contracts/task-failure.ts';
 import { rpc } from './client.ts';
-import { locale, t } from './i18n.ts';
+import { t } from './i18n.ts';
 import { Button } from './ui.tsx';
 
 const stages = { execution:'任务执行', compaction:'上下文压缩', handoff:'主会话接棒', finalization:'整理收尾' };
@@ -69,7 +70,7 @@ export function TaskCheckpoints({ owner, operation, taskId, personaId }: {
   return <section className="task-run-history"><h2>{t('中断的运行')}</h2>
     {issue && <p role="alert">{issue}</p>}
     {rows.map(row => <article className="card stack" key={row.id}>
-      <strong>{new Date(row.createdAt).toLocaleString(locale())}</strong>
+      <strong><AppTime at={row.createdAt}/></strong>
       <FailurePanel key={row.id + row.failure.error + row.failure.connectionId} failure={row.failure}/>
       {row.checkpoint && <div className="row wrap">
         <span>{t('已保存进度')} · {row.checkpoint.completed} / {row.checkpoint.total}</span>

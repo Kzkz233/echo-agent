@@ -3,15 +3,15 @@
 ## Ownership and workspaces
 
 Shared settings contain inference connections/model resources, messaging connections, plugins
-and runtime maintenance. A model resource describes what is available; the role editor selects
-what a character uses. Character-scoped inference tasks declare `scope: character` and are not
-edited in the shared-defaults form. Saving a character pins its selected auxiliary model IDs.
-Unchanged task configurations retain their schedule state when other role settings are edited.
+and runtime maintenance. A model resource describes what is available; the companion editor selects
+what a companion uses. Companion-scoped inference tasks declare `scope: character` and are not
+edited in the shared-defaults form. Saving a companion pins its selected auxiliary model IDs.
+Unchanged task configurations retain their schedule state when other companion settings are edited.
 
 Calendar, knowledge/files, mail and notifications are shared workspaces registered on
-the main window. They do not require a character. A role may separately attach reminders,
+the main window. They do not require a companion. A companion may separately attach reminders,
 review sources, channels and automation tasks to them. Messaging gateway credentials remain
-shared; conversation bindings are shown within their character workspace.
+shared; conversation bindings are shown within their companion workspace.
 
 Observe, Care and Email Triggers use the same automation action entry point. Each task
 evaluates its own policy. The shared entry point checks the registered source, action, expiry
@@ -23,7 +23,7 @@ Memory review reports use the verified result of the whole execution and its
 confirmed operations. Checkpoint notes remain in the review record. Reporting
 uses the shared parent-conversation handoff and selected delivery destinations.
 
-Website observation is task-scoped: each role selects browser executables and allowed domains.
+Website observation is task-scoped: each companion selects browser executables and allowed domains.
 The built-in URL reader uses Windows UI Automation and works only when a browser exposes a
 visible document URL through that interface. Chrome, Edge, Brave and Firefox are suggested
 defaults; users can edit, remove or add process names/paths. Other browsers may work if they
@@ -61,7 +61,7 @@ Existing same-day Care runs are counted when initializing the new policy.
 
 Active or unresolved execution, queued input, recent actual user messages and registered
 observation blockers are checked before drawing a probability or gathering model context.
-Scope can be the target conversation, its character, or all Echo-managed conversations.
+Scope can be the target conversation, its companion, or all Echo-managed conversations.
 Human lookup is indexed and is not limited by how many program records followed the message.
 Observation blocks only when it has fresh allowed visible content, not merely because its task
 is enabled. Missing eligible time does not create catch-up messages. A missed probability
@@ -85,7 +85,7 @@ batching interval and maximum pending age. Empty sender/subject conditions do no
 starts at the current stream cursor instead of replaying old mail.
 
 Actions are either a deterministic Notification Center record, optionally linked to a
-conversation/bubble, or one application-origin `trigger` turn asking the role to assess a
+conversation/bubble, or one application-origin `trigger` turn asking the companion to assess a
 matched batch. Ordinary personality/memory context still applies to the latter. It is not
 human speech and grants no new project or approval privileges. Model instructions treat
 mail metadata as untrusted material, not executable requests. Mail content is not sent or
@@ -104,7 +104,7 @@ Default trigger tasks are disabled; no sender importance or personal rules are g
 
 ## Current concerns
 
-The enhancement keeps things a character currently cares about and may want to revisit.
+The enhancement keeps things a companion currently cares about and may want to revisit.
 It is not a store for every opinion and it has no solved/archive task workflow. The UI lives
 beside Core Memories and Other Memories, while remaining independently optional.
 

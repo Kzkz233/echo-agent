@@ -27,6 +27,33 @@ mod desktop {
         core::w,
     };
     const INPUT: u32 = WM_APP + 1;
+    struct CanvasSettings {
+        directory: String,
+        renderer: String,
+        library: Option<String>,
+        clips: Vec<String>,
+        fps: Option<u64>,
+        user_scale: f64,
+    }
+    impl CanvasSettings {
+        fn from_params(p: &Value, motion: &[String]) -> Self {
+            Self {
+                directory: p["directory"].as_str().unwrap_or("").to_owned(),
+                renderer: p["renderer"].as_str().unwrap_or("frames").to_owned(),
+                library: p["rendererLibrary"].as_str().map(str::to_owned),
+                clips: motion.iter().cloned().chain(
+                    p["stateRules"].as_array().into_iter().flatten()
+                        .filter_map(|r| r["clip"].as_str().map(str::to_owned))
+                ).collect(),
+                fps: Some(p["fps"].as_u64().unwrap_or(10).clamp(1, 30)),
+                user_scale: p["scale"].as_f64().unwrap_or(1.).clamp(0.4, 2.),
+            }
+        }
+        unsafe fn load_at(&self, scale: f64) -> Result<Canvas, Box<dyn std::error::Error>> {
+            unsafe { load(&self.directory, 0.75 * self.user_scale * scale, &self.renderer,
+                &self.clips, self.fps, self.library.as_deref()) }
+        }
+    }
     struct FrameClip {
         frames: Vec<Vec<u8>>,
         fps: u64,
@@ -39,6 +66,7 @@ mod desktop {
         w: i32,
         h: i32,
         ground: GroundAnchor,
+        fixed_facing: bool,
         clips: HashMap<String, FrameClip>,
         fps: u64,
         fps_override: Option<u64>,
@@ -56,6 +84,8 @@ mod desktop {
     struct State {
         rx: mpsc::Receiver<Value>,
         canvas: Option<Canvas>,
+        material: Option<CanvasSettings>,
+        resize_issue: Option<String>,
         started: Instant,
         working: bool,
         playing: String,
@@ -65,6 +95,7 @@ mod desktop {
         scene_start: Instant,
         last_tick: Instant,
         next_work_area_check: Instant,
+        notified_dpi: Option<u16>,
         grab_offset: Option<POINT>,
         track_button: bool,
         motion: [String; 3],
@@ -234,7 +265,9 @@ mod desktop {
             let fps = clips["idle"].fps;
             let visible = clips["idle"].frames.iter().filter_map(|pixels| visible_bottom(w, h, pixels)).reduce(f64::max);
             let ground = resolve_ground(declared, visible, h);
-            create_canvas(w, h, ground, clips, fps, fps_override, None)
+            let mut canvas = create_canvas(w, h, ground, clips, fps, fps_override, None)?;
+            canvas.fixed_facing = manifest["facing"].as_str() == Some("fixed");
+            Ok(canvas)
         }
     }
     unsafe fn create_canvas(
@@ -261,6 +294,7 @@ mod desktop {
                 dc,
                 bitmap,
                 old,
+                fixed_facing: false,
                 bits,
                 w,
                 h,
@@ -272,20 +306,33 @@ mod desktop {
             })
         }
     }
+    unsafe fn monitor_scale(hwnd: HWND) -> f64 {
+        unsafe {
+            // A long-lived window and its process can both retain the DPI of the
+            // login session after the display has already switched scale.
+            let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            if let Ok(factor) = windows::Win32::UI::Shell::GetScaleFactorForMonitor(monitor) {
+                if factor.0 > 0 {
+                    // WM_DPICHANGED reports integer DPI, including for 140%.
+                    let dpi = (factor.0 * 96 + 50) / 100;
+                    return f64::from(dpi) / 96.;
+                }
+            }
+            let dpi = GetDpiForWindow(hwnd);
+            if dpi == 0 { 1. } else { f64::from(dpi) / 96. }
+        }
+    }
+    unsafe fn monitor_work_rect(hwnd: HWND) -> Option<RECT> {
+        unsafe {
+            let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            let mut info = MONITORINFO { cbSize: size_of::<MONITORINFO>() as u32, ..Default::default() };
+            GetMonitorInfoW(monitor, &mut info).as_bool().then_some(info.rcWork)
+        }
+    }
     unsafe fn work_area(s: &State) -> Option<[f64; 4]> {
         unsafe {
             let c = s.canvas.as_ref()?;
-            let mut area = RECT::default();
-            if SystemParametersInfoW(
-                SPI_GETWORKAREA,
-                0,
-                Some((&mut area as *mut RECT).cast()),
-                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
-            )
-            .is_err()
-            {
-                return None;
-            }
+            let area = monitor_work_rect(s.hwnd)?;
             let margin = dip(s, 12.);
             Some(movement_bounds([area.left, area.top, area.right, area.bottom], c.w, c.ground, margin))
         }
@@ -459,11 +506,12 @@ mod desktop {
             if IsWindowVisible(s.composer).as_bool() {
                 let _ = GetWindowRect(s.composer, &mut rect);
             }
+            let area = monitor_work_rect(s.hwnd).unwrap_or_default();
             let _ = SetWindowPos(
                 s.bubble,
                 Some(HWND_TOPMOST),
-                (rect.right - w).max(0),
-                (rect.top - h - dip(s, 10.)).max(0),
+                (rect.right - w).max(area.left),
+                (rect.top - h - dip(s, 10.)).max(area.top),
                 w,
                 h,
                 SWP_NOACTIVATE,
@@ -473,6 +521,70 @@ mod desktop {
     }
     fn dip(s: &State, value: f64) -> i32 {
         (value * s.scale).round() as i32
+    }
+    unsafe fn apply_ui_scale(s: &mut State, scale: f64) {
+        unsafe {
+            if scale == s.scale && !s.font.is_invalid() { return; }
+            s.scale = scale;
+            let mut lf = LOGFONTW::default();
+            lf.lfWeight = 400;
+            lf.lfQuality = CLEARTYPE_QUALITY;
+            lf.lfCharSet = DEFAULT_CHARSET;
+            for (i, c) in "Microsoft YaHei UI".encode_utf16().enumerate() {
+                lf.lfFaceName[i] = c;
+            }
+            lf.lfHeight = -dip(s, 14.);
+            let font = CreateFontIndirectW(&lf);
+            lf.lfHeight = -dip(s, 11.5);
+            let small = CreateFontIndirectW(&lf);
+            if !font.is_invalid() {
+                SendMessageW(s.edit, WM_SETFONT, Some(WPARAM(font.0 as usize)), Some(LPARAM(1)));
+                let old = std::mem::replace(&mut s.font, font);
+                if !old.is_invalid() { let _ = DeleteObject(old.into()); }
+            }
+            if !small.is_invalid() {
+                let old = std::mem::replace(&mut s.small_font, small);
+                if !old.is_invalid() { let _ = DeleteObject(old.into()); }
+            }
+        }
+    }
+    unsafe fn refresh_display_scale(s: &mut State, scale: f64) {
+        if s.scale == scale {
+            s.resize_issue = None;
+            return;
+        }
+        let Some(material) = &s.material else { return; };
+        unsafe {
+            // Load from the original asset, then swap. Failed decodes keep the
+            // working canvas, role configuration, input draft and bubble.
+            let canvas = match material.load_at(scale) {
+                Ok(canvas) => canvas,
+                Err(error) => {
+                    s.resize_issue = Some(error.to_string());
+                    s.next_work_area_check = Instant::now() + std::time::Duration::from_secs(30);
+                    return;
+                }
+            };
+            let speed = canvas.extension.as_ref().and_then(|r| r.metadata["walkSpeed"].as_f64());
+            let ratio = scale / s.scale;
+            s.canvas = Some(canvas);
+            s.resize_issue = None;
+            apply_ui_scale(s, scale);
+            if let (Some(bounds), Some(scene)) = (work_area(s), &mut s.scene) {
+                scene.update_bounds(bounds);
+                scene.set_walk_speed(speed);
+            }
+            if let Some(offset) = &mut s.grab_offset {
+                offset.x = (f64::from(offset.x) * ratio).round() as i32;
+                offset.y = (f64::from(offset.y) * ratio).round() as i32;
+            }
+            s.motion_override = None;
+            if s.grab_offset.is_some() { renderer_motion(s, "grab", 0.); }
+            let _ = paint(s);
+            if IsWindowVisible(s.composer).as_bool() { place_composer(s); }
+            if IsWindowVisible(s.bubble).as_bool() { bubble_position(s); }
+            println!("{}", json!({"jsonrpc":"2.0","method":"avatar.resized","params":{}}));
+        }
     }
     unsafe fn round_window(hwnd: HWND, w: i32, h: i32, radius: i32) {
         unsafe {
@@ -597,7 +709,7 @@ mod desktop {
                         % clip.frames.len();
                     let frame = &clip.frames[index];
                     ptr::copy_nonoverlapping(frame.as_ptr(), c.bits.cast(), frame.len());
-                    if facing_left {
+                    if facing_left && !c.fixed_facing {
                         let stride = c.w as usize;
                         let pixels = std::slice::from_raw_parts_mut(
                             c.bits.cast::<u32>(),
@@ -653,15 +765,19 @@ mod desktop {
             let _ = GetWindowRect(s.hwnd, &mut rect);
             let width = dip(s, 344.);
             let height = dip(s, 112.);
+            let area = monitor_work_rect(s.hwnd).unwrap_or_default();
             let _ = SetWindowPos(
                 s.composer,
                 Some(HWND_TOPMOST),
-                (rect.right - width).max(0),
-                (rect.top - height - dip(s, 10.)).max(0),
+                (rect.right - width).max(area.left),
+                (rect.top - height - dip(s, 10.)).max(area.top),
                 width,
                 height,
                 SWP_NOACTIVATE,
             );
+            round_window(s.composer, width, height, dip(s, 20.));
+            let _ = SetWindowPos(s.edit, None, dip(s, 18.), dip(s, 18.), width - dip(s, 36.),
+                dip(s, 54.), SWP_NOZORDER | SWP_NOACTIVATE);
         }
     }
     unsafe fn compose(s: &mut State) {
@@ -675,19 +791,7 @@ mod desktop {
                 };
             }
             s.composer_issue.clear();
-            let width = dip(s, 344.);
-            let height = dip(s, 112.);
             place_composer(s);
-            round_window(s.composer, width, height, dip(s, 20.));
-            let _ = SetWindowPos(
-                s.edit,
-                None,
-                dip(s, 18.),
-                dip(s, 18.),
-                width - dip(s, 36.),
-                dip(s, 54.),
-                SWP_NOZORDER | SWP_NOACTIVATE,
-            );
             let _ = ShowWindow(s.bubble, SW_HIDE);
             let _ = ShowWindow(s.composer, SW_SHOWNOACTIVATE);
             let _ = InvalidateRect(Some(s.composer), None, true);
@@ -731,37 +835,19 @@ mod desktop {
                         s.slot = p["slot"].as_u64().unwrap_or(0).min(32) as u32;
                         s.home_offset = p["homeOffset"].as_f64();
                         s.default_conversation = p["conversationId"].as_str().unwrap_or("").into();
-                        let scale = p["scale"].as_f64().unwrap_or(1.).clamp(0.4, 2.)
-                            * 0.75
-                            * GetDpiForSystem() as f64
-                            / 96.;
+                        let scale = monitor_scale(s.hwnd);
                         let motion = ["idle", "working", "speaking"].map(|name| {
                             p["animationClips"][name]
                                 .as_str()
                                 .unwrap_or("idle")
                                 .to_owned()
                         });
-                        let fps_override = Some(p["fps"].as_u64().unwrap_or(10).clamp(1, 30));
-                        let requested_motion: Vec<String> =
-                            motion
-                                .iter()
-                                .cloned()
-                                .chain(
-                                    p["stateRules"].as_array().into_iter().flatten().filter_map(
-                                        |rule| rule["clip"].as_str().map(str::to_owned),
-                                    ),
-                                )
-                                .collect();
-                        match load(
-                            p["directory"].as_str().unwrap_or(""),
-                            scale,
-                            p["renderer"].as_str().unwrap_or("frames"),
-                            &requested_motion,
-                            fps_override,
-                            p["rendererLibrary"].as_str(),
-                        ) {
+                        let material = CanvasSettings::from_params(p, &motion);
+                        match material.load_at(scale) {
                             Ok(canvas) => {
                                 s.canvas = Some(canvas);
+                                s.material = Some(material);
+                                s.resize_issue = None;
                                 s.motion = motion;
                                 s.state_rules = serde_json::from_value(p["stateRules"].clone())
                                     .unwrap_or_else(|_| {
@@ -788,7 +874,7 @@ mod desktop {
                                     });
                                 s.playing.clear();
                                 s.selected_clip.clear();
-                                s.scale = (GetDpiForSystem() as f64 / 96.).max(1.);
+                                apply_ui_scale(s, scale);
                                 position(s, p["roam"].as_bool().unwrap_or(true));
                                 let result = paint(s);
                                 let _ = ShowWindow(s.hwnd, SW_SHOWNOACTIVATE);
@@ -875,7 +961,7 @@ mod desktop {
                         }));
                         respond(
                             id,
-                            json!({"ground":ground,"language":if s.english {"en"} else {"zh-CN"},"renderer":"win32","borderless":GetClassLongPtrW(s.hwnd,GCL_STYLE)&(CS_DROPSHADOW.0 as usize)==0,"animation":s.canvas.as_ref().and_then(|c|c.extension.as_ref()).map_or("frames",|r|r.metadata["kind"].as_str().unwrap_or("extension")),"sharedHost":true,"rendererAbi":s.canvas.as_ref().and_then(|c|c.extension.as_ref()).map(|_|1),"bubbleHeader":false,"composerHeader":false,"docked":s.docked,"motion":s.motion_override.as_ref().and_then(|v|v["phase"].as_str()).or_else(||s.scene.as_ref().map(|scene|scene.phase.name())),"facing":s.scene.as_ref().map(|scene| if scene.facing_left { "left" } else { "right" }),"roam":s.scene.as_ref().is_some_and(|scene| scene.roam),"pid":std::process::id(),"activity":activity(s),"clip":s.playing,"paints":s.paints,"visible":IsWindowVisible(s.hwnd).as_bool(),"bubbleVisible":IsWindowVisible(s.bubble).as_bool(),"composerVisible":IsWindowVisible(s.composer).as_bool(),"draftLength":GetWindowTextLengthW(s.edit),"imeComposing":s.ime_active,"pendingReply":s.pending_reply.is_some(),"conversationId":s.conversation,"text":s.text,"left":rect.left,"top":rect.top,"width":rect.right-rect.left,"height":rect.bottom-rect.top}),
+                            json!({"displayScale":s.scale,"roleScale":s.material.as_ref().map(|m|m.user_scale),"resizeIssue":s.resize_issue,"ground":ground,"language":if s.english {"en"} else {"zh-CN"},"renderer":"win32","borderless":GetClassLongPtrW(s.hwnd,GCL_STYLE)&(CS_DROPSHADOW.0 as usize)==0,"animation":s.canvas.as_ref().and_then(|c|c.extension.as_ref()).map_or("frames",|r|r.metadata["kind"].as_str().unwrap_or("extension")),"sharedHost":true,"rendererAbi":s.canvas.as_ref().and_then(|c|c.extension.as_ref()).map(|_|1),"bubbleHeader":false,"composerHeader":false,"docked":s.docked,"motion":s.motion_override.as_ref().and_then(|v|v["phase"].as_str()).or_else(||s.scene.as_ref().map(|scene|scene.phase.name())),"facing":s.scene.as_ref().map(|scene| if scene.facing_left { "left" } else { "right" }),"roam":s.scene.as_ref().is_some_and(|scene| scene.roam),"pid":std::process::id(),"activity":activity(s),"clip":s.playing,"paints":s.paints,"visible":IsWindowVisible(s.hwnd).as_bool(),"bubbleVisible":IsWindowVisible(s.bubble).as_bool(),"composerVisible":IsWindowVisible(s.composer).as_bool(),"draftLength":GetWindowTextLengthW(s.edit),"imeComposing":s.ime_active,"pendingReply":s.pending_reply.is_some(),"conversationId":s.conversation,"text":s.text,"left":rect.left,"top":rect.top,"width":rect.right-rect.left,"height":rect.bottom-rect.top}),
                         );
                     }
                     "avatar.quit" => {
@@ -908,7 +994,13 @@ mod desktop {
                     commands(s);
                     LRESULT(0)
                 }
-                WM_DISPLAYCHANGE | WM_SETTINGCHANGE | WM_DPICHANGED if hwnd == s.hwnd => {
+                WM_DPICHANGED if hwnd == s.hwnd => {
+                    let dpi = wp.0 as u16;
+                    s.notified_dpi = (dpi > 0).then_some(dpi);
+                    s.next_work_area_check = Instant::now();
+                    LRESULT(0)
+                }
+                WM_DISPLAYCHANGE | WM_SETTINGCHANGE if hwnd == s.hwnd => {
                     s.next_work_area_check = Instant::now();
                     DefWindowProcW(hwnd, message, wp, lp)
                 }
@@ -928,6 +1020,9 @@ mod desktop {
                     if now >= s.next_work_area_check {
                         // Some remote-display changes only update the work area.
                         s.next_work_area_check = now + std::time::Duration::from_secs(3);
+                        let scale = s.notified_dpi.take()
+                            .map_or_else(|| monitor_scale(s.hwnd), |dpi| f64::from(dpi) / 96.);
+                        refresh_display_scale(s, scale);
                         if let (Some(bounds), Some(scene)) = (work_area(s), &mut s.scene) {
                             work_area_changed = scene.update_bounds(bounds);
                         }
@@ -1264,21 +1359,12 @@ mod desktop {
                 return Err("card window registration failed".into());
             }
             let (tx, rx) = mpsc::channel();
-            let mut lf = LOGFONTW::default();
-            lf.lfHeight = -(14. * GetDpiForSystem() as f64 / 96.).round() as i32;
-            lf.lfWeight = 400;
-            lf.lfQuality = CLEARTYPE_QUALITY;
-            lf.lfCharSet = DEFAULT_CHARSET;
-            for (i, c) in "Microsoft YaHei UI".encode_utf16().enumerate() {
-                lf.lfFaceName[i] = c;
-            }
-            let font = CreateFontIndirectW(&lf);
-            lf.lfHeight = -(11.5 * GetDpiForSystem() as f64 / 96.).round() as i32;
-            let small_font = CreateFontIndirectW(&lf);
             let card_brush = CreateSolidBrush(COLORREF(0x00ffffff));
             let mut s = Box::new(State {
                 rx,
                 canvas: None,
+                material: None,
+                resize_issue: None,
                 started: Instant::now(),
                 working: false,
                 playing: String::new(),
@@ -1288,6 +1374,7 @@ mod desktop {
                 scene_start: Instant::now(),
                 last_tick: Instant::now(),
                 next_work_area_check: Instant::now(),
+                notified_dpi: None,
                 grab_offset: None,
                 track_button: false,
                 motion: ["idle".into(), "idle".into(), "idle".into()],
@@ -1300,8 +1387,8 @@ mod desktop {
                 edit_proc: None,
                 ime_active: false,
                 english: false,
-                font,
-                small_font,
+                font: HFONT::default(),
+                small_font: HFONT::default(),
                 card_brush,
                 composer_issue: String::new(),
                 text: String::new(),
@@ -1315,7 +1402,7 @@ mod desktop {
                 instance: String::new(),
                 expires: None,
                 docked: false,
-                scale: (GetDpiForSystem() as f64 / 96.).max(1.),
+                scale: 1.,
                 paints: 0,
                 left: false,
                 slot: 0,
@@ -1397,12 +1484,8 @@ mod desktop {
                 Some(instance.into()),
                 None,
             )?;
-            let _ = SendMessageW(
-                s.edit,
-                WM_SETFONT,
-                Some(WPARAM(font.0 as usize)),
-                Some(LPARAM(1)),
-            );
+            let scale = monitor_scale(s.hwnd);
+            apply_ui_scale(&mut s, scale);
             let _ = SendMessageW(s.edit, 0x00c5, Some(WPARAM(100000)), Some(LPARAM(0))); // EM_SETLIMITTEXT
             SetWindowLongPtrW(s.edit, GWLP_USERDATA, (&mut *s as *mut State) as isize);
             let previous =
@@ -1449,6 +1532,28 @@ mod desktop {
             let _ = DeleteObject(s.small_font.into());
             let _ = DeleteObject(s.card_brush.into());
             Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        #[test]
+        fn changing_display_scale_reloads_original_frames_at_the_saved_role_scale() {
+            let directory = concat!(env!("CARGO_MANIFEST_DIR"), "/../apps/workbench/public/assets/starter-characters/aria");
+            let manifest: Value = serde_json::from_slice(&fs::read(std::path::Path::new(directory).join("manifest.json")).unwrap()).unwrap();
+            let frame = &manifest["clips"]["idle"]["frames"][0];
+            let material = CanvasSettings::from_params(&json!({"directory":directory,"scale":1.2}), &["idle".into()]);
+            for display in [1., 1.75, 1.25, 1.] {
+                let canvas = unsafe { material.load_at(display) }.unwrap();
+                assert!(canvas.fixed_facing);
+                for (key, size) in [("w", canvas.w), ("h", canvas.h)] {
+                    let expected = frame[key].as_u64().unwrap() as f64 * 0.75 * 1.2 * display;
+                    assert!((f64::from(size) - expected).abs() <= 0.50000001);
+                }
+                let bounds = movement_bounds([-1920, 0, 0, 1040], canvas.w, canvas.ground, 12);
+                assert_eq!(bounds[3] + canvas.ground.y, 1040.);
+            }
         }
     }
 }

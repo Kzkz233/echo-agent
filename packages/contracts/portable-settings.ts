@@ -1,3 +1,5 @@
+import { clockValue } from './daily-time.ts';
+
 /** Portable task values are declared by the task owner. Local resource bindings
  * and credentials are never inferred from the kind of selector used by the UI. */
 export function portableTaskSettings(
@@ -18,6 +20,8 @@ export function portableTaskSettings(
       )
       .map((field) => field.key),
   );
+  if (allowed.has('dailyTime') && values.dailyTime === undefined && clockValue(values) !== undefined)
+    values = { ...values, dailyTime: clockValue(values) };
   allowed.add('name');
   return Object.fromEntries(Object.entries(values).filter(([key]) => allowed.has(key)));
 }

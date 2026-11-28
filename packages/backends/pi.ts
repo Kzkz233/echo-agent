@@ -306,7 +306,7 @@ export class PiBackend implements Backend {
                 maxChars: Math.max(256, Math.min(8000, Math.floor(request.profile.contextChars / 4))),
                 generate: summary => this.generate(summary),
                 onItem: item => {
-                  if (item.id.startsWith('model-retry-')) request.onItem?.({ ...item, id: 'compaction-' + item.id });
+                  if (item.id === 'summary-retry' || item.id.startsWith('model-retry-')) request.onItem?.({ ...item, id: 'compaction-' + item.id });
                   if (item.id === 'provider-request-failure') request.onItem?.({ ...item,
                     id: 'compaction-request-failure', title: '上下文压缩请求诊断' });
                 },
@@ -378,7 +378,7 @@ export class PiBackend implements Backend {
             details.push({ group: 'turn', source: 'execution', tokens: additionalTokens });
         }
         const signal = AbortSignal.any([request.signal, ...(options?.signal ? [options.signal] : [])]);
-        const retry = new ModelStepRetry(signal, request.onItem, step);
+        const retry = new ModelStepRetry(signal, request.onItem, step, request.modelRetryBudget);
         return retryModelStream(model, retry, () => models.streamSimple(model, context, {
           ...options,
           signal,
@@ -598,7 +598,7 @@ export class PiBackend implements Backend {
         throw new EchoError(
           truncated ? 'pi_output_limit' : 'pi_empty',
           (truncated ? '模型达到生成上限，结果未完成。' : '模型没有返回正文。') +
-            `结束原因：${result.stopReason ?? 'unknown'}；输出上限 ${request.profile.maxOutputTokens} tokens；已生成 ${result.usage?.output ?? '未知'} tokens；正文 ${text.length} 字符；思考 ${thinkingChars} 字符。未自动重试。`,
+            `结束原因：${result.stopReason ?? 'unknown'}；输出上限 ${request.profile.maxOutputTokens} tokens；已生成 ${result.usage?.output ?? '未知'} tokens；正文 ${text.length} 字符；思考 ${thinkingChars} 字符。` + (request.modelRetryBudget ? '' : '未自动重试。'),
           mutationPossible,
         );
       }

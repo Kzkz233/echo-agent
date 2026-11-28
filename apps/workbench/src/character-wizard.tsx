@@ -1,3 +1,4 @@
+import { AppTime } from './message-time.tsx';
 import { revealSetting } from './settings-locator.ts';
 import { QuickModel } from './quick-model.tsx';
 import { SettingsFields } from './settings-fields.tsx';
@@ -34,7 +35,7 @@ const ChannelBindings = lazy(() =>
   import('./feature-views.tsx').then((module) => ({ default: module.FeaturePage })),
 );
 
-const steps = ['角色资料', '角色功能', '模型与权限', '检查并创建'];
+const steps = ['伙伴资料', '伙伴功能', '模型与权限', '检查并创建'];
 const expressionFields = [
   ['chat', '应用对话风格'],
   ['external', 'QQ 回复风格'],
@@ -103,7 +104,7 @@ export function CharacterWizard({
   const removals = useRef(new Set<string>());
   const baseline = useRef<unknown>(undefined);
   const requestId = useRef(crypto.randomUUID());
-  useUnsavedChanges(Boolean(draft && !sameData(draft, baseline.current)), '角色配置');
+  useUnsavedChanges(Boolean(draft && !sameData(draft, baseline.current)), '伙伴配置');
   useEffect(() => {
     let active = true;
     void (async () => {
@@ -387,17 +388,17 @@ export function CharacterWizard({
         }
       />
       <label className="field">
-        <span>{t('角色名称')}</span>
+        <span>{t('伙伴名称')}</span>
         <input
-          aria-label={t('角色名称')}
+          aria-label={t('伙伴名称')}
           value={draft.persona.name}
           onChange={(e) => change({ persona: { ...draft.persona, name: e.target.value } })}
         />
       </label>
       <label className="field">
-        <span>{t('角色人设')}</span>
+        <span>{t('伙伴人设')}</span>
         <textarea
-          aria-label={t('角色人设')}
+          aria-label={t('伙伴人设')}
           rows={10}
           value={draft.persona.prompt}
           onChange={(e) => change({ persona: { ...draft.persona, prompt: e.target.value } })}
@@ -488,7 +489,7 @@ export function CharacterWizard({
     <>
       <div className="row wrap">
         <label className="button secondary">
-          {t('导入角色包')}
+          {t('导入伙伴包')}
           <input
             hidden
             type="file"
@@ -522,7 +523,7 @@ export function CharacterWizard({
       </div>
       {packages && <p>{packages.draft.persona.name}</p>}
       <p className="muted role-feature-scope-note">
-        {t('选择此角色使用的功能。插件安装与启停在应用设置中管理。')}
+        {t('选择此伙伴使用的功能。插件安装与启停在应用设置中管理。')}
       </p>
       {!personaId && savedDrafts.length > 0 && (
         <label className="field">
@@ -535,7 +536,7 @@ export function CharacterWizard({
                 try {
                   const exists = data.characters.some((c: any) => c.id === saved.persona.id);
                   const live = exists ? characterDraft.parse(await rpc('persona.character.read', { id:saved.persona.id })) : undefined;
-                  if (live && !saved.edits) { setIssue(t('旧草稿缺少编辑基线，请从角色资料重新编辑。')); return; }
+                  if (live && !saved.edits) { setIssue(t('旧草稿缺少编辑基线，请从伙伴资料重新编辑。')); return; }
                   const next = live ? mergeCharacter(live, saved.edits) : characterDraft.parse(saved);
                   editBase.current = live;
                   removals.current = new Set((saved.edits?.tasks ?? []).flatMap((e: any) => e.action === 'remove' ? [taskKey(e.task)] : []));
@@ -548,7 +549,7 @@ export function CharacterWizard({
             <option value="">{t('选择草稿')}</option>
             {savedDrafts.map((row) => (
               <option value={row.persona.id} key={row.persona.id}>
-                {row.persona.name || t('未命名角色')}
+                {row.persona.name || t('未命名伙伴')}
               </option>
             ))}
           </select>
@@ -630,7 +631,7 @@ export function CharacterWizard({
           >
             {String(task.settings.name ?? task.type)} · {t(task.settings.enabled ? '已启用' : '已暂停')}
             {registered?.state === 'failed' && ' · ' + t('需要检查')}
-            {registered?.nextAt && task.settings.enabled && <small>{t('下次运行')} · {new Date(registered.nextAt).toLocaleString()}</small>}
+            {registered?.nextAt && task.settings.enabled && <small>{t('下次运行')} · <AppTime at={registered.nextAt}/></small>}
           </button>
         ); })}
       </div>
@@ -755,10 +756,10 @@ export function CharacterWizard({
   );
   const summaryEditor = (
     <div className="role-summary">
-      <h2>{draft.persona.name || t('未命名角色')}</h2>
+      <h2>{draft.persona.name || t('未命名伙伴')}</h2>
       <p>{draft.persona.prompt.slice(0, 300)}</p>
       <dl>
-        <dt>{t('角色功能')}</dt>
+        <dt>{t('伙伴功能')}</dt>
         <dd>{draft.features.map((id) => t(feature(id)?.name ?? id)).join(' · ')}</dd>
         <dt>{t('主会话模型')}</dt>
         <dd>{model ? modelDisplayName(model) : t('稍后连接')}</dd>
@@ -782,7 +783,7 @@ export function CharacterWizard({
                 rows={3}
                 aria-label={t(label)}
                 maxLength={600}
-                placeholder={t('留空沿用角色人设')}
+                placeholder={t('留空沿用伙伴人设')}
                 value={draft.persona.expression?.[key] ?? ''}
                 onChange={(e) =>
                   change({
@@ -813,7 +814,7 @@ export function CharacterWizard({
             {expressionFields.filter(([key]) => key !== 'chat' && !deliveryTargets.some(target => target.ready && target.style === key)).map(expressionField)}
           {channelStyles.filter(entry => !deliveryTargets.some(target => target.style === entry.style && target.ready)).map(({ style, label, presentation }) => <label className="field" key={style}>
             <span>{t('{channel} 回复风格', { channel: t(label) })}</span>
-            <textarea rows={3} maxLength={600} aria-label={t('{channel} 回复风格', { channel: t(label) })} placeholder={t('留空沿用角色人设')}
+            <textarea rows={3} maxLength={600} aria-label={t('{channel} 回复风格', { channel: t(label) })} placeholder={t('留空沿用伙伴人设')}
               value={draft.persona.expression?.channels?.[style] ?? (presentation === 'external' ? draft.persona.expression?.external : undefined) ?? ''}
               onChange={(event) => change({ persona: { ...draft.persona, expression: { ...draft.persona.expression,
                 channels: { ...draft.persona.expression?.channels, [style]: event.target.value },
@@ -836,7 +837,7 @@ export function CharacterWizard({
             />
           </details>
         )}
-      {!personaId && <p className="muted">{t('创建角色后，可在这里绑定消息通道。')}</p>}
+      {!personaId && <p className="muted">{t('添加伙伴后，可在这里绑定消息通道。')}</p>}
     </>
   );
   const extraSections = new Map<string, { id: string; title: string; order: number }>();
@@ -856,8 +857,8 @@ export function CharacterWizard({
   if (draft.features.some((id) => !feature(id)))
     extraSections.set('extensions', { id: 'extensions', title: '扩展能力', order: 100 });
   const sections = [
-    { id: 'profile', title: '角色资料' },
-    { id: 'features', title: '角色功能' },
+    { id: 'profile', title: '伙伴资料' },
+    { id: 'features', title: '伙伴功能' },
     { id: 'model', title: '模型与权限' },
     ...['memory', 'tools', 'tasks', 'expression', 'appearance']
       .filter((id) => extraSections.has(id) || ['tasks', 'expression'].includes(id))
@@ -889,7 +890,7 @@ export function CharacterWizard({
         .map((item: any) => (
           <section key={item.id} className="role-settings-block" data-role-feature={item.id}>
             <h2>{t(item.name)}</h2>
-            {item.id === 'memory' && <p>{t('角色记忆已启用。可在角色资料中查看和纠正记忆。')}</p>}
+            {item.id === 'memory' && <p>{t('伙伴记忆已启用。可在伙伴资料中查看和纠正记忆。')}</p>}
             {item.presentation?.editor === 'chatstick' && (
               <>
                 <label className="field">
@@ -938,7 +939,7 @@ export function CharacterWizard({
                     personaId={personaId}
                     builtin={
                       <img
-                        src="/assets/cute-girl/atlas.png"
+                        src="/assets/starter-characters/aria/atlas.png"
                         alt={t('内置素材')}
                         style={{ maxHeight: 160, objectFit: 'contain' }}
                       />
@@ -1022,15 +1023,15 @@ export function CharacterWizard({
   return (
     <div className={'character-wizard' + (personaId ? ' role-editor' : '')}>
       <div className="page-title page-title-actions">
-        <h1>{t(personaId ? '编辑角色' : '创建角色')}</h1>
+        <h1>{t(personaId ? '编辑伙伴' : '添加伙伴')}</h1>
         <Button secondary onClick={() => requestNavigation(onClose)}>
           {t('关闭')}
         </Button>
       </div>
       <div className="role-editor-layout">
         {personaId ? (
-          <nav className="role-editor-nav" aria-label={t('角色设置分类')}>
-            <input type="search" aria-label={t('查找角色设置')} placeholder={t('查找角色设置')} value={search} onChange={e => setSearch(e.target.value)} />
+          <nav className="role-editor-nav" aria-label={t('伙伴设置分类')}>
+            <input type="search" aria-label={t('查找伙伴设置')} placeholder={t('查找伙伴设置')} value={search} onChange={e => setSearch(e.target.value)} />
             {search.trim() && [...new Map([
               ...catalog.features.filter((f: any) => draft.features.includes(f.id)).flatMap((f: any) => f.fields.map((v: any) => ({label:t(v.label), section:f.presentation?.section ?? 'extensions', task:-1}))),
               ...draft.tasks.flatMap((row, index) => (catalog.taskTypes.find((type: any) => type.id === row.type)?.fields ?? []).map((f: any) => ({label:t(f.label),section:'tasks',task:index}))),
@@ -1050,7 +1051,7 @@ export function CharacterWizard({
             ))}
           </nav>
         ) : (
-          <nav className="wizard-steps" hidden={!advancedCreation} aria-label={t('角色配置步骤')}>
+          <nav className="wizard-steps" hidden={!advancedCreation} aria-label={t('伙伴配置步骤')}>
             {steps.map((label, i) => (
               <button
                 key={label}
@@ -1146,10 +1147,10 @@ export function CharacterWizard({
                   : await rpc('persona.character.commit', { draft, createOnly:true, requestId:requestId.current });
                 baseline.current = draft;
                 onComplete(saved);
-              }, t('角色配置已保存'))
+              }, t('伙伴配置已保存'))
             }
           >
-            {t(personaId ? '保存角色' : '创建角色')}
+            {t(personaId ? '保存伙伴' : '添加伙伴')}
           </Button>
         )}
       </footer>

@@ -13,10 +13,7 @@ async function fullStudio(t: import('node:test').TestContext) {
   return app;
 }
 import { starterCharacters, starterStudio } from '../apps/server/starter-content.ts';
-import {
-  starterCharacters as legacyCharacters,
-  starterSourcePrompts as legacySources,
-} from '../apps/server/starter-content-v2.ts';
+import { starterDefaults } from '../apps/server/starter-refresh.ts';
 import { refreshStarterDraft } from '../apps/server/starter-refresh.ts';
 
 test('starter studio creates two editable roles with licensed assets, inactive task templates and an isolated group, exactly once', async (t) => {
@@ -39,7 +36,7 @@ test('starter studio creates two editable roles with licensed assets, inactive t
     const templates = role.tasks.filter((task: any) => task.type !== 'agenda.reminders');
     assert.equal(templates.length, 4);
     assert.equal(role.tasks.find((task:any) => task.type === 'agenda.reminders')?.id, id);
-    assert(role.persona.prompt.length > 1000);
+    assert(role.persona.prompt.includes(role.persona.name));
     for (const heading of [
       'Identity',
       'Appearance',
@@ -51,10 +48,10 @@ test('starter studio creates two editable roles with licensed assets, inactive t
       'Avoid',
     ])
       assert(role.persona.prompt.includes('# ' + heading));
-    assert(role.persona.expression.external.length > 100);
-    assert(role.persona.expression.bubble.length > 70);
-    assert(role.persona.expression.chat.length > 100);
-    assert(role.persona.expression.channels['notifications.inbox'].length > 100);
+    assert(role.persona.expression.external.length > 35);
+    assert(role.persona.expression.bubble.length > 35);
+    assert(role.persona.expression.chat.length > 35);
+    assert(role.persona.expression.channels['notifications.inbox'].length > 35);
     assert(
       role.features.includes('mail') &&
         role.features.includes('reflections') &&
@@ -90,17 +87,17 @@ test('starter studio creates two editable roles with licensed assets, inactive t
       'avatar.bubble': true,
       'notifications.inbox': false,
     });
-    assert.equal((await call('chatstick.list', { personaId: id })).length, 3);
+    assert.equal((await call('chatstick.list', { personaId: id })).length, 8);
     assert(templates.every((task: any) => task.settings.enabled === false));
     assert.equal(role.configurations.avatar.enabled, false);
-    assert.equal(role.configurations.avatar.animationClips.speaking, 'waving');
+    assert.equal(role.configurations.avatar.animationClips.speaking, 'idle');
     const manifest = JSON.parse(
       await readFile(join(role.configurations.avatar.assetDirectory, 'manifest.json'), 'utf8'),
     );
-    assert.equal(manifest.author, 'Ryu JaeHyun');
-    assert.equal(manifest.license, 'CC-BY-4.0');
-    assert.match(manifest.source, /springtiger07/);
-    assert.match(manifest.modifications, /PNG/);
+    assert.equal(manifest.author, 'Echo');
+    assert.equal(manifest.license, 'Apache-2.0');
+    assert.equal(manifest.facing,'fixed');
+    assert.equal(manifest.clips.idle.frames.length,1);
     assert.match(role.persona.portrait, /^data:image\/webp;base64,/);
     const pack = await call('persona.package.export', {
       personaId: id,
@@ -123,7 +120,7 @@ test('starter studio creates two editable roles with licensed assets, inactive t
         'utf8',
       ),
     );
-    assert.equal(copied.licenseUrl, 'https://creativecommons.org/licenses/by/4.0/');
+    assert.equal(copied.licenseUrl, 'https://www.apache.org/licenses/LICENSE-2.0');
   }
   assert.equal(app.store.documents('groups').length, 1);
   assert.equal(app.store.documents('memories').length, 0);
@@ -141,10 +138,10 @@ test('starter updates require explicit action and preserve histories, activity a
   const app = await fullStudio(t);
   const call = (n: string, p: any = {}) => app.registry.call(n, p, internal);
   await call('characters.examples.create', { profileId: 'test', requestId: 'create' });
-  const before = await call('persona.character.read', { id: 'example-hina' });
+  const before = await call('persona.character.read', { id: 'example-aria' });
   app.store.append(before.mainConversationId, 'user', 'human', 'Synthetic retained conversation');
   await call('characters.setActive', {
-    personaId: 'example-hina',
+    personaId: 'example-aria',
     enabled: false,
     revision: before.activity.revision,
   });
@@ -152,10 +149,10 @@ test('starter updates require explicit action and preserve histories, activity a
     ...app.store.get('routes', {}),
     'embeddings.encode': 'existing-custom-model',
   });
-  app.store.put('personas', 'example-hina', { ...before.persona, prompt: 'Synthetic custom edit' });
+  app.store.put('personas', 'example-aria', { ...before.persona, prompt: 'Synthetic custom edit' });
   await call('characters.examples.create', { profileId: 'test', requestId: 'idempotent' });
   assert.equal(
-    app.store.document<any>('personas', 'example-hina')!.prompt,
+    app.store.document<any>('personas', 'example-aria')!.prompt,
     'Synthetic custom edit',
   );
   await call('characters.examples.create', {
@@ -163,7 +160,7 @@ test('starter updates require explicit action and preserve histories, activity a
     requestId: 'explicit-update',
     updateExisting: true,
   });
-  const after = await call('persona.character.read', { id: 'example-hina' });
+  const after = await call('persona.character.read', { id: 'example-aria' });
   assert.equal(after.activity.enabled, false);
   assert.equal(after.mainConversationId, before.mainConversationId);
   assert(
@@ -175,15 +172,16 @@ test('starter updates require explicit action and preserve histories, activity a
   assert.equal(app.store.get<any>('routes', {})['embeddings.encode'], 'existing-custom-model');
 });
 
-test('v2 example refresh upgrades untouched text while preserving local prompts, tasks, authorization and assets', async (t) => {
+test('Legacy example refresh upgrades untouched text while preserving local prompts, tasks, authorization and assets', async (t) => {
   const app = await fullStudio(t),
     backend = new FakeBackend();
   app.router.backends.set('api', backend);
   const call = (name: string, input: any = {}) =>
     app.registry.call(name, input, internal) as Promise<any>;
   await call('characters.examples.create', { profileId: 'test', requestId: 'create' });
-  const current = await call('persona.character.read', { id: 'example-hina' });
-  const legacy = legacyCharacters[0];
+  const current = await call('persona.character.read', { id: 'example-aria' });
+  const legacySources={'core.conversation':'Earlier source','mail.source':'Previously shipped source'};
+  const legacy = { ...starterCharacters[0], prompt:'Earlier persona',review:'Earlier review',memory:'Earlier memory',core:'Earlier core',report:'Earlier report',interaction:'Earlier interaction',observation:'Earlier observation',delegation:'Earlier delegation',handoff:'Earlier handoff',concern:'Earlier concern',mail:'Earlier mail', expression:{...starterCharacters[0].expression,chat:'Earlier chat',channels:undefined} };
   const draft = structuredClone(current);
   draft.persona.prompt = legacy.prompt;
   draft.persona.expression = {
@@ -239,7 +237,7 @@ test('v2 example refresh upgrades untouched text while preserving local prompts,
   });
   draft.package = {
     id: 'echo-starter-hina',
-    version: '2.0.1',
+    version: '3.0.0',
     baseline: {
       format: 'echo-character-v1',
       id: 'echo-starter-hina',
@@ -247,19 +245,20 @@ test('v2 example refresh upgrades untouched text while preserving local prompts,
       persona: { name: 'Hina', prompt: legacy.prompt },
       features: [],
       tasks: [],
+      starterDefaults: starterDefaults(legacy as any,legacySources),
     },
   };
   const base = characterDraft.parse(current);
-  const oldCareTask = base.tasks.find(t => t.id === 'example-hina-care')!;
+  const oldCareTask = base.tasks.find(t => t.id === 'example-aria-care')!;
   await call('persona.character.patch',{id:base.persona.id,requestId:'legacy',
     changes:editedCharacter(base,characterDraft.parse(draft),new Set([taskKey(oldCareTask)]))});
   await call('characters.setActive', {
-    personaId: 'example-hina',
+    personaId: 'example-aria',
     enabled: false,
     revision: current.activity.revision,
   });
   await call('chatstick.save', {
-    personaId: 'example-hina',
+    personaId: 'example-aria',
     key: 'hello',
     label: 'My greeting',
     meaning: 'Synthetic edited sticker',
@@ -277,9 +276,9 @@ test('v2 example refresh upgrades untouched text while preserving local prompts,
   group.prompt = 'Synthetic custom group prompt';
   app.store.put('groups', group.id, group);
   const mcpBefore = app.store.get('mcp.permissions', []);
-  const before = await call('persona.character.read', { id: 'example-hina' });
+  const before = await call('persona.character.read', { id: 'example-aria' });
   const result = await call('characters.examples.refresh', { requestId: 'refresh' });
-  const after = await call('persona.character.read', { id: 'example-hina' });
+  const after = await call('persona.character.read', { id: 'example-aria' });
   assert.equal(after.persona.prompt, starterCharacters[0].prompt);
   assert.equal(after.persona.expression.external, 'Synthetic custom QQ style');
   assert.equal(after.persona.expression.chat, starterCharacters[0].expression.chat);
@@ -308,7 +307,7 @@ test('v2 example refresh upgrades untouched text while preserving local prompts,
   assert.deepEqual(reviewed.settings.memoryOperations, ['add']);
   assert.deepEqual(reviewed.settings.outputTargets, ['notifications.inbox']);
   assert.equal(
-    after.tasks.some((task: any) => task.id === 'example-hina-care'),
+    after.tasks.some((task: any) => task.id === 'example-aria-care'),
     false,
   );
   assert.equal(
@@ -342,7 +341,7 @@ test('v2 example refresh upgrades untouched text while preserving local prompts,
     app.store.document<any>('groups', 'example-studio')!.prompt,
     'Synthetic custom group prompt',
   );
-  assert(result.changes.find((row: any) => row.id === 'example-hina').preserved > 0);
+  assert(result.changes.find((row: any) => row.id === 'example-aria').preserved > 0);
   const again = refreshStarterDraft(after, starterCharacters[0], result.version);
   assert.equal(again.updated, 0);
   assert.equal(backend.calls.length, 0);

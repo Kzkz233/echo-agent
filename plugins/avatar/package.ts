@@ -14,7 +14,7 @@ export async function packAvatar(directory: string, manifest: 'manifest.json') {
     invariant(
       bytes <= 7500000,
       'package_asset_size',
-      '角色包素材超过 7.5 MB，请压缩图集后再导出。',
+      '伙伴包素材超过 7.5 MB，请压缩图集后再导出。',
     );
     assets[name] = (await readFile(path)).toString('base64');
   }
@@ -31,12 +31,12 @@ export async function unpackAvatar<T>(
   invariant(
     names.length === 2 && names.includes(manifest) && names.includes('atlas.png'),
     'package_assets',
-    '角色包素材需要图集和对应的动画描述。',
+    '伙伴包素材需要图集和对应的动画描述。',
   );
   invariant(
     names.reduce((sum, name) => sum + assets[name].length, 0) <= 10000000,
     'package_asset_size',
-    '角色包素材超过限制。',
+    '伙伴包素材超过限制。',
   );
   await mkdir(root, { recursive: true });
   const staging = await mkdtemp(join(root, 'role-package-'));

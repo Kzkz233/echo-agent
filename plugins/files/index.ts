@@ -746,7 +746,7 @@ export class Files {
                   this.roots().find((root) => root.id === row.vaultId)?.owner ?? '',
                 ),
               'resource_scope',
-              '角色托管文件须通过所属模块读取。',
+              '伙伴托管文件须通过所属模块读取。',
             );
             invariant(row.bytes <= 16000000, 'file_size', '请使用文档解析器处理大文件');
             const text = await readFile(await this.path(row.vaultId, row.relativePath), 'utf8');

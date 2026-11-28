@@ -465,6 +465,7 @@ export class Application {
         'observation',
         'review',
         'avatar',
+        ...(fresh ? ['chatstick'] : []),
         'groups',
         'delegation',
         'worker-codex',
@@ -554,6 +555,11 @@ export class Application {
         if (!catalog.unavailable.length) app.store.set('outputs.taskMigration.v1',true);
       }
       await app.router.inference.refresh();
+      if (!options.plugins && app.store.documents<any>('characters').some(c=>
+        ['echo-starter-hina','echo-starter-miyu'].includes(c.package?.id) || app.store.get('starter.art.pending.'+c.id,false))) {
+        await app.registry.call('characters.examples.refresh',{requestId:randomUUID()},internal).catch(error=>
+          app.events.emit('starter.refresh.failed',{message:error instanceof Error ? error.message : String(error)}));
+      }
       app.router.resumeSubmissions();
       app.deliveries.flush();
       return app;
@@ -641,13 +647,13 @@ export class Application {
         return { ...catalog, types, ...(view ? {} : { sources:this.triggerActions.sources() }) };
       });
     }
-    op('automation.recordedTasks','读取角色的历史任务',z.object({personaId:id}),'automation.read',(v,caller) => {
-      invariant(!caller.personaId || caller.personaId === v.personaId,'task_owner','只能读取当前角色的任务。');
+    op('automation.recordedTasks','读取伙伴的历史任务',z.object({personaId:id}),'automation.read',(v,caller) => {
+      invariant(!caller.personaId || caller.personaId === v.personaId,'task_owner','只能读取当前伙伴的任务。');
       return recordedTasks(this.store,v.personaId);
     });
     op('automation.history', '读取任务结果及其主会话和投递记录', z.object({ type:id, id, personaId:id.optional() }), 'automation.read',
       (v,caller) => {
-        invariant(!caller.personaId || !v.personaId || caller.personaId === v.personaId, 'task_owner','只能读取当前角色的任务。');
+        invariant(!caller.personaId || !v.personaId || caller.personaId === v.personaId, 'task_owner','只能读取当前伙伴的任务。');
         const personaId = caller.personaId ?? v.personaId;
         const results = taskHistory(this.store,this.deliveries,v.type,v.id,personaId);
         const linked = new Set(results.flatMap(r => r.outputs.map(o => o.id)));
@@ -655,9 +661,9 @@ export class Application {
           .map(o => ({ ...o, deliveries:this.deliveries.rows(o.id) }));
         return { results,otherOutputs, occurrences: occurrenceHistory(this.store, v.type, v.id, personaId) };
       });
-    op('work.list', '读取角色的全部工作会话', z.object({ personaId: id.optional() }), 'delegation.read',
+    op('work.list', '读取伙伴的全部工作会话', z.object({ personaId: id.optional() }), 'delegation.read',
       (value, caller) => {
-        invariant(!caller.personaId || !value.personaId || caller.personaId === value.personaId, 'work_owner', '只能读取当前角色的工作会话。');
+        invariant(!caller.personaId || !value.personaId || caller.personaId === value.personaId, 'work_owner', '只能读取当前伙伴的工作会话。');
         return this.router.workSessions.list(caller.personaId ?? value.personaId);
       });
     op('work.contextOptions', '读取插件注册的子任务上下文选项', z.object({ personaId: id, features: z.array(id).optional() }), 'delegation.read',
@@ -682,7 +688,7 @@ export class Application {
     op('role.capabilities', '查询本会话获准的工具、插件配置缺项及可用表达渠道；不更改设置', z.object({ search:z.string().max(120).optional() }), 'persona.read',
       async (value, caller, signal) => {
         const conversation = caller.conversationId && this.store.conversation(caller.conversationId);
-        invariant(conversation && caller.personaId === conversation.personaId, 'task_owner', '需要当前角色会话。');
+        invariant(conversation && caller.personaId === conversation.personaId, 'task_owner', '需要当前伙伴会话。');
         const query = value.search?.trim().toLowerCase() ?? '';
         const role = this.store.document<{mainConversationId:string}>('characters', conversation.personaId);
         const tools = this.registry.list(internal, true);
@@ -710,12 +716,12 @@ export class Application {
         return { plugins, external, available:available?.filter(tool => tool.name.toLowerCase().includes(query)).map(tool=>tool.name),
           channels:(await this.deliveries.catalog(conversation.id,signal)).map(({id,label,style})=>({id,label,style})) };
       }, true, true);
-    op('automation.manage', '在当前角色下查看、创建、编辑、启停或执行已注册的自动化任务',
+    op('automation.manage', '在当前伙伴下查看、创建、编辑、启停或执行已注册的自动化任务',
       z.object({ action: z.enum(['list', 'save', 'pause', 'resume', 'run', 'remove']), type: id.optional(),
         id: id.optional(), settings: z.record(z.string(), z.unknown()).optional(), expected:z.record(z.string(),z.unknown()).optional(), requestId: id.optional() }),
       'delegation.write', async (value, caller, signal) => {
         const role = caller.personaId && this.store.document<{ mainConversationId: string }>('characters', caller.personaId);
-        invariant(role && role.mainConversationId === caller.conversationId, 'task_owner', '请从角色主工作会话管理自动化任务。');
+        invariant(role && role.mainConversationId === caller.conversationId, 'task_owner', '请从伙伴主工作会话管理自动化任务。');
         const catalog = await this.automation.catalog(signal, undefined, value.action === 'list' ? undefined : value.type);
         const accessFor = (type: { id: string; owner: string }) => this.plugins.plugins.get(type.owner)?.manifest.agentTasks?.[type.id];
         const canManage = (type: { id: string; owner: string }) => {
@@ -727,12 +733,12 @@ export class Application {
         const belongs = (item: any) => (item.personaId ?? item.settings?.personaId) === caller.personaId;
         if (value.action === 'list') return { types: types.map(type => ({ ...type, canManage: autonomous && canManage(type), editableFields: accessFor(type)?.fields, editOnly: accessFor(type)?.editOnly, items: type.items.filter(belongs) })) };
         invariant(autonomous,
-          'delegation_policy', '角色未获准自主创建或执行子任务。');
+          'delegation_policy', '伙伴未获准自主创建或执行子任务。');
         const type = types.find(type => type.id === value.type);
-        invariant(type && characterActive(this.store, caller.personaId), 'task_type', '此角色的任务类型当前不可用。');
+        invariant(type && characterActive(this.store, caller.personaId), 'task_type', '此伙伴的任务类型当前不可用。');
         invariant(canManage(type), 'permission_denied', '没有管理此类任务的权限。');
         const item = type.items.find(item => item.id === value.id);
-        invariant(!item || belongs(item), 'task_owner', '不能管理其他角色的任务。');
+        invariant(!item || belongs(item), 'task_owner', '不能管理其他伙伴的任务。');
         const access = accessFor(type);
         if (access?.editOnly)
           invariant(item && value.action === 'save', 'permission_denied', '当前授权只允许调整已有任务的设置。');
@@ -742,11 +748,11 @@ export class Application {
           const changes = value.action === 'save' ? { ...value.settings } : { enabled: value.action === 'resume' };
           for (const key of Object.keys(changes)) {
             invariant(!access?.fields || access.fields.includes(key), 'permission_denied', '此字段需要在任务页面修改：' + key);
-            if (['conversationId', 'reportConversationId'].includes(key)) invariant(changes[key] === role.mainConversationId, 'task_owner', '只能使用当前角色主会话。');
+            if (['conversationId', 'reportConversationId'].includes(key)) invariant(changes[key] === role.mainConversationId, 'task_owner', '只能使用当前伙伴主会话。');
             if (key === 'id') invariant(changes.id === taskId, 'task_owner', '任务编号不一致。');
           }
           const settings = { ...changes, personaId: caller.personaId };
-          invariant(!value.settings?.personaId || value.settings.personaId === caller.personaId, 'task_owner', '不能为其他角色创建任务。');
+          invariant(!value.settings?.personaId || value.settings.personaId === caller.personaId, 'task_owner', '不能为其他伙伴创建任务。');
           const actor = { personaId: caller.personaId, conversationId: caller.conversationId, permissions: [...caller.permissions] };
           if (type.supportsPatch)
             return this.automation.mutate(type.id, { action:'save', id:taskId, settings, patch:true,
@@ -846,10 +852,10 @@ export class Application {
     op('outputs.inspect', '核对投递结果，不重新发送', z.object({}), 'automation.read', ()=>this.deliveries.refreshQueued());
     op('outputs.resolve', '人工核对后结束跟进，不重发消息', z.object({id,confirmed:z.literal(true)}), 'automation.write', v=>this.deliveries.resolve(v.id));
     op('outputs.retry', '重试一次已确认失败的投递', z.object({id,confirmed:z.literal(true)}), 'automation.write', (v,_c,signal)=>this.deliveries.retry(v.id,signal));
-    op('characters.setActive', '启用或停用角色', z.object({ personaId: id, enabled: z.boolean(), revision: z.number().int().min(0) }), 'persona.write', (v) => {
-      invariant(this.store.document('personas', v.personaId), 'persona_missing', '角色不存在。');
+    op('characters.setActive', '启用或停用伙伴', z.object({ personaId: id, enabled: z.boolean(), revision: z.number().int().min(0) }), 'persona.write', (v) => {
+      invariant(this.store.document('personas', v.personaId), 'persona_missing', '伙伴不存在。');
       const previous = this.store.get('character.activity.' + v.personaId, { enabled: true, revision: 0 });
-      invariant(previous.revision === v.revision, 'revision_conflict', '角色状态已在其他窗口修改。');
+      invariant(previous.revision === v.revision, 'revision_conflict', '伙伴状态已在其他窗口修改。');
       if (previous.enabled === v.enabled) return previous;
       const activity = { enabled: v.enabled, revision: previous.revision + 1, changedAt: new Date().toISOString() };
       this.store.set('character.activity.' + v.personaId, activity);
@@ -1144,7 +1150,7 @@ export class Application {
       invariant(
         !this.router.inference.references(v.id).length,
         'model_referenced',
-        '此模型仍被角色或任务使用，请先更换这些配置中的模型。',
+        '此模型仍被伙伴或任务使用，请先更换这些配置中的模型。',
       );
       this.store.remove('profiles', v.id);
       const routes = this.store.get<Record<string, string>>('routes', {});
@@ -1206,7 +1212,7 @@ export class Application {
           invariant(
             task.scope !== 'character',
             'route_scope',
-            '角色级推理任务需在角色配置中设置。',
+            '伙伴级推理任务需在伙伴配置中设置。',
           );
           if (modelId) {
             const model = this.router.inference.models().find((m) => m.id === modelId);
@@ -1248,6 +1254,8 @@ export class Application {
       async (v) => {
         try {
           v.enabled ? await this.plugins.enable(v.id) : await this.plugins.disable(v.id);
+          if (v.enabled && ['avatar','chatstick'].includes(v.id) && this.store.documents<any>('characters').some(role=>this.store.get('starter.art.pending.'+role.id,false)))
+            await this.registry.call('characters.examples.refresh',{requestId:randomUUID()},internal);
         } finally {
           this.store.set('plugins.intent', Object.fromEntries(this.plugins.intent));
           this.events.emit('plugins.changed', {});
@@ -1373,7 +1381,7 @@ export class Application {
         invariant(
           !v.personaId || v.personaId === old.personaId || !managedConversation(this.store, old),
           'managed_conversation',
-          '角色管理的会话不能直接更换角色。',
+          '伙伴管理的会话不能直接更换伙伴。',
         );
         const conversation = { ...old, ...v };
         this.store.saveConversation(conversation);
@@ -1393,7 +1401,7 @@ export class Application {
         invariant(
           !managedConversation(this.store, old),
           'managed_conversation',
-          '请在编辑角色的运行方式或 Worker 配置中修改权限。',
+          '请在编辑伙伴的运行方式或 Worker 配置中修改权限。',
         );
         invariant(
           !this.router.isBusy(v.id) && !this.store.unresolved(v.id).length,
@@ -1547,7 +1555,7 @@ export class Application {
           !managedConversation(this.store, conversation) ||
             this.store.binding(v.id)?.profileId === v.profileId,
           'managed_conversation',
-          '请在编辑角色的运行方式或 Worker 配置中修改推理后端。',
+          '请在编辑伙伴的运行方式或 Worker 配置中修改推理后端。',
         );
         return this.router.bind(v.id, v.profileId, s);
       },
@@ -1581,6 +1589,11 @@ export class Application {
       'conversation.write',
       (v) => this.router.steer(v),
     );
+    op('conversations.retryCompactionInput', '继续在压缩阶段失败的用户输入',
+      z.object({ runId: id, confirmed: z.literal(true) }), 'conversation.write', (v, caller) => {
+        invariant(caller.kind === 'ui' || caller.kind === 'cli', 'retry_unavailable', '需由用户确认继续。');
+        return this.router.retryCompactionInput(v.runId);
+      });
     op(
       'conversations.cancelInput',
       '移除尚未执行的排队消息',

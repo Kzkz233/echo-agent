@@ -1,4 +1,8 @@
 import type { Store } from './store.ts';
+import { followAppTimezone } from '../contracts/daily-time.ts';
+export function scheduleTimezone(store: Store, timezone?: string) {
+  return !timezone || timezone === followAppTimezone ? configuredTimezone(store) : timezone;
+}
 export function configuredTimezone(store: Store) {
   const configured = store.get<{ timezone?: string }>('clock.config', {}).timezone;
   return !configured || configured === 'system' ? Intl.DateTimeFormat().resolvedOptions().timeZone : configured;
@@ -26,35 +30,33 @@ export function localDay(date: Date, timezone = Intl.DateTimeFormat().resolvedOp
   const get = (type: string) => parts.find((p) => p.type === type)!.value;
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
+const offsets = new Map<string, Intl.DateTimeFormat>();
+function offsetAt(at: number, timezone: string) {
+  let formatter = offsets.get(timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en', { timeZone: timezone, timeZoneName: 'longOffset' });
+    offsets.set(timezone, formatter);
+  }
+  const value = formatter.formatToParts(at).find(part => part.type === 'timeZoneName')!.value;
+  const match = value.match(/GMT([+-])(\d\d):(\d\d)/);
+  return match ? (match[1] === '-' ? -1 : 1) * (Number(match[2]) * 60 + Number(match[3])) * 60000 : 0;
+}
+
+/** Use the first occurrence of a repeated time, and shift a missing time forward by the DST gap. */
 export function localTime(day: string, hour: number, minute: number, timezone: string) {
   const wall = Date.parse(day + 'T00:00:00Z') + hour * 3600000 + minute * 60000;
-  const offset = (at: number) => {
-    const part = new Intl.DateTimeFormat('en', { timeZone: timezone, timeZoneName: 'longOffset' })
-      .formatToParts(at)
-      .find((p) => p.type === 'timeZoneName')!.value;
-    const m = part.match(/GMT([+-])(\d\d):(\d\d)/);
-    return m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) * 60000 : 0;
-  };
-  let value = wall - offset(wall);
-  value = wall - offset(value);
-  return value;
+  const before = offsetAt(wall - 86400000, timezone), after = offsetAt(wall + 86400000, timezone);
+  const earlierOffset = wall - before, laterOffset = wall - after;
+  if (before === after) return earlierOffset;
+  const matches = [earlierOffset, laterOffset].filter(at => at + offsetAt(at, timezone) === wall);
+  return matches.length ? Math.min(...matches) : Math.max(earlierOffset, laterOffset);
 }
-/** First strictly future local HH:mm; offset is recalculated for DST transitions. */
+
+/** First strictly future local HH:mm. A repeated wall time schedules only one daily run. */
 export function nextDaily(now: Date, hour: number, minute: number, timezone: string) {
-  const date = localDay(now, timezone);
-  const offset = (time: number) => {
-    const s = new Intl.DateTimeFormat('en', { timeZone: timezone, timeZoneName: 'longOffset' })
-      .formatToParts(time)
-      .find((p) => p.type === 'timeZoneName')!.value;
-    const m = s.match(/GMT([+-])(\d\d):(\d\d)/);
-    return m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) * 60000 : 0;
-  };
-  const base = Date.parse(date + 'T00:00:00Z') + hour * 3600000 + minute * 60000;
-  for (let days = 0; days < 3; days++) {
-    const target = base + days * 86400000;
-    let value = target - offset(target);
-    value = target - offset(value);
-    if (value > now.getTime()) return value;
-  }
-  return now.getTime() + 86400000;
+  const day = localDay(now, timezone);
+  const today = localTime(day, hour, minute, timezone);
+  if (today > now.getTime()) return today;
+  const tomorrow = new Date(Date.parse(day + 'T00:00:00Z') + 86400000).toISOString().slice(0,10);
+  return localTime(tomorrow, hour, minute, timezone);
 }

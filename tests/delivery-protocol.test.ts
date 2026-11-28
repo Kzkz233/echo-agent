@@ -245,6 +245,44 @@ test('Responses compatibility cleanup covers pure API history and preserves none
   assert.deepEqual(responsesInputPayload(payload), payload);
 });
 
+test('Pi replays a native trailing newline through Responses and delivers both new finals', async t => {
+  const f = await fixture(t, 'openai-responses', body => {
+    const index = body.input.findIndex((item:any) => item.type === 'function_call' && item.call_id === 'call_old');
+    assert(index >= 0);
+    assert.equal(body.input[index+1]?.type,'function_call_output');
+    assert.equal(body.input[index+1]?.call_id,'call_old');
+    return toolBatch('openai-responses',[finalReply('core.chat'),finalReply('fixture.mobile')]);
+  });
+  const stored = {role:'assistant' as const, api:'openai-responses' as const, provider:'echo-'+f.profile.id,
+    model:f.profile.model, timestamp:1, stopReason:'toolUse' as const,
+    usage:{input:0,output:0,totalTokens:0,cacheRead:0,cacheWrite:0,cost:{input:0,output:0,cacheRead:0,cacheWrite:0,total:0}},
+    content:[{type:'toolCall' as const,id:'call_old|fc_old',name:'echo_respond',arguments:finalReply('core.chat').args},
+      {type:'text' as const, text:'\n'}]};
+  const pi = new PiBackend(f.app.registry,async ()=>'fixture-key');
+  const delivered:string[]=[];
+  await pi.generate({profile:f.profile, requestId:'after-restart', signal:AbortSignal.timeout(6000),
+    messages:[{role:'assistant',text:'',native:stored},{role:'tool',text:'',native:{role:'toolResult',
+      toolCallId:'call_old|fc_old',toolName:'echo_respond',content:[{type:'text',text:'accepted'}],isError:false,timestamp:2}},
+      {role:'user',text:'Report to both destinations'}],
+    replyTargets:['core.chat','fixture.mobile'],respond:r=>{delivered.push(r.targetId);return {accepted:true};}});
+  assert.deepEqual(delivered,['core.chat','fixture.mobile']);
+  assert.equal(f.requests.length,1);
+  assert.equal(stored.content.length,2);
+});
+
+test('Responses replay keeps parallel outputs adjacent across empty assistant text without changing stored history', () => {
+  const call = (id:string) => ({type:'function_call',call_id:id,name:'fixture',arguments:'{}'});
+  const result = (id:string) => ({type:'function_call_output',call_id:id,output:'  '});
+  const message = (text:string, annotations:unknown[] = []) => ({type:'message',role:'assistant',content:[{type:'output_text',text,annotations}]});
+  const stored = {input:[call('a'),call('b'),message('\n'),result('b'),message(' '),result('a')]};
+  assert.deepEqual(responsesInputPayload(stored),{input:[call('a'),call('b'),result('b'),result('a')]});
+  assert.equal(stored.input.length,6);
+  for (const m of [message('actual text'), message(' ',[{type:'url_citation'}])]) {
+    const value = responsesInputPayload({input:[call('a'),m,result('a')]}) as typeof stored;
+    assert.equal(value.input.length,3);
+  }
+});
+
 test('A task without delivery targets keeps normal text output; required replies have no silence tool', async t => {
   const f = await fixture(t, 'openai-completions', (body, step) => {
     const tools = (body.tools ?? []).map((tool: any) => tool.function.name);

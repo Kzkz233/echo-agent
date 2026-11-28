@@ -880,7 +880,7 @@ export class Knowledge {
           });
         op(
           'knowledge.character-library',
-          '读取角色统一资料目录',
+          '读取伙伴统一资料目录',
           z.object({ personaId: id }),
           'knowledge.read',
           async (v, _s, caller) => {

@@ -75,7 +75,7 @@ test('application limits and character grants intersect and scoped tools cannot 
   assert.deepEqual(own.map((memory: any) => memory.id), ['mine']);
   await assert.rejects(
     app.registry.call('memory.list', { personaId: 'other' }, caller),
-    /角色只能读取自己的记忆/,
+    /伙伴只能读取自己的记忆/,
   );
   const personas = await app.registry.call('persona.list', {}, caller);
   assert.deepEqual(personas.map((persona: any) => persona.id), ['companion']);

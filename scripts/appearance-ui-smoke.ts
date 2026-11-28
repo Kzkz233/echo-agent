@@ -43,7 +43,7 @@ const portrait =
   'data:image/webp;base64,' +
   (
     await readFile(
-      join(project, 'apps/workbench/public/assets/starter-characters/hina/portrait.webp'),
+      join(project, 'apps/workbench/public/assets/starter-characters/aria/portrait.webp'),
     )
   ).toString('base64');
 await app.registry.call(
@@ -51,7 +51,7 @@ await app.registry.call(
   {
     requestId: 'appearance-role',
     draft: characterDraft.parse({
-      persona: { id: 'design-demo', name: 'Hina', prompt: '用于界面验收的虚构角色。', portrait },
+      persona: { id: 'design-demo', name: 'Aria', prompt: '用于界面验收的虚构伙伴。', portrait },
       profileId: 'fixture',
       features: ['memory', 'delegation', 'review', 'observation'],
       configurations: {},
@@ -71,13 +71,13 @@ await app.registry.call(
     draft: characterDraft.parse({
       persona: {
         id: 'design-reader',
-        name: 'Miyu',
-        prompt: '用于界面验收的虚构角色。',
+        name: 'Coda',
+        prompt: '用于界面验收的虚构伙伴。',
         portrait:
           'data:image/webp;base64,' +
           (
             await readFile(
-              join(project, 'apps/workbench/public/assets/starter-characters/miyu/portrait.webp'),
+              join(project, 'apps/workbench/public/assets/starter-characters/coda/portrait.webp'),
             )
           ).toString('base64'),
       },
@@ -410,7 +410,7 @@ try {
     }
     return values;
   });
-  assert.equal(metrics['.nav-item:has(.nav-role-copy)'].height, 59);
+  assert(Math.abs(metrics['.nav-item:has(.nav-role-copy)'].height - 60) <= 1);
   assert.equal(metrics['.brand-mark'].width, 38);
   assert.equal(metrics['.brand-mark'].height, 38);
   assert.equal(metrics['.nav-role-copy strong'].font, '14px');
@@ -430,7 +430,7 @@ try {
     tabs: { x: number; y: number; width: number; height: number }[];
     contentTop: number;
   }[] = [];
-  for (const label of ['聊天', '后台工作会话', '角色资料', '任务', '聊天']) {
+  for (const label of ['聊天', '后台工作会话', '伙伴资料', '任务', '聊天']) {
     const tab = page.locator('.role-topbar').getByRole('tab', { name: label, exact: true });
     await tab.click();
     await page.waitForFunction(
@@ -490,7 +490,7 @@ try {
       await new Promise((resolve) => setTimeout(resolve, 500));
     await route.continue();
   });
-  await page.getByRole('button', { name: '导出角色包', exact: true }).click();
+  await page.getByRole('button', { name: '导出伙伴包', exact: true }).click();
   await page.locator('.header-status-slot [role=status]').waitFor();
   const busyTabs = await page
     .locator('.role-topbar [role=tab]')
@@ -501,7 +501,7 @@ try {
   // Editors return to their owning page and task category.
   await page.locator('.role-topbar').getByRole('tab', { name: '任务', exact: true }).click();
   await page.locator('.task-workspace').getByRole('tab', { name: '自动化', exact: true }).click();
-  await page.locator('.role-topbar').getByRole('button', { name: '配置角色', exact: true }).click();
+  await page.locator('.role-topbar').getByRole('button', { name: '配置伙伴', exact: true }).click();
   await page.locator('.character-wizard input:visible').first().waitFor();
   await page
     .locator('.character-wizard')

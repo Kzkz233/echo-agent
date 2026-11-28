@@ -108,7 +108,7 @@ export async function libraryWorkflows(page: Page, app: Application, runtime: st
   await picker.selectOption('local');
   await page.screenshot({ path: 'test-results/product/library-advanced.png' });
   await go('avatar');
-  const renderer = page.getByLabel('Character renderer', { exact: true });
+  const renderer = page.getByLabel('Companion renderer', { exact: true });
   await renderer.selectOption('frames');
   await page.getByRole('button', { name: '导入帧动画素材', exact: true }).click();
   const image = join(runtime, 'import-preview.png');

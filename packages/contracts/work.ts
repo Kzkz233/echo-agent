@@ -10,7 +10,7 @@ const optionalOutput = z.preprocess(
 /** Zero disables the total deadline; request/inactivity timeouts are independent. */
 export const executionTimeoutMinutes = z.number().int().min(0)
   .refine(value => Number.isSafeInteger(value * 60000), 'Execution duration is outside numeric precision')
-  .describe('Total execution limit in minutes. 0 means unlimited. Omit to inherit the role setting.');
+  .describe('Total execution limit in minutes. 0 means unlimited. Omit to inherit the companion setting.');
 /** Shared by delegated work and automation-owned agent sessions. */
 export const executionRequest = z.object({
   profileId: id.optional(),

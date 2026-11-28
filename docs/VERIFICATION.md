@@ -30,84 +30,84 @@
 - `pnpm verify`：376 项测试、类型与翻译校验、生产构建通过；原生模块 13 项测试通过。
 - 新增真实本机 HTTP 协议验收，确认 API 和 Pi 实际发送具名时间、发送者与渠道标注，保持原消息角色和正文。
 - 覆盖排队消息原始时间、当前轮时钟、时区转换、插件来源注册和卸载、历史快照稳定性、渠道消息去重以及 Care 重复检查的幂等性。
-- 自动压缩沿用现有机制，只复用消息渲染和预算计量。原始角色、权限、任务及用户数据没有迁移或改写。
+- 自动压缩沿用现有机制，只复用消息渲染和预算计量。原始伙伴、权限、任务及用户数据没有迁移或改写。
 - 桌宠气泡去掉会话标题，正文和图片上移并收紧高度；原生构建验证不等同于所有显示缩放比例下的人工视觉验收。
 - 模型测试使用本机合成接口，没有调用付费上游或发送真实渠道消息。真实上游模型的时间理解准确率不由这些测试保证。
 
 ## 0.16.2 邮件提醒
 
 - `pnpm verify` 通过 330 项测试，以及类型、翻译和生产构建检查。
-- 回归覆盖共享规则的顺序、提醒结果、角色邮箱授权、Review 选源、通知去重和历史邮件游标。验证使用隔离数据库和合成邮件。
+- 回归覆盖共享规则的顺序、提醒结果、伙伴邮箱授权、Review 选源、通知去重和历史邮件游标。验证使用隔离数据库和合成邮件。
 
-## 0.16.1 多角色桌宠、子任务授权与完整示例
+## 0.16.1 多伙伴桌宠、子任务授权与完整示例
 
 - `pnpm verify`：329 项测试、类型和翻译校验、生产构建通过；原生模块 21 项、桌面壳 1 项测试通过。
 - 每个观察任务支持 1、4、9 张真实帧，默认四张；未完成组图默认 120 秒过期。测试覆盖遮挡空档仍过期、旧帧清除、静止画面恢复、五秒选帧限制、真实时间戳、三种拼图布局和旧配置的只读默认值。
-- Hina、Miyu 的人设、各渠道表达、主动交流、观察、记忆整理、关注整理与委派指引分别配置。示例启用通用功能；外部账号与屏幕授权仍需用户配置。更新示例是显式操作，保留会话、记忆、角色活跃状态和现有共享向量模型。
+- Aria、Coda 的人设、各渠道表达、主动交流、观察、记忆整理、关注整理与委派指引分别配置。示例启用通用功能；外部账号与屏幕授权仍需用户配置。更新示例是显式操作，保留会话、记忆、伙伴活跃状态和现有共享向量模型。
 - 客户端内置 BGE Small 中文 Q8，采用固定上游版本和 SHA-256 校验。隔离测试在空缓存、禁止下载的情况下产生 512 维向量，两组合成语义配对通过；这不是大规模召回质量评估。
-- 角色只配置子任务授权上限，每次委派直接选择本次执行设置，不再要求添加可复用的执行者配置。新增目录、模型、应用工具、终端及时限越权测试；分别验证子会话工具隔离与历史配置只读兼容。中文审批选项不再显示内部枚举值。
-- 两只真实原生桌宠同时运行，验证独立窗口、气泡、输入会话和角色启停；测试调用合成模型，不调用外部 API。素材逐帧校验排除了 Hina、Miyu 的末尾透明填充帧；PetDex 导入保留有意的中间空帧并修剪末尾填充。
+- 伙伴只配置子任务授权上限，每次委派直接选择本次执行设置，不再要求添加可复用的执行者配置。新增目录、模型、应用工具、终端及时限越权测试；分别验证子会话工具隔离与历史配置只读兼容。中文审批选项不再显示内部枚举值。
+- 两只真实原生桌宠同时运行，验证独立窗口、气泡、输入会话和伙伴启停；测试调用合成模型，不调用外部 API。两位初始伙伴使用固定朝向的单帧像素图；PetDex 导入保留有意的中间空帧并修剪末尾填充。
 
 ## 0.16.0 任务输出与发布准备
 
 - `pnpm verify`：316 项测试、类型和翻译校验、生产构建通过；原生桌宠 20 项、桌面壳 1 项测试通过。启动迁移额外检查原始任务配置与界面派生字段隔离，保留动态避让规则和原任务模式。
 - 观察、主动交流、记忆整理和邮件触发任务分别配置输出位置。新增输出注册、单次推理多目标投递、失败渠道独立重试、未知结果禁止重放、目标变更隔离、报告不进入推理上下文和回执结束跟进的回归。
 - 记忆整理启动时冻结报告目标，目标绑定发生变化后不转发旧结果。任务输出与历史通过索引查询，输出管理本身不添加轮询定时器。
-- 三组隔离界面验收覆盖任务级渠道选择、仅外部展示、结果回执、自动化与委派任务分开、示例角色启停以及原有模型/角色编辑流程。均未调用真实模型或发送真实 QQ。
-- 发布目录采用明确清单；增加本机私有角色文本/素材指纹比较。审计报告不包含参考文本或匹配内容。手动 GitHub 构建工作流只生成产物，不自动创建或发布 Release。
+- 三组隔离界面验收覆盖任务级渠道选择、仅外部展示、结果回执、自动化与委派任务分开、示例伙伴启停以及原有模型/伙伴编辑流程。均未调用真实模型或发送真实 QQ。
+- 发布目录采用明确清单；增加本机私有伙伴文本/素材指纹比较。审计报告不包含参考文本或匹配内容。手动 GitHub 构建工作流只生成产物，不自动创建或发布 Release。
 - `scripts/installer-smoke.ps1` 的隔离安装、0.15.0 → 0.16.0 升级、卸载与数据保留验收通过，未调用真实模型。打包后的 Agent 能调用原生文件工具并完成同一会话续推理。安装测试使用独立数据目录；不代表已穷举所有 Windows 环境。
 - 安装版后端的 5 秒空闲样本为约 105 MiB 工作集，单核 CPU 样本为 0%；没有加载模型或桌面 WebView，不能当作完整应用的资源占用或长期性能结论。
 
-## 0.15.0 角色活跃状态与示例
+## 0.15.0 伙伴活跃状态与示例
 
 - `pnpm verify`：306 项测试、类型与翻译校验、生产前端构建通过。新增总开关、停用后迟到结果隔离、排队输入与气泡作废、渠道输入去重、观察停止和记忆整理检查点恢复；原生桌宠 20 项、桌面壳 1 项测试通过。
-- 两位示例角色与群聊在临时数据目录中创建；无模型调用、无屏幕采集、无外部消息。角色包导出/导入保持任务模式、允许的记忆操作和素材署名来源。
-- `starter-ui-smoke.ts` 验证示例创建、角色启停、重新打开页面的状态保持、输入禁用、群聊成员入口，0 前端异常；`product-ui-smoke.ts` 验证既有角色编辑、模型选择与插件设置流程，0 模型请求。
+- 两位示例伙伴与群聊在临时数据目录中创建；无模型调用、无屏幕采集、无外部消息。伙伴包导出/导入保持任务模式、允许的记忆操作和素材署名来源。
+- `starter-ui-smoke.ts` 验证示例创建、伙伴启停、重新打开页面的状态保持、输入禁用、群聊成员入口，0 前端异常；`product-ui-smoke.ts` 验证既有伙伴编辑、模型选择与插件设置流程，0 模型请求。
 - 本轮行为测试使用本地模型桩，不能据此承诺所有第三方模型服务可用。安装包、便携版与源码包在本机生成；不自动发布或上传。
 
 ## 0.9.0 DSH 接口与设置层级修复
 
-- `pnpm verify` 216 项测试通过，类型、翻译与生产构建通过；原生组件 17 项测试通过。新增角色记忆向量隔离、共享知识索引不受角色选择影响、增强卸载后关键词召回、解析凭据状态、自动化配置归属及连接检查采用已有模型的回归。
+- `pnpm verify` 216 项测试通过，类型、翻译与生产构建通过；原生组件 17 项测试通过。新增伙伴记忆向量隔离、共享知识索引不受伙伴选择影响、增强卸载后关键词召回、解析凭据状态、自动化配置归属及连接检查采用已有模型的回归。
 - 已安装的 DSH 0.2.2-rc.1 在隔离 Home 中通过 Responses 原生验收，provider 使用 `openai`；前序同轮还验证了 `custom` 下的 Responses 与 Chat Completions。人格、记忆召回、续聊、Review 与 Echo MCP 工具走通。Responses 额外检查逐轮 off 及 xhigh 映射 high 的请求内容。每组四次本机模拟请求，真实收费调用为零。
 - 不改用户 DSH 本体或桌面配置。自定义接入使用 DSH 官方插件管理器，在 Echo 隔离 profile 中加载与宿主版本匹配的适配器。此验收证明当前宿主与模拟协议可用，不代表已经对真实付费上游完成生成测试。
-- 自动化任务描述显式声明配置作用域；角色任务的运行页只展示状态，角色编辑流程负责配置。Observe 页面移除第二份不可达的编辑表单，并按任务 ID 读取最新配置和近期记录。
-- 两组浏览器流程通过：角色创建与编辑、Codex 切换 DSH、桌宠帧率保存、独立设置窗口；角色任务运行页无重复编辑入口、共享推理模型选择位于对应插件设置中、Observe 运行页与配置分离、JPEG 质量和遮挡豁免字段可见、MinerU 连接与导入选择分离。新增界面流程未调用模型。
+- 自动化任务描述显式声明配置作用域；伙伴任务的运行页只展示状态，伙伴编辑流程负责配置。Observe 页面移除第二份不可达的编辑表单，并按任务 ID 读取最新配置和近期记录。
+- 两组浏览器流程通过：伙伴创建与编辑、Codex 切换 DSH、桌宠帧率保存、独立设置窗口；伙伴任务运行页无重复编辑入口、共享推理模型选择位于对应插件设置中、Observe 运行页与配置分离、JPEG 质量和遮挡豁免字段可见、MinerU 连接与导入选择分离。新增界面流程未调用模型。
 
 ## 0.9.0 主动策略与配置归属
 
-- `pnpm verify` 195 项测试通过，类型、翻译及生产构建通过；原生组件 14 项测试通过，桌面壳编译和测试目标通过（壳内无独立单元测试）。角色创建/编辑、群聊、执行工作台与本轮配置归属的三组浏览器流程通过，使用隔离数据和本地模型桩。
+- `pnpm verify` 195 项测试通过，类型、翻译及生产构建通过；原生组件 14 项测试通过，桌面壳编译和测试目标通过（壳内无独立单元测试）。伙伴创建/编辑、群聊、执行工作台与本轮配置归属的三组浏览器流程通过，使用隔离数据和本地模型桩。
 - 新回归覆盖每日概率额度、错过概率不调用模型、同时间段不重复抽签、跨插件重载的每日上限、既有执行计数超出历史显示窗口、跨会话真人活动与可选观察避让。
 - 邮件回归使用假 IMAP 元数据和本地模型桩，覆盖首次同步/历史回填/UID 变化不触发、关键词与排除条件、程序通知防重、当前游标起步、未知推理不重放、通知提供方晚到和暂停。
 - “在意的事”迁移保留正文及历史；普通记忆保留原位。Review 支持有版本检查的新增、修订和淡出。
-- 浏览器流程检查记忆页并列入口、无任务状态、主界面通用日历、仅通用设置、角色推理用途不在公共路由中、设置返回工作台及概率表单。测试不使用真实邮件、付费模型或 QQ。
-- 补充角色生命周期回归：重现创建/保存角色结束后桌宠未恢复的问题，修复完成状态的订阅；关闭角色桌宠能力后仍停用，卸载插件后不残留角色监听。此单元测试模拟窗口呈现，保留真实插件事件和原生更新队列。
+- 浏览器流程检查记忆页并列入口、无任务状态、主界面通用日历、仅通用设置、伙伴推理用途不在公共路由中、设置返回工作台及概率表单。测试不使用真实邮件、付费模型或 QQ。
+- 补充伙伴生命周期回归：重现创建/保存伙伴结束后桌宠未恢复的问题，修复完成状态的订阅；关闭伙伴桌宠能力后仍停用，卸载插件后不残留伙伴监听。此单元测试模拟窗口呈现，保留真实插件事件和原生更新队列。
 
 设计与限制见 [主动交流与当前关注](PROACTIVE.md)。
 
-## 0.8.1 角色运行配置入口
+## 0.8.1 伙伴运行配置入口
 
 - `pnpm verify` 181 项测试通过，类型、翻译及生产构建通过。
-- 角色主会话、群聊成员与 Worker 不再通过聊天操作接口直接换后端或权限；主角色在编辑角色中设置，Worker 在其模板中设置。独立核心会话保留独立配置，Persona 仍是可选插件。
-- 回归覆盖直接接口绕过被拒、正常角色编辑可切换后端、原连接可恢复，以及主会话运行时保存角色不会先写入新权限或人设。思考强度与实际审批仍可在会话中操作。
+- 伙伴主会话、群聊成员与 Worker 不再通过聊天操作接口直接换后端或权限；主伙伴在编辑伙伴中设置，Worker 在其模板中设置。独立核心会话保留独立配置，Persona 仍是可选插件。
+- 回归覆盖直接接口绕过被拒、正常伙伴编辑可切换后端、原连接可恢复，以及主会话运行时保存伙伴不会先写入新权限或人设。思考强度与实际审批仍可在会话中操作。
 
 ## 0.8.0 执行工作台、Worker 与群聊上下文
 
 - `pnpm verify` 通过：179 项测试全部成功，类型、翻译及生产构建通过。
 - Codex 官方 App Server 和已安装 DSH SDK 的独立 Home 验收通过：人格注入、自动召回、同会话续聊、Review 和 Echo 工具接入。使用本地合成模型端点，付费调用为零；不证明所有线上模型和后续宿主版本表现相同。
 - Pi 使用真实 Agent Core 和官方终端工具，隔离项目中的无害 PowerShell 命令经一次明确审批后执行；没有把工作目录宣称为终端沙箱。
-- 新回归覆盖运行中补充指令及未知投递防重、结构化执行记录上限、附件隔离及备份、DSH 子会话归属、Worker 自动接棒与独立验收、并发写入与续接冲突、角色包嵌套资源剔除，以及群聊中途到达的新消息游标。
-- 浏览器验收通过角色创建与同配置编辑、群聊回应、独立设置窗口、附件上传、执行过程、运行中补充指令、手动委派与验收。未用生产会话发送测试消息。
+- 新回归覆盖运行中补充指令及未知投递防重、结构化执行记录上限、附件隔离及备份、DSH 子会话归属、Worker 自动接棒与独立验收、并发写入与续接冲突、伙伴包嵌套资源剔除，以及群聊中途到达的新消息游标。
+- 浏览器验收通过伙伴创建与同配置编辑、群聊回应、独立设置窗口、附件上传、执行过程、运行中补充指令、手动委派与验收。未用生产会话发送测试消息。
 - 执行详情折叠时按需读取，事件合并每 120 ms 一次；Worker 完成后事件驱动接棒，没有模型轮询。Pi 终端包仅在启用终端并执行时加载。本轮未重新测量全天资源占用，不把旧版本的短样本当作新版测量。
 
 具体行为及边界见 [执行工作台](EXECUTION.md)。
 
-## 0.7.0 角色工作台
+## 0.7.0 伙伴工作台
 
 - `pnpm verify` 通过；补齐桌宠配置回归后，167 项测试全部成功，TypeScript、翻译检查及生产构建通过。
 - 原生 Rust 模块 14 项测试通过；Tauri 桌面测试目标编译运行通过，没有独立单元用例。
 - `scripts/character-ui-smoke.ts` 实际走通创建、同配置编辑、唯一主会话、群聊作者归属及独立设置窗口。
 - `scripts/character-desktop-smoke.ts` 使用打包后的 Tauri 程序，验证独立设置窗口打开、复用、关闭，关闭设置后主会话仍能通过本机合成 API 回复。
-- 角色测试覆盖素材包导入与更新、跨插件任务归属、撤销能力、续跑授权变化、群聊中断恢复、请求防重及 MCP 委派授权。
+- 伙伴测试覆盖素材包导入与更新、跨插件任务归属、撤销能力、续跑授权变化、群聊中断恢复、请求防重及 MCP 委派授权。
 
 这些验收使用临时数据与本机合成推理端点，没有付费模型调用或真实 QQ 测试消息。任务委派保存目标、检查点和结果，不宣称能在不同宿主间迁移原生工具执行栈。
 
@@ -120,10 +120,10 @@
 | TypeScript 回归   | 151 项通过                                                                   | 权限、生命周期、队列、未知结果、记忆与 Review、邮件、知识、库归属、显式向量任务、分格式素材导入、Codex 思考协商与错误回执                                                      |
 | Rust 原生测试     | 8 项通过                                                                     | 遮挡裁剪、域名边界                                                                                                                        |
 | 工作台布局        | 23 页 × 2 种语言 × 2 种宽度，加上推理模型、路由、文档解析子页，共 104 组通过 | 1440 / 900 宽，无页面横向溢出，零浏览器错误                                                                                                                                              |
-| 实际界面流程      | 通过                                                                         | 会话删除取消/执行、未保存保护、主题持久化、格内输入与 Enter 连续录入、时间轴、角色想法、邮箱预设、素材预览与文件列表                                                     |
+| 实际界面流程      | 通过                                                                         | 会话删除取消/执行、未保存保护、主题持久化、格内输入与 Enter 连续录入、时间轴、伙伴想法、邮箱预设、素材预览与文件列表                                                     |
 | 邮件协议与审批    | 通过                                                                         | 本地假 IMAP/SMTP 与 HTTP CONNECT、按账户选择直连/代理、代理失败不回落直连、收件/发件文件夹、UID 检查点、文件夹读取失败及取消不阻断未来同步、冻结草稿与批量整理、逐项回执、未知结果不重放 |
 | 知识维护          | 通过                                                                         | 批量冲突整体回滚、范围内检索、可恢复解析、同原件路径修复、归档/恢复/删除及原件保留                                                                                                       |
-| 主观想法          | 通过                                                                         | 按角色隔离、普通会话注入、Review 修订/解决/归档、冻结版本与防重复提交、提供方卸载                                                                                                        |
+| 主观想法          | 通过                                                                         | 按伙伴隔离、普通会话注入、Review 修订/解决/归档、冻结版本与防重复提交、提供方卸载                                                                                                        |
 | 每日整理          | 通过                                                                         | 覆盖当日启动前材料，完整增量分段和来源检查，检查点续跑，完成后提交，一次兜底与一次完成报告                                                                                               |
 | 原生桌宠与气泡    | 通过                                                                         | 真实发布版资源布局、帧动画、shown 回执、同会话回复、关闭管理窗口释放 WebView、重复启动不创建第二套实例                                                                 |
 | Observe 打包链路  | 实际游戏通过；合成网页复验受限                                               | 关闭性能叠层后，指定白名单游戏连续完成四帧识别。隔离网页场景只采到两帧，后续被白名单可见性判定拒绝，未完成该场景的全链路验收。                                                           |
@@ -181,17 +181,17 @@ pnpm exec tsx scripts/desktop-smoke.ts
 
 实际本地 EmbeddingGemma 2 Q8_0 验证输出 768 维，8 个合成查询 Top-1 为 8/8，含首次加载共约 3.4 秒。它是小样本功能验收，不能代表任意语料召回率。MinerU 使用协议模拟与假本地 CLI 测试，没有上传真实私人文档或调用收费服务。
 
-当前机器的 15 秒空白核心样本约 74 MiB RSS、0.51% 单核 CPU（16 逻辑核折合约 0.032% 总 CPU）。原生窗口样本：关闭管理窗口后，帧动画整套进程约 150 MiB 合计 RSS / 52 MiB 私有工作集；网格动画约 165 / 67 MiB，总 CPU 分别约 0.017% / 0.18%。这是短样本，合计 RSS 包含进程间共享页，不能直接等同实际物理占用。实际用户数据、角色素材及模型会改变这些数值。
+当前机器的 15 秒空白核心样本约 74 MiB RSS、0.51% 单核 CPU（16 逻辑核折合约 0.032% 总 CPU）。原生窗口样本：关闭管理窗口后，帧动画整套进程约 150 MiB 合计 RSS / 52 MiB 私有工作集；网格动画约 165 / 67 MiB，总 CPU 分别约 0.017% / 0.18%。这是短样本，合计 RSS 包含进程间共享页，不能直接等同实际物理占用。实际用户数据、伙伴素材及模型会改变这些数值。
 
 ## 0.5.1 增量验收
 
 修复进程白名单的完整 EXE 路径与短名称错配；路径规则精确匹配，不因失败退化为同名进程授权。采样暂停原因显示在观察页面，透明叠层仍按安全遮挡处理。关闭性能叠层后，真实游戏已连续完成多组四帧识别。
 
-新增音频/视频原生向量接口、1 fps 视频采样、BGE 与 EmbeddingGemma 2 模板、记忆分类页签、库注册来源显示。隔离回归验证模态开关不改变原有向量空间、原索引别名保留结构证据、媒体协议与生命周期释放。真实模型的音频/视频检查见推理说明。角色优先入口和多任务观察仍在设计阶段，不属于本次已实现功能。
+新增音频/视频原生向量接口、1 fps 视频采样、BGE 与 EmbeddingGemma 2 模板、记忆分类页签、库注册来源显示。隔离回归验证模态开关不改变原有向量空间、原索引别名保留结构证据、媒体协议与生命周期释放。真实模型的音频/视频检查见推理说明。伙伴优先入口和多任务观察仍在设计阶段，不属于本次已实现功能。
 
-## 0.5.2 角色工作区与观察任务
+## 0.5.2 伙伴工作区与观察任务
 
-角色列表先于设定、记忆、想法和桌宠选页。桌宠为每个角色保存设置，桌面显示一个选定角色。观察任务独立设置角色、会话、提示词、白名单和运行状态。任务共享本地采集助手，各自校验屏幕权限、隔离拼图与近期摘要；同一角色共用互动间隔。旧观察迁移保留原白名单、两段提示词、会话及冷却状态。备份恢复会暂停所有观察任务。
+伙伴列表先于设定、记忆、想法和桌宠选页。桌宠为每个伙伴保存设置，桌面显示一个选定伙伴。观察任务独立设置伙伴、会话、提示词、白名单和运行状态。任务共享本地采集助手，各自校验屏幕权限、隔离拼图与近期摘要；同一伙伴共用互动间隔。旧观察迁移保留原白名单、两段提示词、会话及冷却状态。备份恢复会暂停所有观察任务。
 
 视觉模型仅漏回互动标志时，保留有效摘要并按不触发互动处理。互动区分生成回复、明确跳过、空回复与失败，只有实际回复进入气泡队列。当前 Codex App Server 的应用事件作者、会话恢复和回复路径使用本地模拟模型验收。
 
@@ -207,8 +207,8 @@ pnpm exec tsx scripts/desktop-smoke.ts
 - Backend contracts cover Codex and DSH context acknowledgements and embedded Pi
   message order with a local synthetic API, including tool use. A contributed
   generation adapter also receives reference identity and turn metadata intact.
-- `scripts/character-ui-smoke.ts` switches a synthetic character from Codex to DSH,
-  opens permissions and saves without a rendering error. Other role editing,
+- `scripts/character-ui-smoke.ts` switches a synthetic companion from Codex to DSH,
+  opens permissions and saves without a rendering error. Other companion editing,
   package roundtrip, historical attachments and group checks passed.
 - `scripts/proactive-ui-smoke.ts` passed with zero model calls.
 - `scripts/native-sticker-smoke.ts` verified native reply pixels: human/Care image,
@@ -216,12 +216,12 @@ pnpm exec tsx scripts/desktop-smoke.ts
 - These are isolated regressions, not new real-provider inference or QQ delivery
   tests. [Model context](CONTEXT.md) documents native history and cache limitations.
 
-## Application and character configuration boundaries (2026-11-07)
+## Application and companion configuration boundaries (2026-11-07)
 
 - `pnpm verify`: 226 tests passed; TypeScript, locale checks and production web/server build passed.
-- `scripts/proactive-ui-smoke.ts` passed with zero model calls. Shared embedding selection is in the Embeddings plugin settings; role editing has no role-specific embedding selector. Role task settings and shared workspace pages remain in their respective configuration areas.
-- Memory query planning, semantic query planning and embedding routes are shared application routes. Memory records and recall results remain character-scoped. Knowledge MCP search exposes the application-selected policy; ranking controls stay in the workbench advanced search.
-- Legacy role-level retrieval routes and obsolete retrieval settings in character packages are ignored/removed on read or import. The MCP caller's tool permissions remain Harness/application scoped; they are not a per-character ACL.
+- `scripts/proactive-ui-smoke.ts` passed with zero model calls. Shared embedding selection is in the Embeddings plugin settings; companion editing has no companion-specific embedding selector. Companion task settings and shared workspace pages remain in their respective configuration areas.
+- Memory query planning, semantic query planning and embedding routes are shared application routes. Memory records and recall results remain companion-scoped. Knowledge MCP search exposes the application-selected policy; ranking controls stay in the workbench advanced search.
+- Legacy companion-level retrieval routes and obsolete retrieval settings in companion packages are ignored/removed on read or import. The MCP caller's tool permissions remain Harness/application scoped; they are not a per-companion ACL.
 
 ## Maintainer release commands
 
@@ -233,7 +233,7 @@ It repeats the artifact checks before pushing the public branch and version tag,
 publishes the verified files. Use a new version for each release.
 
 Run pnpm release:private in the configured private checkout. Its portable app and
-installer are written to dist/release/private/<version>. The application reads role
+installer are written to dist/release/private/<version>. The application reads companion
 configuration, credentials and knowledge from its separate local data directory.
 
 The maintainer policy lives outside both repositories. The default is

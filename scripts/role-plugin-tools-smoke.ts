@@ -34,8 +34,8 @@ try {
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${http.port}/?persona=fixture-role#token=${http.token}`);
   const edit = async () => {
-    await page.getByRole('button', { name: '配置角色', exact: true }).click();
-    await page.getByRole('button', { name: '角色功能', exact: true }).click();
+    await page.getByRole('button', { name: '配置伙伴', exact: true }).click();
+    await page.getByRole('button', { name: '伙伴功能', exact: true }).click();
   };
   const grant = (id: string, scope: string) =>
     page.locator(`[data-permission="${id}"]`).getByRole('checkbox', { name: scope, exact: true });
@@ -58,7 +58,7 @@ try {
   await grant('computer-use.read', '子任务').check();
   await page.getByRole('button', { name: '模型与权限', exact: true }).click();
   assert.equal(await page.locator('[data-permission]').count(), 0);
-  await page.getByRole('button', { name: '保存角色', exact: true }).click();
+  await page.getByRole('button', { name: '保存伙伴', exact: true }).click();
   await page.getByRole('tab', { name: '聊天', exact: true }).waitFor();
   const saved = await call('persona.character.read', { id: 'fixture-role' });
   assert.deepEqual(saved.toolPermissions.sort(), ['browser-use.read', 'knowledge.read', 'offline-fixture.read']);
@@ -70,7 +70,7 @@ try {
   const authorize = (permission: string) => authorizeExecution(app.store, 'fixture-role', 'fixture',
     delegationPolicy.parse(saved.configurations.delegation), executionRequest.parse({ toolPermissions: [permission] }));
   assert.deepEqual((await authorize('computer-use.read')).toolPermissions, ['computer-use.read']);
-  await assert.rejects(authorize('browser-use.read'), /子任务请求的工具权限超出角色授权/);
+  await assert.rejects(authorize('browser-use.read'), /子任务请求的工具权限超出伙伴授权/);
   await page.reload();
   await edit();
   for (const name of ['浏览器操作', 'Windows 桌面操作'])

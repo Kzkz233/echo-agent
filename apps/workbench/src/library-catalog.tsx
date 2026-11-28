@@ -1,3 +1,4 @@
+import { AppTime } from './message-time.tsx';
 import { CatalogBodySearch } from './catalog-body-search.tsx';
 import { CatalogDocuments } from './catalog-documents.tsx';
 import { useEffect, useMemo, useState } from 'react';
@@ -255,7 +256,7 @@ export function LibraryCatalog({
       {result?.sync && (
         <p className="muted" role="status">
           {result.sync.updatedAt
-            ? t('上次同步') + ' ' + new Date(result.sync.updatedAt).toLocaleString()
+            ? <>{t('上次同步')} <AppTime at={result.sync.updatedAt}/></>
             : t('尚未同步完整题录')}
           {result.sync.pending
             ? ' · ' + t('正在同步…')

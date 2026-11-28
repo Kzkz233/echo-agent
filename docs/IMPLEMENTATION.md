@@ -6,7 +6,7 @@ Echo is an independent application. Public sources and release inputs contain ge
 
 | Directory                            | Responsibility                                                                                                    |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `packages/contracts`                 | Persisted roles/sources and backend request/result schemas                                                        |
+| `packages/contracts`                 | Persisted companions/sources and backend request/result schemas                                                        |
 | `packages/kernel`                    | Canonical history, routing, queues, permissions, lifecycle, extension points, clock, events, secrets              |
 | `packages/backends`                  | Direct API, embedded pi, official Codex App Server and DSH SDK adapters                                           |
 | `plugins/files`                      | Optional library/container foundation, binary objects and scoped media access                                     |
@@ -14,7 +14,7 @@ Echo is an independent application. Public sources and release inputs contain ge
 | `plugins/documents`                  | On-demand PDF/Office parsing Worker                                                                               |
 | `plugins/embeddings`, `local-models` | Vector contract/validation and optional on-demand ONNX model runtime with bounded residency                       |
 | `plugins/semantic`                   | Model-independent semantic/hybrid ranking and resumable vector indexing                                           |
-| `plugins/persona`, `memory`          | Character context, one manual/automatic recall path, effective-history version deduplication                      |
+| `plugins/persona`, `memory`          | Companion context, one manual/automatic recall path, effective-history version deduplication                      |
 | `plugins/reflections`                | Persona subjective state, ordinary context, optional Review updates and proactive context                         |
 | `plugins/review`                     | Daily/round triggers, full incremental material packets, checkpoints, raw archives and memory drafts              |
 | `plugins/observation`                | Local source proof/masking, HSV gating, real-time four-frame mosaic and same-chat interaction                     |

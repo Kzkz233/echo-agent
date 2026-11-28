@@ -1,6 +1,6 @@
 # Independent extensions
 
-Echo separates the installed application from user-owned data. Installers and core updates replace application files only. Conversations, role grants, task configuration, encrypted credentials, external MCP registrations and installed extensions live in the data directory. Uninstalling an extension removes its registration and interfaces, retaining its data. Core uninstallation also retains the data directory.
+Echo separates the installed application from user-owned data. Installers and core updates replace application files only. Conversations, companion grants, task configuration, encrypted credentials, external MCP registrations and installed extensions live in the data directory. Uninstalling an extension removes its registration and interfaces, retaining its data. Core uninstallation also retains the data directory.
 
 ## One lifecycle
 

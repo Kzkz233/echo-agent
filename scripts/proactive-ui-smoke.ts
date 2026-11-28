@@ -168,7 +168,7 @@ try {
     .locator('aside')
     .getByRole('button', { name: /Fixture/ })
     .click();
-  await page.getByRole('tab', { name: '角色记忆', exact: true }).click();
+  await page.getByRole('tab', { name: '伙伴记忆', exact: true }).click();
   await page.locator('[data-memory-kind="concerns"]').click();
   assert.equal(await page.getByRole('tab', { name: '主观想法', exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: '已解决', exact: true }).count(), 0);
@@ -195,7 +195,7 @@ try {
   await page.locator('[data-section="agenda"]').click();
   await page.getByRole('heading', { name: '日历与提醒', exact: true }).waitFor();
   assert.equal(await page.locator('.role-heading').count(), 0);
-  assert.equal(await page.getByRole('tablist', { name: '角色能力' }).count(), 0);
+  assert.equal(await page.getByRole('tablist', { name: '伙伴能力' }).count(), 0);
   await page.screenshot({ path: join(project, 'test-results/shared-workbench-ui.png') });
   const popup = page.waitForEvent('popup');
   await page
@@ -229,7 +229,7 @@ try {
   const modules = settings
     .locator('.card')
     .filter({ has: settings.getByRole('heading', { name: '内建模块' }) });
-  for (const name of ['角色设定', '任务调度', '会话通道'])
+  for (const name of ['伙伴设定', '任务调度', '会话通道'])
     await modules.getByText(new RegExp(name)).waitFor();
   assert.equal(await modules.getByRole('checkbox').count(), 0);
   await page.locator('[data-section="automation"]').click();
@@ -261,7 +261,7 @@ try {
     .locator('aside')
     .getByRole('button', { name: /Fixture/ })
     .click();
-  await page.getByRole('button', { name: '配置角色', exact: true }).click();
+  await page.getByRole('button', { name: '配置伙伴', exact: true }).click();
   await page.getByRole('button', { name: /运行方式/ }).click();
   await settings.evaluate(() =>
     window.dispatchEvent(new CustomEvent('echo:settings-page', { detail: 'plugins' })),
@@ -270,7 +270,7 @@ try {
   assert.equal(await settings.getByLabel('共享语义向量', { exact: true }).inputValue(), 'bge-fixture');
   await page.getByRole('button', { name: '关闭', exact: true }).click();
   await page.locator('aside').getByRole('button', { name: /Fixture/ }).click();
-  await page.getByRole('button', { name: '配置角色', exact: true }).click();
+  await page.getByRole('button', { name: '配置伙伴', exact: true }).click();
   await page.getByRole('button', { name: /行为与任务/ }).click();
   await page.getByRole('button', { name: /行为与任务/ }).click();
   await page
@@ -292,8 +292,8 @@ try {
   await page.getByLabel('进程名或完整路径', { exact: true }).fill('fixture-overlay.exe');
   await page.getByLabel('窗口标题包含', { exact: true }).fill('Fixture Overlay');
   await page.getByRole('button', { name: /检查并启用/ }).click();
-  await page.getByRole('button', { name: '保存角色', exact: true }).click();
-  await page.getByRole('button', { name: '配置角色', exact: true }).waitFor();
+  await page.getByRole('button', { name: '保存伙伴', exact: true }).click();
+  await page.getByRole('button', { name: '配置伙伴', exact: true }).waitFor();
   const configuredOccluder = app.observations.configurations()
     .find((task) => task.name === 'Observe fixture')?.occlusionAllowlist[0];
   assert.equal(configuredOccluder?.value, 'fixture-overlay.exe');

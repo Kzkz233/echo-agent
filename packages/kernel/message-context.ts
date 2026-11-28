@@ -91,7 +91,7 @@ export function storedMessageContext(
             ? 'tool'
             : 'system',
     ...(message.source === 'human' && !message.meta.origin
-      ? { channel: message.meta.workSession ? 'Role workbench' : 'App chat' }
+      ? { channel: message.meta.workSession ? 'Companion workbench' : 'App chat' }
       : {}),
     ...(typeof message.meta.triggerKind === 'string' ? { task: message.meta.triggerKind } : {}),
   };

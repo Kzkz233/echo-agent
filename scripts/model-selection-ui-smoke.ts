@@ -193,7 +193,7 @@ try {
       .evaluate((node: HTMLOptionElement) => node.disabled),
   );
   await go('persona=mira');
-  await page.getByRole('button', { name: '配置角色', exact: true }).click();
+  await page.getByRole('button', { name: '配置伙伴', exact: true }).click();
   await page
     .locator('.role-editor-nav')
     .getByRole('button', { name: '模型与权限', exact: true })

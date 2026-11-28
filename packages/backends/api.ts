@@ -122,7 +122,7 @@ export class ApiBackend implements Backend {
     const key = await this.secrets(profile.apiKeyRef);
     if (profile.protocol !== 'openai-completions') return this.generateWithProtocol(request, key);
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(profile.timeoutMs)]);
-    const retry = new ModelStepRetry(signal, request.onItem, 1);
+    const retry = new ModelStepRetry(signal, request.onItem, 1, request.modelRetryBudget);
     let published = false;
     for (;;) {
       try {
@@ -320,7 +320,7 @@ export class ApiBackend implements Backend {
       }),
     }), model.api);
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(profile.timeoutMs)]);
-    const retry = new ModelStepRetry(signal, request.onItem, 1);
+    const retry = new ModelStepRetry(signal, request.onItem, 1, request.modelRetryBudget);
     const stream = retryModelStream(model, retry, () => streams.streamSimple(model, context, {
       apiKey, reasoning, onPayload, maxTokens: profile.maxOutputTokens, maxRetries: 0,
       signal,

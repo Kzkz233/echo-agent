@@ -77,7 +77,7 @@ function applyFields(target: Record<string, any>, fields: Field[], allowed: stri
       allowed.includes(path[0]) &&
         !(path[0] === 'persona' && (path.length < 2 || path[1] === 'id')),
       'character_edit',
-      '角色编辑字段无效。',
+      '伙伴编辑字段无效。',
     );
     let node = target;
     for (const k of path.slice(0, -1)) {

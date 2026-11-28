@@ -140,7 +140,7 @@ export class Memories {
     invariant(
       !old || old.personaId === value.personaId,
       'memory_owner',
-      '不能覆盖其他角色的记忆。',
+      '不能覆盖其他伙伴的记忆。',
     );
     invariant(
       !(value.core || old?.core) || approveCore,
@@ -233,7 +233,7 @@ export class Memories {
               ? lineage.get(old.id)!.current
               : change.expectedVersion),
         'memory_version',
-        '记忆已变化或不属于当前角色，请重新阅读。',
+        '记忆已变化或不属于当前伙伴，请重新阅读。',
       );
     invariant(!old?.core || core, 'core_approval', '普通记忆操作不能修改核心记忆。');
     invariant(
@@ -488,9 +488,9 @@ export class Memories {
           const value = corePayload.parse(payload);
           invariant(value.change.operation === 'propose-core', 'core_approval', '此入口仅用于核心记忆审批。');
           const old = value.change.subjectId ? this.store.document<Memory>('memories', value.change.subjectId) : undefined;
-          invariant(!old || old.personaId === value.personaId, 'memory_owner', '不能修改其他角色的记忆。');
+          invariant(!old || old.personaId === value.personaId, 'memory_owner', '不能修改其他伙伴的记忆。');
           return { title: '核心记忆变更 · ' + value.change.title, frozen: value,
-            details: [{ label: '角色', value: value.personaId }, { label: '操作', value: value.change.coreOperation ?? 'add' },
+            details: [{ label: '伙伴', value: value.personaId }, { label: '操作', value: value.change.coreOperation ?? 'add' },
               { label: '原文', value: old?.text ?? '' }, { label: '建议内容', value: value.change.text },
               { label: '依据', value: value.change.sources.join('\n') }] };
         });
@@ -612,12 +612,12 @@ export class Memories {
             mcp,
             run,
           });
-        op('memory.browse', '浏览所选角色的记忆', browseLibrary, 'memory.read', (v, caller): CatalogResult => {
+        op('memory.browse', '浏览所选伙伴的记忆', browseLibrary, 'memory.read', (v, caller): CatalogResult => {
           const scopes = this.store.documents<{id:string;name:string}>('personas')
             .filter(p => !caller.personaId || p.id === caller.personaId)
             .map(p => ({id:p.id, title:p.name}));
           const scope = v.scope || scopes[0]?.id;
-          invariant(!scope || scopes.some(p => p.id === scope), 'memory_scope', '请选择可访问的角色。');
+          invariant(!scope || scopes.some(p => p.id === scope), 'memory_scope', '请选择可访问的伙伴。');
           const groups = [{id:'core',title:'核心记忆',kind:'group' as const},{id:'general',title:'普通记忆',kind:'group' as const}];
           const words = v.query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
           const entries = this.store.documents<Memory>('memories').filter(m =>
@@ -630,13 +630,13 @@ export class Memories {
         }, false);
         op(
           'memory.list',
-          '列出角色记忆',
+          '列出伙伴记忆',
           z.object({ personaId: id.optional(), offset: z.number().int().min(0).default(0),
             limit: z.number().int().min(1).max(100).default(20) }),
           'memory.read',
           (v, caller) => {
             if (caller.personaId && v.personaId && v.personaId !== caller.personaId)
-              throw new Error('角色只能读取自己的记忆。');
+              throw new Error('伙伴只能读取自己的记忆。');
             const personaId = caller.personaId ?? v.personaId;
             const rows = this.store
               .documents<Memory>('memories')
@@ -645,9 +645,9 @@ export class Memories {
           },
         );
         const personaFor = (caller: Caller, requested?: string) => {
-          invariant(!caller.personaId || !requested || requested === caller.personaId, 'memory_owner', '只能读取当前角色的记忆。');
+          invariant(!caller.personaId || !requested || requested === caller.personaId, 'memory_owner', '只能读取当前伙伴的记忆。');
           const personaId = caller.personaId ?? requested;
-          invariant(personaId, 'memory_owner', '请指定角色。'); return personaId;
+          invariant(personaId, 'memory_owner', '请指定伙伴。'); return personaId;
         };
         op('memory.search', '按主题检索相关旧记忆，返回分页摘要；用 memory_read 阅读正文，不受聊天召回去重限制',
           z.object({ personaId: id.optional(), query: z.string().trim().min(1).max(4000),
@@ -662,7 +662,7 @@ export class Memories {
           z.object({ id, version: z.string().optional(), offset: z.number().int().min(0).default(0),
             maxChars: z.number().int().min(1).max(12000).default(4000) }), 'memory.read', (value, caller) => {
             const memory = this.store.document<Memory>('memories', value.id);
-            invariant(memory && (!caller.personaId || memory.personaId === caller.personaId), 'memory_missing', '记忆不存在或不属于当前角色。');
+            invariant(memory && (!caller.personaId || memory.personaId === caller.personaId), 'memory_missing', '记忆不存在或不属于当前伙伴。');
             invariant((!value.version || value.version === memory.version) && (!value.offset || value.version),
               'memory_version', '记忆版本已变化或缺少续读版本，请从头重新读取。');
             invariant(value.offset <= memory.text.length, 'memory_offset', '读取位置超过正文长度。');
@@ -673,7 +673,7 @@ export class Memories {
           });
         op('memory.save', '保存非核心记忆', memorySchema, 'memory.write', (v, caller) => {
           if (caller.personaId && v.personaId !== caller.personaId)
-            throw new Error('角色只能保存自己的记忆。');
+            throw new Error('伙伴只能保存自己的记忆。');
           this.authorizeChange(caller, v.id && this.store.document('memories', v.id) ? 'update' : 'add', v.sources);
           invariant(!caller.conversationId || !this.store.document('work-authorities', caller.conversationId) || !v.id || !this.store.document('memories', v.id),
             'memory_version_required', '工作任务修改已有记忆请使用 memory_change，提供完整编号和当前版本。');
@@ -683,13 +683,13 @@ export class Memories {
           z.object({ personaId: id.optional(), requestId: id, change: memoryChange }), 'memory.write',
           async (value, caller, signal) => {
             const personaId = caller.personaId ?? value.personaId;
-            invariant(personaId && (!value.personaId || value.personaId === personaId), 'memory_owner', '请使用当前角色的记忆库。');
+            invariant(personaId && (!value.personaId || value.personaId === personaId), 'memory_owner', '请使用当前伙伴的记忆库。');
             this.authorizeChange(caller, value.change.operation, value.change.sources);
             const work = caller.conversationId && this.store.document<WorkAuthority>('work-authorities', caller.conversationId);
             if (work && work.memoryReadRequired) {
               for (const subjectId of [value.change.subjectId, ...value.change.merged.map((item: { id: string }) => item.id)].filter(Boolean)) {
                 const memory = this.store.document<Memory>('memories', subjectId!);
-                invariant(memory && memory.personaId === personaId, 'memory_owner', '记忆不属于当前角色。');
+                invariant(memory && memory.personaId === personaId, 'memory_owner', '记忆不属于当前伙伴。');
                 requireRead(this.store, caller.conversationId!, memory);
               }
             }
@@ -725,7 +725,7 @@ export class Memories {
           'memory.write',
           (v, caller) => {
             if (caller.personaId && v.personaId !== caller.personaId)
-              throw new Error('角色只能保存自己的核心记忆。');
+              throw new Error('伙伴只能保存自己的核心记忆。');
             return this.save(v, true);
           },
           false,
@@ -739,7 +739,7 @@ export class Memories {
             this.serial(async () => {
               const current = this.store.document<Memory>('memories', v.id);
               if (caller.personaId && current?.personaId !== caller.personaId)
-                throw new Error('角色只能删除自己的记忆。');
+                throw new Error('伙伴只能删除自己的记忆。');
               if (current) await this.archiveEntry(current);
               this.store.remove('memories', v.id);
               return { deleted: true };
@@ -757,7 +757,7 @@ export class Memories {
           'memory.read',
           (v, caller, s) => {
             if (caller.personaId && v.personaId !== caller.personaId)
-              throw new Error('角色只能检索自己的记忆。');
+              throw new Error('伙伴只能检索自己的记忆。');
             const conversation = v.conversationId
               ? this.store.conversation(v.conversationId)
               : undefined;
@@ -766,7 +766,7 @@ export class Memories {
               v.conversationId &&
               conversation?.personaId !== caller.personaId
             )
-              throw new Error('不能读取其他角色的会话上下文。');
+              throw new Error('不能读取其他伙伴的会话上下文。');
             return this.recall(
               v.personaId,
               v.text,

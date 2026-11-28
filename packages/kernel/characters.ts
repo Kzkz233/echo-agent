@@ -31,7 +31,7 @@ export type CharacterFeature = {
 export function defineCharacterFeatures(scope: ReturnType<Capabilities['forOwner']>) {
   scope.define({
     id: characterPoint,
-    description: '角色能力配置、校验和任务模板入口',
+    description: '伙伴能力配置、校验和任务模板入口',
     input: z.object({
       action: z.enum(['describe', 'read', 'validate', 'save', 'pack', 'unpack']),
       personaId: id.optional(),

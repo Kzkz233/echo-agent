@@ -76,14 +76,14 @@ export class WorkSessions {
   }) {
     const store = this.router.store;
     const parent = store.conversation(input.parentConversationId);
-    invariant(parent?.personaId === input.personaId, 'work_owner', '工作会话必须属于同一角色。');
+    invariant(parent?.personaId === input.personaId, 'work_owner', '工作会话必须属于同一伙伴。');
     const previous = store.document<WorkSession>('work-sessions', input.id);
     invariant(!previous || previous.personaId === input.personaId &&
       previous.origin.owner === input.origin.owner && previous.origin.type === input.origin.type &&
       previous.origin.id === input.origin.id, 'work_owner', '工作会话来源不一致。');
     const conversationId = input.conversationId ?? previous?.conversationId ?? 'work-' + randomUUID();
     const old = store.conversation(conversationId);
-    invariant(!old || old.personaId === input.personaId, 'work_owner', '不能接管其他角色的会话。');
+    invariant(!old || old.personaId === input.personaId, 'work_owner', '不能接管其他伙伴的会话。');
     const now = new Date().toISOString();
     store.saveConversation({ ...old, id: conversationId, title: input.title.slice(0, 160),
       ...(old?.contextProviders?.length === 1 && old.contextProviders[0] === 'delegation.context'

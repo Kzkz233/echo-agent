@@ -45,20 +45,20 @@ export function taskHistory(
     const run = receipt.report ? store.run(resultId) : undefined;
     const parent = run?.conversationId === message.conversationId ? run : undefined;
     const queue = store.receipt('input-' + resultId);
-    const outputIds = parent
+    const messageOutputs = parent
       ? (
           store.db
             .prepare(
-              "SELECT id FROM messages WHERE conversation_id=? AND json_extract(data,'$.runId')=?",
+              "SELECT id, json_extract(data,'$.meta.replyPhase') AS phase FROM messages WHERE conversation_id=? AND json_extract(data,'$.runId')=?",
             )
-            .all(message.conversationId, parent.id) as { id: string }[]
-        ).map((m) => 'message.' + m.id)
+            .all(message.conversationId, parent.id) as { id: string; phase: string | null }[]
+        ).map(m => ({key:'message.' + m.id, phase:m.phase}))
       : [];
-    if (receipt.context?.outputId) outputIds.push(receipt.context.outputId);
-    const outputs = outputIds.flatMap((key) => {
+    if (receipt.context?.outputId) messageOutputs.push({key: receipt.context.outputId, phase: null});
+    const outputs = messageOutputs.flatMap(({key, phase}) => {
       const out = store.document<OutputEnvelope>('outputs', key);
       return out && out.conversationId === message.conversationId
-        ? [{ ...out, deliveries: deliveries.rows(key) }]
+        ? [{ ...out, phase, deliveries: deliveries.rows(key) }]
         : [];
     });
     const child = receipt.context?.executionRunId ? store.run(receipt.context.executionRunId) : undefined;
@@ -70,6 +70,11 @@ export function taskHistory(
         ? describeFailure(store, receipt.text, 'execution', childProfile) : undefined,
       handoffFailure: handoffError ? describeFailure(store, handoffError, 'handoff', parent?.profileId) : undefined,
       id: resultId,
+      personaId: store.conversation(message.conversationId)?.personaId,
+      runKey: receipt.context?.runKey as string | undefined,
+      resumable: receipt.context?.resumable === true,
+      expectedTargets: receipt.report ? ((parent?.meta.delivery as OutputEnvelope['plan'] | undefined)?.targets ?? receipt.request?.delivery?.targets ?? []).map((t: {id:string; label:string; ready?:boolean; issue?:string}) =>
+        ({ id:t.id, label:t.label, ready:t.ready, issue: t.ready === false ? t.issue : undefined })) : [],
       createdAt: message.createdAt,
       text: receipt.text,
       executionState: receipt.context?.executionState,

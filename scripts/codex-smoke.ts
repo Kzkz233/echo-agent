@@ -23,7 +23,7 @@ const server = createServer(async (req, res) => {
   }
   calls++;
   captured = JSON.parse(body);
-  const output = body.includes('角色记忆整理')
+  const output = body.includes('伙伴记忆整理')
     ? '{"notes":"Native Codex Review read the complete material.","memories":[]}'
     : 'Native Codex fixture response.';
   res.writeHead(200, { 'Content-Type': 'text/event-stream' });

@@ -1,4 +1,4 @@
-import { replySubmission, type DeliveryPlan, type ReplySubmission } from '../contracts/delivery.ts';
+import { deliveryIdentity, replySubmission, type DeliveryPlan, type ReplySubmission } from '../contracts/delivery.ts';
 import { randomUUID, createHash } from 'node:crypto';
 import { Interactions } from './interactions.ts';
 import {
@@ -88,7 +88,7 @@ export class Router {
         !['main', 'group-member'].includes(this.store.conversation(conversationId)?.kind ?? '') ||
         !this.inference.adapter(profile.adapterId!).workerOnly,
       'worker_only',
-      '此外部执行器仅用于子任务，请在角色配置中选择语言模型。',
+      '此外部执行器仅用于子任务，请在伙伴配置中选择语言模型。',
     );
     return this.conversationRuntimes.get(backend) ?? backend;
   }
@@ -111,13 +111,13 @@ export class Router {
   resumeAfterUpdateFailure() { this.updating = false; this.admissionPaused = false; }
   private characterControllers = new Map<string,AbortController>();
   characterSignal(personaId:string) {
-    if(!characterActive(this.store,personaId))return AbortSignal.abort(new EchoError('character_disabled','角色已停用。'));
+    if(!characterActive(this.store,personaId))return AbortSignal.abort(new EchoError('character_disabled','伙伴已停用。'));
     let controller=this.characterControllers.get(personaId);
     if(!controller||controller.signal.aborted){controller=new AbortController();this.characterControllers.set(personaId,controller);}
     return controller.signal;
   }
   suspendCharacter(personaId:string) {
-    this.characterControllers.get(personaId)?.abort(new EchoError('character_disabled','角色已停用。'));
+    this.characterControllers.get(personaId)?.abort(new EchoError('character_disabled','伙伴已停用。'));
     const ids=new Set(this.store.conversations().filter(c=>c.personaId===personaId).map(c=>c.id));
     for(const conversationId of ids)this.cancel(conversationId);
     for(const receipt of this.store.receipts()) {
@@ -129,6 +129,7 @@ export class Router {
   }
   private deleting = new Set<string>();
   private deliveryStages = new Set<(message: Message, run?: Run) => void>();
+  resolveDelivery?: (id: string, plan: DeliveryPlan, signal: AbortSignal, localOnly?:boolean) => Promise<DeliveryPlan>;
   planLocalReply?: (id: string, bubble: boolean, signal: AbortSignal) => Promise<DeliveryPlan>;
   private replyDecorator?: (run: Run, text: string, target?: DeliveryPlan['targets'][number]) => { text: string; image?: ReplyImage };
   constructor(
@@ -389,7 +390,7 @@ export class Router {
     return { profile, receipt };
   }
   requireTaskModel(task: Task, profileId: string | undefined) {
-    invariant(profileId, 'task_model_missing', '请指定执行模型，或先为角色设置主会话模型。');
+    invariant(profileId, 'task_model_missing', '请指定执行模型，或先为伙伴设置主会话模型。');
     const model = this.inference.models().find(row => row.id === profileId);
     const purpose = this.inference.task(task);
     invariant(model && purpose && this.inference.compatible(model, purpose),
@@ -421,7 +422,7 @@ export class Router {
   enqueue(input: Submission) {
     invariant(!this.updating && !this.admissionPaused, 'updating', 'Echo 正在重启更新，请稍后发送。');
     const personaId=this.store.conversation(input.conversationId)?.personaId;
-    invariant(!personaId||characterActive(this.store,personaId),'character_disabled','角色已停用，请先启用角色。');
+    invariant(!personaId||characterActive(this.store,personaId),'character_disabled','伙伴已停用，请先启用伙伴。');
     if (input.attachmentIds?.length)
       this.attachments.metadata(input.attachmentIds, input.conversationId);
     invariant(
@@ -459,6 +460,29 @@ export class Router {
     this.events.emit('input.changed', { conversationId: input.conversationId });
     queueMicrotask(() => void this.drain(input.conversationId));
     return { accepted: true, requestId: input.requestId, state: 'queued' };
+  }
+  /** Operator replay of an input whose first inference failed during compaction. */
+  retryCompactionInput(runId: string) {
+    const run = this.store.run(runId);
+    invariant(run?.state === 'failed' && run.source === 'human', 'retry_unavailable', '只能继续已确认失败的用户输入。');
+    const receipt = this.store.receipt('input-' + run.requestId);
+    const input = receipt?.input as Submission | undefined;
+    invariant(receipt?.state === 'failed' && input?.conversationId === run.conversationId &&
+      input.requestId === run.requestId && input.text === run.input, 'retry_unavailable', '无法核对原输入。');
+    const items = this.execution.list(run.id);
+    invariant(items.some(item => item.id === 'compaction-request-failure') &&
+      items.every(item => item.kind === 'status' && item.id.startsWith('compaction-')),
+      'retry_unavailable', '运行已开始执行其他操作，不能重放。');
+    const entries = this.store.db.prepare(`SELECT e.data, m.data AS message FROM session_entries e
+      LEFT JOIN messages m ON m.id=e.message_id WHERE e.run_id=? ORDER BY e.seq`).all(run.id) as
+      { data: string | null; message: string | null }[];
+    const messages = entries.filter(row => row.message).map(row => JSON.parse(row.message!));
+    const native = entries.filter(row => row.data).map(row => JSON.parse(row.data!));
+    invariant(messages.length === 1 && messages[0].role === 'user' && messages[0].meta.requestId === run.requestId &&
+      native.every(message => message.role === 'assistant' && message.stopReason === 'error' &&
+        message.content.every((part: { type: string; text?: string }) => part.type === 'text' && !part.text?.trim())),
+      'retry_unavailable', '检测到其他会话活动，不能重放。');
+    return this.enqueue({ ...input, requestId: 'retry-' + run.id, recordedInputId: messages[0].id });
   }
   inputs(conversationId: string) {
     return this.store
@@ -551,7 +575,7 @@ export class Router {
     };
     const messageContext = await captureMessageContext(this.capabilities, {
       role: 'user', source: 'human', time: receipt.createdAt, timezone: configuredTimezone(this.store),
-      origin: { channel: input.workSession ? 'Role workbench' : 'App chat' }, preparedAt: receipt.createdAt,
+      origin: { channel: input.workSession ? 'Companion workbench' : 'App chat' }, preparedAt: receipt.createdAt,
     }, roleSignal);
     this.store.saveReceipt(key, receipt);
     try {
@@ -1009,6 +1033,20 @@ export class Router {
   private async execute(input: Submission, signal?: AbortSignal): Promise<Run> {
     const source = input.source ?? 'human';
     const existing = this.store.run(input.requestId);
+    const conversation = this.store.conversation(input.conversationId);
+    const audience = conversation && { conversationId: conversation.id, personaId: conversation.personaId };
+    const savedPlan = existing?.meta.delivery as DeliveryPlan | undefined;
+    const explicitPlan = input.delivery ?? (!existing?.meta.implicitDelivery ? savedPlan : undefined);
+    let planKey: unknown;
+    if (explicitPlan) {
+      planKey = deliveryIdentity(explicitPlan, audience);
+      // Old runs used the entire snapshot as a fingerprint. Reuse that representation
+      // only after checking that the original recipient and task still match.
+      if (existing && !existing.meta.deliveryChecked && savedPlan &&
+          JSON.stringify(planKey) === JSON.stringify(deliveryIdentity(savedPlan, audience))) {
+        planKey = savedPlan;
+      }
+    }
     const fingerprint = createHash('sha256')
       .update(
         JSON.stringify([
@@ -1019,8 +1057,7 @@ export class Router {
           input.bubble ?? false,
           input.origin ?? null,
           input.attachmentIds ?? null,
-          ...((input.delivery ?? (!existing?.meta.implicitDelivery && existing?.meta.delivery))
-            ? [input.delivery ?? existing?.meta.delivery] : []),
+          ...(explicitPlan ? [planKey] : []),
           ...(input.triggerKind && (!existing || existing.meta.triggerKind)
             ? [input.triggerKind]
             : []),
@@ -1039,9 +1076,8 @@ export class Router {
       );
       return existing;
     }
-    const conversation = this.store.conversation(input.conversationId);
     invariant(conversation, 'missing_conversation', input.conversationId);
-    invariant(characterActive(this.store,conversation.personaId),'character_disabled','角色已停用，请先启用角色。');
+    invariant(characterActive(this.store,conversation.personaId),'character_disabled','伙伴已停用，请先启用伙伴。');
     invariant(!this.locks.has(conversation.id), 'conversation_busy', '会话正在运行，请稍后发送。');
     invariant(
       !this.store
@@ -1058,7 +1094,7 @@ export class Router {
         conversation.kind !== 'main' ||
         !this.store.document('characters', conversation.personaId),
       'character_backend',
-      '请先在角色配置中选择主会话运行后端。',
+      '请先在伙伴配置中选择主会话运行后端。',
     );
     if (!binding)
       binding = await this.bind(
@@ -1103,13 +1139,14 @@ export class Router {
         time: this.store.receipt('input-' + input.requestId)?.createdAt ?? preparedAt,
         timezone: configuredTimezone(this.store), preparedAt,
         origin: {
-          ...(source === 'human' && !input.origin ? { channel: input.bubble ? 'Desktop pet' : input.workSession ? 'Role workbench' : 'App chat' } : {}),
+          ...(source === 'human' && !input.origin ? { channel: input.bubble ? 'Desktop pet' : input.workSession ? 'Companion workbench' : 'App chat' } : {}),
           ...(input.triggerKind ? { task: input.triggerKind } : {}),
           ...input.messageOrigin,
         },
       }, combined);
       const currentText = renderMessageText({ text: input.text, messageContext });
-      const delivery = input.delivery ?? ((input.bubble || (conversation.kind === 'main' && source === 'human')) && !input.origin && !input.workSession
+      if (input.delivery) invariant(this.resolveDelivery, 'delivery_unavailable', '投递服务尚未就绪。');
+      const delivery = input.delivery ? await this.resolveDelivery!(conversation.id, input.delivery, combined, input.localOnly) : ((input.bubble || (conversation.kind === 'main' && source === 'human')) && !input.origin && !input.workSession
         ? await this.planLocalReply?.(conversation.id, Boolean(input.bubble), combined)
         : undefined);
       const targets = delivery?.targets.filter((target) => target.ready) ?? [];
@@ -1127,7 +1164,7 @@ export class Router {
         conversation,
         text: input.text,
         source,
-        outputTargets: delivery?.targets.map(target=>target.id),
+        outputTargets: delivery ? targets.map(target => target.id) : undefined,
         replyStyles,
         presentation:
           delivery ? targets.length === 1 ? targets[0].presentation : undefined :
@@ -1216,7 +1253,7 @@ export class Router {
           fingerprint,
           model: profile.model,
           bubble: input.bubble ?? false,
-          ...(delivery ? { delivery, implicitDelivery: !input.delivery } : {}),
+          ...(delivery ? { delivery, implicitDelivery: !input.delivery, deliveryChecked: true } : {}),
           ...(input.workSession ? { workSession: true } : {}),
           ...(input.taskModel ? { taskModel: { ...input.taskModel, model: profile.model } } : {}),
           origin: input.origin,

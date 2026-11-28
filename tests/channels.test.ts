@@ -152,6 +152,32 @@ test('channel-origin input generates once, returns only to its source, and never
   await assert.rejects(app.registry.call('channels.receive', input, internal), /impersonate/);
 });
 
+test('saved channel selections survive a disabled binding without following a replacement contact', async t => {
+  const app = await setup(t);
+  await app.plugins.enable('channels');
+  const c = conversation(app);
+  const sent: string[] = [];
+  app.capabilities.provide({id:'fixture',permissions:new Set(['channels.adapter']),signal:new AbortController().signal},
+    'channels.send@1','fixture.chat','Fixture', input => { sent.push(input.peer); return {state:'delivered'}; });
+  const recipient = {id:'test-binding', adapter:'fixture.chat', peer:'first', conversationId:c.id};
+  const bind = (enabled: boolean, peer = recipient.peer) => app.registry.call('channels.bind', {...recipient, peer, enabled}, internal);
+  await bind(false);
+  const selected = 'channels.binding.' + recipient.id;
+  const capture = () => app.deliveries.plan(c.id,'automation',[selected]);
+  const plan = await capture();
+  assert.equal(plan.targets[0].ready,false);
+  await bind(true);
+  const publish = (id: string, plan: Awaited<ReturnType<typeof capture>>) =>
+    app.deliveries.publish({id, personaId:c.personaId, conversationId:c.id, text:'Fixture', plan});
+  await publish('restored',plan);
+  assert.deepEqual(sent,['first']);
+  await bind(true,'second');
+  await publish('after-rebind',plan);
+  assert.equal((await capture()).targets[0].ready,false);
+  assert.equal(app.deliveries.rows('after-rebind')[0].state,'skipped');
+  assert.deepEqual(sent,['first']);
+});
+
 test('official QQ gateway handles a synthetic C2C message and confirmed segments are never replayed', async (t) => {
   const app = await setup(t);
   let socket: WebSocket | undefined,
@@ -280,6 +306,13 @@ test('official QQ gateway handles a synthetic C2C message and confirmed segments
     { adapter: 'qq.bot', peer: 'c2c:fixture-user', conversationId: c.id },
     internal,
   );
+  const destination = 'channels.binding.' + binding.id;
+  const proactive = await app.deliveries.plan(c.id,'review',[destination]);
+  assert.equal(proactive.targets[0].ready,false);
+  assert.match(proactive.targets[0].issue!, /仅允许回复/);
+  const replyPlan = await app.deliveries.plan(c.id,'human',[destination],{replyTo:'fixture-incoming'});
+  assert.equal(replyPlan.targets[0].ready,true);
+  assert.equal(postCount,0);
   socket!.send(
     JSON.stringify({
       op: 0,

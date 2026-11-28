@@ -32,7 +32,7 @@ export function WorkContextSettings({ personaId, profileId, features, value = {}
     {hostManaged ? <p className="muted">{t('此执行器使用宿主的上下文压缩设置。')}</p> : <label className="field"><span>{t('上下文配置')}</span>
       <select value={value.compaction ? 'custom' : 'inherit'} onChange={event => onChange({ ...value,
         compaction: event.target.value === 'custom' ? catalog.compaction : undefined })}>
-        <option value="inherit">{t('沿用角色配置')}</option><option value="custom">{t('自定义')}</option>
+        <option value="inherit">{t('沿用伙伴配置')}</option><option value="custom">{t('自定义')}</option>
       </select>
     </label>}
     {!hostManaged && value.compaction && <div className="form-grid">
@@ -95,7 +95,7 @@ export function WorkExecutionSettings({ personaId, initialPolicy, mainProfileId,
       onChange={reasoning => onChange({ ...value, reasoning })} />
     <label className="field"><span>{t('工作目录')}</span>
       <select value={value.projectDirectory ?? ''} onChange={event => onChange({ ...value, projectDirectory: event.target.value || undefined })}>
-        <option value="">{t('跟随角色默认')}</option>
+        <option value="">{t('跟随伙伴默认')}</option>
         {(policy?.workspaces ?? []).map((root: any) => <option key={root.path} value={root.path}>{root.path}</option>)}
       </select>
     </label>

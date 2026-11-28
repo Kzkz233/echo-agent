@@ -14,11 +14,11 @@ import { localUpdateStatus } from '../../packages/kernel/cli-updates.ts';
 const help = `Echo Agent ${version}
 
   echo-agent doctor
-  echo-agent roles
+  echo-agent companions
   echo-agent tasks
   echo-agent task status TYPE ID [--request-id ID]
   echo-agent task run TYPE ID [--request-id ID] [--wait]
-  echo-agent chat --role ID "Message" [--no-wait]
+  echo-agent chat --companion ID "Message" [--no-wait]
   echo-agent chat --conversation ID "Message" [--no-wait]
   echo-agent chat-status REQUEST_ID
   echo-agent status | logs | plugins | models | mcp
@@ -44,6 +44,7 @@ const { values: options, positionals: [command, ...args] } = parseArgs({
     version: { type: 'boolean', short: 'v' },
     'data-dir': { type: 'string' },
     'request-id': { type: 'string' },
+    companion: { type: 'string' },
     role: { type: 'string' },
     conversation: { type: 'string' },
     wait: { type: 'boolean' },
@@ -61,6 +62,7 @@ let submitted: string | undefined;
 async function run() {
   if (options.version) return options.json ? { version } : version;
   if (options.help || !command) return help;
+  if (command === 'chat' && options.companion && options.role && options.companion !== options.role) throw Error('Specify one companion for this message.');
   const anchor = resolve(options['data-dir'] ?? process.env.ECHO_DATA_DIR ??
     join(process.env.LOCALAPPDATA ?? join(homedir(), '.local', 'share'), 'Echo'));
   const directory = await storageLocation(anchor);
@@ -116,6 +118,7 @@ async function run() {
       await sleep(750);
     }
   };
+  if (command === 'companions' && args.length === 0) return rpc('roles');
   if (['doctor', 'status', 'roles', 'tasks', 'plugins', 'models', 'mcp', 'commands'].includes(command) && args.length === 0) return rpc(command);
   if (command === 'logs') return rpc('logs', { runId: options['run-id'] });
   if (command === 'command' && args.length === 1) return rpc('command', { id: args[0], input: await input() });
@@ -185,7 +188,7 @@ async function run() {
     submitted = requestId;
     const text = args.length === 1 && args[0] === '-' ? await new Promise<string>((done, reject) => { let value = ''; process.stdin.setEncoding('utf8'); process.stdin.on('data', s => { value += s; if (value.length > 100000) { process.stdin.destroy(); reject(Error('Input exceeds 100000 characters.')); } }); process.stdin.once('end', () => done(value)); process.stdin.once('error', reject); }) : args.join(' ');
     const receipt = await rpc('chat.send', {
-      role: options.role, conversationId: options.conversation, requestId, text,
+      role: options.companion ?? options.role, conversationId: options.conversation, requestId, text,
       attachments: await Promise.all((options.attach ?? []).map(async file => {
         if ((await stat(resolve(file))).size > 8 * 1024 * 1024) throw Error('Attachment exceeds 8 MB.');
         const bytes = await readFile(resolve(file)); if (bytes.length > 8 * 1024 * 1024) throw Error('Attachment exceeds 8 MB.');

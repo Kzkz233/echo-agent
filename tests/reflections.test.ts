@@ -54,7 +54,7 @@ test('subjective state is role scoped, reaches normal injected conversation, and
   app.store.put('personas', 'other', { id: 'other', name: 'Other', prompt: 'Other' });
   await app.registry.call(
     'reflections.save',
-    { personaId: 'other', title: '另一位角色', text: '不属于当前角色的想法。' },
+    { personaId: 'other', title: '另一位伙伴', text: '不属于当前伙伴的想法。' },
     caller,
   );
   const backend = new FakeBackend();

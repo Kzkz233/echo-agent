@@ -21,7 +21,7 @@ test('fixed executor selection and default reasoning retain the existing model a
   assert.equal(task.reasoning, 'high');
   assert.equal(task.write, false);
   await assert.rejects(authorizeExecution(app.store, 'fixture', 'test', policy, { profileId: 'test' }), /已指定/);
-  await assert.rejects(authorizeExecution(app.store, 'fixture', 'test', { ...policy, fixedProfileId: 'unapproved' }, {}), /未获角色授权/);
+  await assert.rejects(authorizeExecution(app.store, 'fixture', 'test', { ...policy, fixedProfileId: 'unapproved' }, {}), /未获伙伴授权/);
   assert.equal((await authorizeExecution(app.store, 'fixture', 'test', policy, { reasoning: 'low' })).reasoning, 'low');
 });
 
@@ -68,8 +68,8 @@ test('per-task execution is bounded by role model, directory, tool and duration 
   assert.deepEqual(defaults.toolPermissions, ['memory.read']);
   assert.equal(defaults.write, false);
   await assert.rejects(authorize({ profileId: 'unapproved' }), /模型未获/);
-  await assert.rejects(authorize({ projectDirectory: outside }), /超出角色授权/);
-  await assert.rejects(authorize({ projectDirectory: read, write: true }), /超出角色授权/);
+  await assert.rejects(authorize({ projectDirectory: outside }), /超出伙伴授权/);
+  await assert.rejects(authorize({ projectDirectory: read, write: true }), /超出伙伴授权/);
   await assert.rejects(authorize({ workspaces: [{ path: write, write: true }] }), /附加目录写入/);
   await assert.rejects(authorize({ terminal: true }), /终端执行/);
   await assert.rejects(authorize({ toolPermissions: ['mail.write'] }), /工具权限超出/);

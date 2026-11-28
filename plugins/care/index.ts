@@ -255,7 +255,7 @@ export class Care {
           outputTargets: rule.outputTargets, task: {type:'care.rules',id:rule.id},
           ...(manualRequestId ? { localOnly: true } : {}),
           text: [
-            '这是应用发起的主动交流机会，不是使用者的新发言。沿用当前会话的角色、记忆和关系。',
+            '这是应用发起的主动交流机会，不是使用者的新发言。沿用当前会话的伙伴、记忆和关系。',
             rule.prompt,
             ...context,
             `想安静时只输出 ${observationSilence}。需要开口时，遵循本轮渠道约定，调用 echo_respond 向已选目标交付。不要继续处理历史请求。`,
@@ -305,7 +305,7 @@ export class Care {
         this.ctx = ctx;
         ctx.capabilities.define({
           id: 'care.context@1',
-          description: '主动交流的可选角色状态背景',
+          description: '主动交流的可选伙伴状态背景',
           input: z.object({ personaId: id }),
           output: z.object({ text: z.string().max(20000) }),
           providePermission: 'care.context',
@@ -411,7 +411,7 @@ export class Care {
                 kind: 'select',
                 options: [
                   { value: 'all', label: '所有 Echo 会话与观察' },
-                  { value: 'character', label: '当前角色' },
+                  { value: 'character', label: '当前伙伴' },
                   { value: 'conversation', label: '目标会话' },
                 ],
               },

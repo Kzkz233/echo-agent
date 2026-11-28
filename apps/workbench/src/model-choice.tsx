@@ -12,7 +12,7 @@ export function ModelChoice({
   data,
   taskId,
   inherit = true,
-  inheritLabel = '跟随角色默认',
+  inheritLabel = '跟随伙伴默认',
   inheritValue,
   showInheritedModel = true,
   personaId,
@@ -101,7 +101,7 @@ export function ModelChoice({
   const workerAdapters = adapters.filter((adapter: any) => adapter.workerOnly);
   const emptyLabel = hasInheritance
     ? inheritLabel
-    : inheritLabel === '跟随角色默认'
+    : inheritLabel === '跟随伙伴默认'
       ? '未选择'
       : inheritLabel;
   return (

@@ -6,7 +6,7 @@
 flowchart TD
   Core[Core: Clock, Application Storage, typed registry]
   Files[File Management: files, provenance, basic retrieval]
-  Memory[Persona Memory: core memory and automatic recall]
+  Memory[Companion Memory: core memory and automatic recall]
   Knowledge[Knowledge: explicit search and curated documents]
   Enhance[Retrieval Enhancement]
   Encoders[Embedding Models]
@@ -22,11 +22,11 @@ Memory requires Persona and File Management. It does not require Knowledge,
 document parsing, embedding models or a reranker. Knowledge is searched explicitly;
 this release does not add automatic knowledge injection to conversations.
 
-Memory recall policies belong to a character: local or model-assisted query
-construction, history window, query character budget, reasoning, prompt, result
-limit, cutoff and optional semantic retrieval. `memory.query` is character-scoped.
+Memory recall policies belong to a companion: local or model-assisted query
+construction, history window, query companion budget, reasoning, prompt, result
+limit, cutoff and optional semantic retrieval. `memory.query` is companion-scoped.
 Existing global policies and explicitly selected query routes migrate to existing
-characters once. New characters default to local query construction. Character
+companions once. New companions default to local query construction. Companion
 packages carry portable recall policies, never local model bindings.
 
 The local path uses `Intl.Segmenter`, preserves identifiers, dates and negation,
@@ -113,7 +113,7 @@ retain the prior manifest for `plugins.package.rollback`. Hash verification is
 integrity checking, not publisher authentication. Packages run trusted local Node
 code and do not constitute an OS sandbox. Development directory loading remains.
 
-Plugin packages, character packages and application backups are distinct formats.
+Plugin packages, companion packages and application backups are distinct formats.
 
 ## 0.12.1 audit corrections
 

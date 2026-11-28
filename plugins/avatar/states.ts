@@ -22,7 +22,7 @@ export const stateDescriptor = z.object({
 export function defineAvatarStates(ctx: PluginContext, store: Store, router: Router) {
   ctx.capabilities.define({
     id: 'avatar.states@1',
-    description: '可并存的角色活动状态及其动画默认值；实例必须提供到期时间',
+    description: '可并存的伙伴活动状态及其动画默认值；实例必须提供到期时间',
     input: z.object({ personaId: z.string().optional() }),
     output: stateDescriptor,
     providePermission: 'avatar.state',

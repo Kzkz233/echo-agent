@@ -1,3 +1,4 @@
+import { useMessageNow } from './message-time.tsx';
 import { statusText } from './i18n.ts';
 import { locale } from './i18n.ts';
 import { t } from './i18n.ts';
@@ -21,9 +22,10 @@ const dateInput = (s: string | undefined, timezone: string) =>
     : '';
 export function AgendaCalendar({ data, act }: any) {
   const confirmAction = useConfirm();
-  const [month, setMonth] = useState(
-    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-  );
+  const timezone = data.clock?.timezone ?? data.pluginSettings.agenda?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const today = localDay(useMessageNow(), timezone);
+  const currentMonth = () => new Date(Number(today.slice(0,4)), Number(today.slice(5,7)) - 1, 1);
+  const [month, setMonth] = useState(currentMonth);
   const [rows, setRows] = useState<any[]>([]),
     [fields, setFields] = useState<any[]>([]),
     [reminders, setReminders] = useState<any[]>([]),
@@ -44,10 +46,6 @@ export function AgendaCalendar({ data, act }: any) {
     }
     return () => { active = false; };
   }, [editing, form.reminder?.enabled, reminderOwner, form.conversationId]);
-  const timezone =
-    data.pluginSettings.agenda?.timezone ??
-    data.clock?.timezone ??
-    Intl.DateTimeFormat().resolvedOptions().timeZone;
   const load = async () => {
     const [items, history, fields] = await Promise.all([
       rpc('agenda.list'),
@@ -152,7 +150,7 @@ export function AgendaCalendar({ data, act }: any) {
           →
         </button>
         <button
-          onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}
+          onClick={() => setMonth(currentMonth())}
         >
           {' '}
           {t('Today')}{' '}
@@ -181,7 +179,7 @@ export function AgendaCalendar({ data, act }: any) {
                   className={
                     'calendar-day ' +
                     (day.getMonth() !== month.getMonth() ? 'outside ' : '') +
-                    (key === dayOf(new Date()) ? 'today' : '')
+                    (key === today ? 'today' : '')
                   }
                 >
                   <div className="row">
@@ -239,7 +237,7 @@ export function AgendaCalendar({ data, act }: any) {
                   onChange={(e) => {
                     set('allDay', e.target.checked);
                     if (e.target.checked && !form.date)
-                      set('date', (form.start ?? dayOf(new Date())).slice(0, 10));
+                      set('date', (form.start ?? today).slice(0, 10));
                   }}
                 />
               </label>
@@ -288,8 +286,8 @@ export function AgendaCalendar({ data, act }: any) {
               {form.reminder?.enabled && (
                 <>
                 <label className="field">
-                  <span>{t('提醒角色')}</span>
-                  <select aria-label={t('提醒角色')} value={form.personaId || 'companion'} onChange={e =>
+                  <span>{t('提醒伙伴')}</span>
+                  <select aria-label={t('提醒伙伴')} value={form.personaId || 'companion'} onChange={e =>
                     setForm({ ...form, personaId:e.target.value, conversationId:undefined,
                       reminder:{ ...form.reminder, outputTargets:undefined } })}>
                     {(!data.characters.some((role:any) => role.id === 'companion' && role.features?.includes('agenda'))) &&
@@ -318,7 +316,7 @@ export function AgendaCalendar({ data, act }: any) {
                   <label className="inline-toggle"><input type="checkbox" checked={form.reminder.outputTargets === undefined}
                     onChange={e => set('reminder', { ...form.reminder,
                       outputTargets:e.target.checked ? undefined : reminderDefaults.outputTargets })} />
-                    {t('使用角色的提醒渠道')}
+                    {t('使用伙伴的提醒渠道')}
                   </label>
                   {form.reminder.outputTargets !== undefined && <OutputTargetsField
                     value={form.reminder.outputTargets} personaId={reminderDefaults.personaId}

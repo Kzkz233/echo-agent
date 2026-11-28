@@ -1,8 +1,9 @@
 import { editedCharacter } from '../../plugins/persona/character-edits.ts';
 import { configuredTimezone } from '../../packages/kernel/time.ts';
-import { readFile, mkdir } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+import legacy from './starter-legacy.json' with { type: 'json' };
+import { hash, installStickers, originalPet, retireStarterPets, portrait, starterPet, starterRoleId } from './starter-art.ts';
 import { join, dirname } from 'node:path';
 import { z } from 'zod';
 import { id, invariant } from '../../packages/contracts/index.ts';
@@ -15,7 +16,7 @@ import { inferenceTasks } from '../../packages/contracts/inference.ts';
 import { defaultPermissions } from '../../packages/kernel/tool-access.ts';
 
 const characters = starterCharacters;
-export const starterVersion = '3.0.0';
+export const starterVersion = '4.0.0';
 const featureIds = [
   'memory',
   'avatar',
@@ -42,7 +43,7 @@ export function registerStarterCharacters(app: Application) {
     app.registry.register({
       name,
       owner: 'core',
-      description: '内置示例角色与双人工作室',
+      description: '内置示例伙伴与双人工作室',
       input,
       output: z.unknown(),
       permission: 'persona.write',
@@ -55,26 +56,27 @@ export function registerStarterCharacters(app: Application) {
       name,
       description,
       portrait: `/assets/starter-characters/${id}/portrait.webp`,
-      preview: `/assets/starter-characters/${id}/preview.png`,
+      preview: `/assets/starter-characters/${id}/full.webp`,
+      roleId: starterRoleId(app,id),
     })),
-    author: 'Ryu JaeHyun',
-    license: 'CC BY 4.0',
-    source: 'https://github.com/springtiger07/codex-chibi-girl-pets',
+    author: 'Echo',
+    license: 'Apache-2.0',
+    source: '/assets/starter-characters/CREDITS.txt',
     plugins: featureIds,
     version: starterVersion,
     existing: app.store.get('starter.studio.v1', null),
   }));
   op('characters.examples.refresh', z.object({ requestId: id }), async (value, signal) => {
-    invariant(!creating, 'examples_busy', '示例角色正在更新。');
+    invariant(!creating, 'examples_busy', '示例伙伴正在更新。');
     const completed = app.store.get<any>('starter.studio.v1', null);
-    invariant(completed, 'examples_missing', '请先创建示例角色。');
-    if (completed.version === starterVersion) return { ...completed, changes: [] };
     creating = true;
     try {
       const changes = [];
       for (const example of characters) {
-        const roleId = 'example-' + example.id;
-        if (!app.store.document('personas', roleId)) continue;
+        const roleId = starterRoleId(app,example.id);
+        const pkg=app.store.document<any>('characters',roleId)?.package;
+        if(!pkg || !['echo-starter-'+example.id,'echo-starter-'+legacy[example.id].legacyId].includes(pkg.id)) continue;
+        if (pkg.version===starterVersion && !app.store.get('starter.art.pending.'+roleId,false)) continue;
         const current = (await app.registry.call(
           'persona.character.read',
           { id: roleId },
@@ -82,6 +84,28 @@ export function registerStarterCharacters(app: Application) {
           signal,
         )) as any;
         const { draft, updated, preserved } = refreshStarterDraft(current, example, starterVersion);
+        const older = legacy[example.id];
+        const folder = join(assets,example.id);
+        if (current.persona.name === older.legacyName) draft.persona.name=example.name;
+        if (current.persona.portrait?.startsWith('data:image/webp;base64,') &&
+          hash(Buffer.from(current.persona.portrait.split(',')[1],'base64'))===older.portrait)
+          draft.persona.portrait=await portrait(folder);
+        const pending=app.store.get<Record<string,boolean>>('starter.art.pending.'+roleId,{}) || {};
+        if(pkg.id==='echo-starter-'+older.legacyId) { pending.avatar=true; pending.chatstick=true; }
+        if(pending.avatar && app.plugins.active.has('avatar')){
+          const cfg=draft.configurations.avatar;
+          if(cfg && (cfg.renderer??'frames')==='frames' && ((pending.new && !cfg.assetDirectory) || await originalPet(app,example.id,String(cfg.assetDirectory??'')))){
+            cfg.assetDirectory=await starterPet(app,folder,example.name,signal);
+            cfg.animationClips={idle:'idle',working:'idle',speaking:'idle'};
+            cfg.stateRules=Object.fromEntries(Object.entries(cfg.stateRules??{}).map(([key,rule]:[string,any])=>[key,{...rule,clip:'idle'}]));
+          }
+          delete pending.avatar;
+        }
+        if(pending.chatstick && app.plugins.active.has('chatstick')){
+          await installStickers(app,example.id,roleId,folder,signal,!pending.new);
+          delete pending.chatstick;
+        }
+
         await app.registry.call(
           'persona.character.patch',
           {
@@ -92,16 +116,21 @@ export function registerStarterCharacters(app: Application) {
           internal,
           signal,
         );
+        const main=app.store.conversation(current.mainConversationId);
+        if(main?.title===older.legacyName && draft.persona.name===example.name)
+          app.store.saveConversation({...main,title:example.name});
+        app.store.set('starter.art.pending.'+roleId,pending.avatar || pending.chatstick ? pending : false);
         changes.push({ id: roleId, updated, preserved });
       }
-      const group = completed.groupId && app.store.document<any>('groups', completed.groupId);
+      if(changes.length && app.plugins.active.has('avatar')) await retireStarterPets(app);
+      const group = completed?.groupId && app.store.document<any>('groups', completed.groupId);
       if (group) {
         const next = refreshStarterGroup(group, completed.groupDefaults);
         if (group.prompt !== next.prompt || group.context !== next.context)
           await app.registry.call('groups.save', next, internal, signal);
       }
       const result = { ...completed, version: starterVersion, groupDefaults: starterStudio };
-      app.store.set('starter.studio.v1', result);
+      if(completed) app.store.set('starter.studio.v1', result);
       app.events.emit('characters.updated', {});
       return { ...result, changes };
     } finally {
@@ -110,7 +139,7 @@ export function registerStarterCharacters(app: Application) {
   });
   op(
     'characters.examples.create',
-    z.object({ profileId: id, requestId: id, characterId: z.enum(['hina', 'miyu']).optional(), updateExisting: z.literal(true).optional() }),
+    z.object({ profileId: id, requestId: id, characterId: z.enum(['aria', 'coda']).optional(), pairOnly:z.boolean().optional(), updateExisting: z.literal(true).optional() }),
     async (value, signal) => {
       const completed = app.store.get<any>('starter.studio.v1', null);
       if (completed && !value.characterId && !value.updateExisting) return completed;
@@ -122,7 +151,7 @@ export function registerStarterCharacters(app: Application) {
           internal,
           signal,
         );
-      invariant(!creating, 'examples_busy', '示例角色正在创建。');
+      invariant(!creating, 'examples_busy', '示例伙伴正在创建。');
       invariant(assets, 'examples_missing', '示例素材缺失，请重新安装完整应用。');
       const model = app.router.inference.models().find((model) => model.id === value.profileId);
       invariant(
@@ -143,14 +172,18 @@ export function registerStarterCharacters(app: Application) {
         const roles: string[] = [];
         for (const example of characters.filter(role => !value.characterId || role.id === value.characterId)) {
           signal.throwIfAborted();
-          const roleId = 'example-' + example.id;
+          const roleId = starterRoleId(app,example.id);
           const existing = app.store.document<any>('characters', roleId);
           invariant(
             !existing || existing.package?.id === 'echo-starter-' + example.id,
             'example_conflict',
-            '示例角色编号已被使用。',
+            '示例伙伴编号已被使用。',
           );
           if (existing?.state === 'ready' && !value.updateExisting) {
+            if(app.store.get('starter.new.stickers.'+roleId,false) && availableFeatures.includes('chatstick')){
+              await installStickers(app,example.id,roleId,join(assets,example.id),signal);
+              app.store.set('starter.new.stickers.'+roleId,false);
+            }
             roles.push(roleId);
             continue;
           }
@@ -163,24 +196,8 @@ export function registerStarterCharacters(app: Application) {
                   signal,
                 )) as any)
               : undefined;
-          const material = availableFeatures.includes('avatar') ? (await app.registry.call(
-            'avatar.import',
-            {
-              source: join(assets, example.id),
-              name: example.name,
-              fps: 8,
-              requestId:
-                'starter-asset-' +
-                example.id +
-                '-' +
-                createHash('sha256')
-                  .update(await readFile(join(assets, example.id, 'manifest.json')))
-                  .digest('hex')
-                  .slice(0, 16),
-            },
-            internal,
-            signal,
-          )) as any : undefined;
+          const folder=join(assets,example.id);
+          const directory=availableFeatures.includes('avatar') ? await starterPet(app,folder,example.name,signal) : undefined;
           const tasks = [
             {
               id: roleId + '-review',
@@ -190,7 +207,7 @@ export function registerStarterCharacters(app: Application) {
                 mode: 'daily',
                 hour: 22,
                 minute: 0,
-                sourceIds: ['core.conversation', 'observation.source'],
+                sourceIds: ['core.conversation'],
                 conversationScope: 'selected',
                 conversationIds: [previous?.mainConversationId ?? 'main-' + roleId],
                 reasoning: 'off',
@@ -238,7 +255,7 @@ export function registerStarterCharacters(app: Application) {
               settings: {
                 name: '新邮件提醒',
                 rules:
-                  example.id === 'hina'
+                  example.id === 'aria'
                     ? [
                         {
                           name: '约定与重要事项',
@@ -285,9 +302,7 @@ export function registerStarterCharacters(app: Application) {
               name: example.name,
               prompt: example.prompt,
               expression: example.expression,
-              portrait:
-                'data:image/webp;base64,' +
-                (await readFile(join(assets, example.id, 'portrait.webp'))).toString('base64'),
+              portrait: await portrait(folder),
             },
             features: availableFeatures,
             profileId: value.profileId,
@@ -334,21 +349,9 @@ export function registerStarterCharacters(app: Application) {
                 ...previous?.configurations.avatar,
                 enabled: previous?.configurations.avatar.enabled ?? false,
                 renderer: 'frames',
-                assetDirectory: material?.directory,
-                fps: 8,
-                animationClips: { idle: 'idle', working: 'running', speaking: 'waving' },
-                stateRules: Object.fromEntries(
-                  Object.entries({
-                    idle: 'idle',
-                    working: 'running',
-                    speaking: 'waving',
-                    waiting: 'waiting',
-                    roaming: 'running-right',
-                    dragging: 'running-right',
-                    falling: 'jumping',
-                    landing: 'idle',
-                  }).map(([state, clip]) => ['avatar.' + state, { clip }]),
-                ),
+                assetDirectory: directory,
+                fps: 1,
+                animationClips: {idle:'idle',working:'idle',speaking:'idle'},
               },
             },
             tasks,
@@ -368,6 +371,7 @@ export function registerStarterCharacters(app: Application) {
               },
             },
           });
+          if(availableFeatures.includes('chatstick')) app.store.set('starter.new.stickers.'+roleId,true);
           await app.registry.call(
             'persona.character.commit',
             { draft, requestId: value.requestId + '-starter-role-' + example.id },
@@ -375,42 +379,14 @@ export function registerStarterCharacters(app: Application) {
             signal,
           );
           if (availableFeatures.includes('chatstick')) {
-            const manifest = JSON.parse(await readFile(join(assets, example.id, 'manifest.json'), 'utf8'));
-            const sharp = (await import('sharp')).default;
-            for (const sticker of [
-              { key: 'hello', label: '招呼', clip: 'waving', meaning: '轻松打招呼或表示收到' },
-              {
-                key: 'thinking',
-                label: '想一想',
-                clip: 'review',
-                meaning: '好奇、认真思考或一起琢磨',
-              },
-              { key: 'celebrate', label: '开心', clip: 'jumping', meaning: '恰当的小小庆祝' },
-            ]) {
-              const frame = manifest.clips[sticker.clip]?.frames[0];
-              invariant(frame, 'examples_assets', '示例表情动作素材缺失。');
-              const data = await sharp(join(assets, example.id, manifest.image))
-                .extract({ left: frame.x, top: frame.y, width: frame.w, height: frame.h })
-                .png()
-                .toBuffer();
-              await app.registry.call(
-                'chatstick.save',
-                {
-                  personaId: roleId,
-                  key: sticker.key,
-                  label: sticker.label,
-                  meaning: sticker.meaning,
-                  data: data.toString('base64'),
-                  replace: true,
-                },
-                internal,
-                signal,
-              );
-            }
+            await installStickers(app,example.id,roleId,folder,signal);
+            app.store.set('starter.new.stickers.'+roleId,false);
           }
+          if(!availableFeatures.includes('chatstick') || !availableFeatures.includes('avatar'))
+            app.store.set('starter.art.pending.'+roleId,{new:true,avatar:!availableFeatures.includes('avatar'),chatstick:!availableFeatures.includes('chatstick')});
           roles.push(roleId);
         }
-        if (value.characterId) {
+        if (value.characterId || value.pairOnly) {
           app.events.emit('characters.updated', {});
           return { roles, version: starterVersion, profileId: value.profileId };
         }

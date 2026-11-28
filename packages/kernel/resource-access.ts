@@ -22,6 +22,6 @@ export function canReadEntry(entry: EntryIdentity, reader?: ResourceReader): boo
 
 export function ownPersona(reader: ResourceReader, requested?: string): string | undefined {
   invariant(!reader.personaId || !requested || requested === reader.personaId,
-    'resource_scope', '只能访问当前角色的数据。');
+    'resource_scope', '只能访问当前伙伴的数据。');
   return reader.personaId ?? requested;
 }

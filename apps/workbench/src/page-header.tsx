@@ -41,8 +41,8 @@ export function RoleHeaderActions({ configure }: { configure: () => void }) {
     <>
       <button
         className="icon-button"
-        title={t('配置角色')}
-        aria-label={t('配置角色')}
+        title={t('配置伙伴')}
+        aria-label={t('配置伙伴')}
         onClick={configure}
       >
         <Icon name="settings" size={17} />

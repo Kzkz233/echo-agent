@@ -1,6 +1,7 @@
+import { AppTime } from './message-time.tsx';
 import { useEffect, useState } from 'react';
 import { rpc } from './client.ts';
-import { locale, t } from './i18n.ts';
+import { statusText, t } from './i18n.ts';
 import { FailurePanel } from './task-failure.tsx';
 import { OutputRecord } from './output-targets.tsx';
 
@@ -14,6 +15,33 @@ const handoff: Record<string, string> = {
   unknown: '结果待核对',
   unconfirmed: '暂无主会话运行记录',
 };
+function ResultStatus({ result }: { result: any }) {
+  const targets = result.expectedTargets ?? [];
+  const delivered = new Set(result.outputs.filter((out: any) => out.phase !== 'progress')
+    .flatMap((out: any) => out.deliveries.filter((r: any) => r.state === 'delivered').map((r: any) => r.targetId)));
+  const count = targets.filter((target: any) => delivered.has(target.id)).length;
+  return <>
+    {result.executionState && <>{statusText(result.executionState)}{result.resumable && ' · ' + t('已保存断点')} → </>}
+    {t(handoff[result.handoff] ?? result.handoff)}
+    {targets.length > 0 && <> → {t('已送达')} {count}/{targets.length}</>}
+  </>;
+}
+
+function ResultDetails({ result, act, resumed = false }: { result: any; act: any; resumed?: boolean }) {
+  const seen = new Set(result.outputs.filter((out: any) => out.phase !== 'progress').flatMap((out: any) => out.deliveries.map((r: any) => r.targetId)));
+  return <details className="card">
+    <summary><AppTime at={result.createdAt}/> · {resumed && <>{t('从断点续跑')} · </>}<ResultStatus result={result}/></summary>
+    <p className="readable-pre">{result.text}</p>
+    {result.executionFailure && <FailurePanel failure={result.executionFailure}/>}
+    {result.handoffFailure && <FailurePanel failure={result.handoffFailure}/>}
+    {result.outputs.map((out: any) => <OutputRecord key={out.id} row={out} act={act}/>)}
+    {result.expectedTargets?.filter((target: any) => !seen.has(target.id)).map((target: any) =>
+      <div key={target.id}><small>{t(target.label)} · {t(target.ready === false ? target.issue || '输出目标当前不可用。' : '暂无渠道回执')}</small></div>)}
+  </details>;
+}
+
+const groupKey = (row: {personaId?:string;runKey?:string}) => JSON.stringify([row.personaId, row.runKey]);
+
 export function TaskHistory({
   type,
   id,
@@ -48,7 +76,7 @@ export function TaskHistory({
     refresh();
     const update = (event: Event) => {
       if (
-        /^(output\.|run\.(started|completed)|input\.|message\.posted|work\.|automation\.)/.test(
+        /^(output\.|run\.(started|completed)|input\.|message\.posted|work\.|automation\.|review\.|scheduler\.|agenda\.reminder)/.test(
           (event as CustomEvent).detail.type,
         )
       )
@@ -64,43 +92,35 @@ export function TaskHistory({
       window.removeEventListener('echo-event', update);
     };
   }, [type, id, personaId]);
+  const byRun = new Map<string, any[]>();
+  const occurrences = history?.occurrences ?? [];
+  for (const occurrence of occurrences) if (occurrence.runKey) byRun.set(groupKey(occurrence), []);
+  const separate = [];
+  for (const result of history?.results ?? []) {
+    const group = result.runKey && byRun.get(groupKey(result));
+    if (group) group.push(result);
+    else separate.push(result);
+  }
   return (
     <section className="task-run-history">
       <h2>{t('结果与投递')}</h2>
       {issue && <p role="alert">{issue}</p>}
       {!issue && !history && <p>{t('正在打开…')}</p>}
-      {Boolean(history?.occurrences?.length) && <details>
-        <summary>{t('计划触发记录')}</summary>
-        {history!.occurrences!.map((row, i) => <p key={i}>
-          {t(row.outcome === 'skipped' ? '已跳过' : row.outcome === 'catchup' ? '补跑' : '按时触发')}
-          {' · '}{t('原定时间')} {new Date(row.scheduled).toLocaleString(locale())}
-          {' · '}{t('实际处理')} {new Date(row.observed).toLocaleString(locale())}
-          {row.first < row.scheduled && <> · {t('合并自')} {new Date(row.first).toLocaleString(locale())}</>}
-          {row.outcome !== 'due' && <> · {t(row.policy === 'once' ? '恢复后补一次' : row.policy === 'valid' ? '仍有效时补一次' : '跳过本次')}</>}
-        </p>)}
-      </details>}
-      {history && !history.occurrences?.length && !history.results.length && !history.otherOutputs.length && (
-        <p className="muted">{t('暂无记录')}</p>
-      )}
-      {history?.results.map((r) => (
-        <details key={r.id} className="card">
-          <summary>
-            {new Date(r.createdAt).toLocaleString(locale())} · {t(handoff[r.handoff] ?? r.handoff)}
+      {history && !occurrences.length && !history.results.length && !history.otherOutputs.length && <p className="muted">{t('暂无记录')}</p>}
+      {occurrences.map(row => {
+        const results = byRun.get(groupKey(row)) ?? [];
+        return <details className="card" key={JSON.stringify([row.personaId,row.scheduled,row.source])}>
+          <summary><AppTime at={row.scheduled}/> · {t(row.outcome === 'skipped' ? '已跳过' : row.outcome === 'catchup' ? '补跑' : '按时触发')}
+            {results[0] && <> → <ResultStatus result={results[0]}/></>}
+            {row.executionState && <> → {row.executionState === 'empty' ? t('没有新材料') : statusText(row.executionState)}</>}
           </summary>
-          <p className="readable-pre">{r.text}</p>
-          {r.executionState && (
-            <p>
-              {t('执行状态')} · {t(r.executionState)}
-            </p>
-          )}
-          {r.executionFailure && <FailurePanel failure={r.executionFailure}/>}
-          {r.handoffFailure && <FailurePanel failure={r.handoffFailure}/>}
-          {r.outputs.map((out: any) => (
-            <OutputRecord key={out.id} row={out} act={act} />
-          ))}
-          {!r.outputs.length && <small>{t('暂无渠道回执')}</small>}
-        </details>
-      ))}
+          <p>{t('原定时间')} <AppTime at={row.scheduled} detail/> · {t('实际处理')} <AppTime at={row.observed} detail/>
+            {row.first < row.scheduled && <> · {t('合并自')} <AppTime at={row.first} detail/></>}
+          </p>
+          {results.map((r, index) => <ResultDetails key={r.id} result={r} act={act} resumed={results[index + 1]?.resumable}/>)}
+        </details>;
+      })}
+      {separate.map(r => <ResultDetails key={r.id} result={r} act={act}/>)}
       {history?.otherOutputs.map((out) => (
         <OutputRecord key={out.id} row={out} act={act} />
       ))}
@@ -135,7 +155,7 @@ export function RecordedTasks({ personaId, act }: { personaId:string; act:any })
       {rows?.length === 0 && <p>{t('暂无记录')}</p>}
       <div className="task-record-list">{rows?.map(row=><button className="task-record" key={row.type+':'+row.id} onClick={()=>setSelected(row)}>
         <span><strong>{t(row.label)}</strong><small>{row.id}</small></span>
-        <small>{new Date(row.lastAt).toLocaleString(locale())}</small>
+        <small><AppTime at={row.lastAt}/></small>
       </button>)}</div>
     </>)}
   </details>;

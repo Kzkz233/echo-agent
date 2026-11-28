@@ -8,7 +8,13 @@ import { Router } from '../../packages/kernel/router.ts';
 import { Events } from '../../packages/kernel/events.ts';
 import { id, invariant } from '../../packages/contracts/index.ts';
 import { operations } from '../shared.ts';
+import { assertTargetAction } from '../../packages/contracts/review-target.ts';
 import { ownPersona } from '../../packages/kernel/resource-access.ts';
+const attributes = z.object({ focus:z.string().max(2000).optional() }).strict().optional();
+const newFields = z.object({ attributes }).strict();
+const existingFields = newFields.extend({ subjectId:id, expectedVersion:z.number().int().min(1) });
+const actionSchemas = Object.fromEntries(Object.entries({add:newFields, update:existingFields, forget:existingFields})
+  .map(([name, schema]) => [name, z.toJSONSchema(schema, {io:'input'})]));
 const settings = z.object({
   inject: z.boolean().default(true),
   maxNotes: z.number().int().min(1).max(20).default(6),
@@ -73,13 +79,13 @@ export class Reflections {
     const v = note.parse(raw),
       key = v.id ?? randomUUID(),
       old = this.store.document<Reflection>('reflections', key);
-    invariant(this.store.document('personas', v.personaId), 'missing_persona', '角色不存在。');
+    invariant(this.store.document('personas', v.personaId), 'missing_persona', '伙伴不存在。');
     invariant(
       (old?.version ?? 0) === v.version,
       'revision_conflict',
       '这条关注已变化，请重新读取。',
     );
-    invariant(!old || old.personaId === v.personaId, 'persona_mismatch', '不能改变关注所属角色。');
+    invariant(!old || old.personaId === v.personaId, 'persona_mismatch', '不能改变关注所属伙伴。');
     const row = { ...v, id: key, version: v.version + 1, updatedAt: new Date().toISOString() };
     if (old) this.snapshot(old, 'updated');
     this.store.put('reflections', key, row);
@@ -105,7 +111,7 @@ export class Reflections {
       (a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id),
     );
     const header =
-      '角色近期在意的事（当前关心和想接续的话题，不是待办清单；与眼前交流有关时自然带入，不必逐项提起）：\n';
+      '伙伴近期在意的事（当前关心和想接续的话题，不是待办清单；与眼前交流有关时自然带入，不必逐项提起）：\n';
     const block = (n: Reflection) =>
       `- ${n.title}：${n.text}${n.focus ? '\n  想接着关注：' + n.focus : ''}`;
     let chars = header.length;
@@ -142,12 +148,8 @@ export class Reflections {
             .update(JSON.stringify([personaId, jobId, p]))
             .digest('hex');
         if (this.store.receipt(receipt)) continue;
-        const attributes = z
-          .object({
-            focus: z.string().max(2000).optional(),
-          })
-          .strict()
-          .parse(p.attributes ?? {});
+        assertTargetAction(actionSchemas, p);
+        const focus = p.attributes?.focus as string | undefined;
         const operation = z.enum(['add', 'update', 'forget']).parse(p.operation ?? 'add');
         const old = p.subjectId
           ? this.store.document<Reflection>('reflections', p.subjectId)
@@ -179,7 +181,7 @@ export class Reflections {
           personaId,
           title: p.title,
           text: p.text,
-          focus: attributes.focus ?? old?.focus ?? '',
+          focus: focus ?? old?.focus ?? '',
           evidence: old?.evidence ?? '',
           sources: [...new Set([...(old?.sources ?? []), ...p.sources])],
           version: old?.version ?? 0,
@@ -206,12 +208,12 @@ export class Reflections {
         const op = operations(ctx, 'reflections');
         op(
           'list',
-          '读取角色近期在意的事',
+          '读取伙伴近期在意的事',
           z.object({ personaId: id.optional() }),
           'reflections.read',
           (v, _s, caller) => this.list(ownPersona(caller, v.personaId)),
         );
-        op('save', '记录或修订角色当前关注', note, 'reflections.write', (v, _s, caller) => {
+        op('save', '记录或修订伙伴当前关注', note, 'reflections.write', (v, _s, caller) => {
           ownPersona(caller, v.personaId);
           return this.save(v);
         });
@@ -235,7 +237,7 @@ export class Reflections {
         this.router.context(
           {
             id: 'reflections',
-            blocks: [{ id: 'reflections.current', layer: 'turn', after: ['memory.recall'], label: '角色关注', worker: 'optional' }],
+            blocks: [{ id: 'reflections.current', layer: 'turn', after: ['memory.recall'], label: '伙伴关注', worker: 'optional' }],
             prepare: ({ conversation, source }) => ({
               'reflections.current':
                 source !== 'care' && this.config(conversation.personaId).inject
@@ -248,13 +250,14 @@ export class Reflections {
         ctx.capabilities.provide(
           'care.context@1',
           'reflections.current',
-          'Character Concerns',
+          'Companion Concerns',
           (v) => ({ text: this.preview(v.personaId).text }),
         );
+        ctx.capabilities.provide('review.action-schemas@1', 'reflections.state', '关注更新参数', () => actionSchemas);
         ctx.capabilities.provide(
           'review.targets@1',
           'reflections.state',
-          'Character Concerns',
+          'Companion Concerns',
           (v) =>
             v.action === 'describe'
               ? {
@@ -268,7 +271,7 @@ export class Reflections {
                     })),
                   ),
                   instructions:
-                    '只维护角色近期真正惦记、想主动关心或以后接着聊的事，不收集一切主观看法，不把它们写成待办或要求使用者完成的任务。长期感受、关系体验和稳定偏好仍可作为记忆，不因主观就放到这里。少量保留，重复内容修订原条目；没有相关新经历可以不改，也不因一天没提起就删除。已不再牵挂或自然淡去时使用 forget，这不意味着问题已解决。operation 仅可为 add/update/forget；update/forget 带 subjectId、expectedVersion，引用现有条目；attributes 只可含 focus（之后想自然接续的关注方向）。新增用 add，不填 subjectId。',
+                    '只维护伙伴近期真正惦记、想主动关心或以后接着聊的事，不收集一切主观看法，不把它们写成待办或要求使用者完成的任务。长期感受、关系体验和稳定偏好仍可作为记忆，不因主观就放到这里。少量保留，重复内容修订原条目；没有相关新经历可以不改，也不因一天没提起就删除。已不再牵挂或自然淡去时使用 forget，这不意味着问题已解决。operation 仅可为 add/update/forget；update/forget 带 subjectId、expectedVersion，引用现有条目；attributes 只可含 focus（之后想自然接续的关注方向）。新增用 add，不填 subjectId。',
                 }
               : this.apply(v.personaId, v.jobId, v.proposals),
         );

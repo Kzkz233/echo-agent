@@ -1,16 +1,16 @@
 # Plugin architecture
 
 Every plugin has one application-level lifecycle. Enabling a module loads one shared
-instance; it does not create one service instance per character. A module can also
-contribute a character-level feature through `core.characters.features@1`. That feature
-owns per-character configuration, context, data or task eligibility, while the module's
+instance; it does not create one service instance per companion. A module can also
+contribute a companion-level feature through `core.characters.features@1`. That feature
+owns per-companion configuration, context, data or task eligibility, while the module's
 global settings and operations remain application-scoped. Persona consumes this contract
 and `core.automation.types@1`; it does not persist a second copy of live plugin
-configuration. See [Characters](CHARACTERS.md).
+configuration. See [Companions](CHARACTERS.md).
 
-Fields owned by a character contribution are shown in the character editor and omitted
+Fields owned by a companion contribution are shown in the companion editor and omitted
 from the plugin's global settings view. Shared parser/runtime settings and shared model
-routes remain global and are shown with their owning module. The character editor groups
+routes remain global and are shown with their owning module. The companion editor groups
 model-facing operations from the permission catalog by owner. The main conversation and
 delegated tasks have independent grants for each permission. Several operations sharing a
 permission appear as one grant, including when multiple plugins contribute those operations.
@@ -25,7 +25,7 @@ Every first-party feature has `plugins/<id>/echo-plugin.json` with API version 1
 
 ## Core and optional foundations
 
-The technical kernel provides typed operations, versioned extension points, lifecycle, events, permissions and a nearest-deadline clock. The product core uses these facilities for roles, conversations, routing, receipts, automation, channels and notifications. Persona, Scheduler, Channels and Notifications are required application modules. They use the plugin registration lifecycle internally and appear in runtime diagnostics. The plugin manager UI only offers controls for optional packages.
+The technical kernel provides typed operations, versioned extension points, lifecycle, events, permissions and a nearest-deadline clock. The product core uses these facilities for companions, conversations, routing, receipts, automation, channels and notifications. Persona, Scheduler, Channels and Notifications are required application modules. They use the plugin registration lifecycle internally and appear in runtime diagnostics. The plugin manager UI only offers controls for optional packages.
 
 Register an automation task with `core.automation.types@1` and a signal source with `core.automation.signals@1` when the task needs a conversation or notice action. Source IDs use the plugin namespace. `automation.contribute` grants registration and `automation.dispatch` grants submission through the private plugin operation. The caller can only dispatch its own active source and the source's declared action. A channel binding must explicitly allow a contributed source before relaying it. Each plugin continues to own its settings, policy and task state.
 
@@ -33,7 +33,7 @@ Use `conversations.setReference` with `conversation.reference` for persisted lin
 
 Inference adapters and task choices use `core.inference.adapters@1` and `core.inference.tasks@1`. Embeddings owns `embeddings.encode@1`; Semantic Search consumes it and Local Model Runtime optionally provides GGUF/ONNX encoders. These use the same scoped registry as other contributions. See [Inference](INFERENCE.md).
 
-Files and Documents are internal parts of the built-in Knowledge System: registered library roots, SQLite text/metadata containers, immutable binary objects, media access, document parsing and keyword search. Third-party parsers, Audio Transcription and Semantic Search contribute optional capabilities; knowledge and memory do not require these optional providers. Knowledge is a shared application capability, not a per-character retrieval configuration. Persona/Memory/Review use the same storage and retrieval contracts. See [Knowledge parsing](knowledge-parsing.md).
+Files and Documents are internal parts of the built-in Knowledge System: registered library roots, SQLite text/metadata containers, immutable binary objects, media access, document parsing and keyword search. Third-party parsers, Audio Transcription and Semantic Search contribute optional capabilities; knowledge and memory do not require these optional providers. Knowledge is a shared application capability, not a per-companion retrieval configuration. Persona/Memory/Review use the same storage and retrieval contracts. See [Knowledge parsing](knowledge-parsing.md).
 
 Avatar provides ordinary frame animation and all bubble/input behavior. Agenda provides the calendar and reminders. Mail provides reading/drafts; Mail Actions contributes frozen actions to the independent Approvals center.
 
@@ -60,7 +60,7 @@ Typed domain contracts sit on this generic mechanism:
 | `core.context@3`                      | Ordered stable and per-turn context blocks, scoped to one conversation |
 | `core.automation.types@1`             | Task catalog, typed settings fields, and opt-in save/remove/run actions     |
 | `review.materials@1`                  | Full attributed material records, selectable by provider ID                |
-| `review.material-streams@1`           | Optional role-owned selections within a material provider                  |
+| `review.material-streams@1`           | Optional companion-owned selections within a material provider                  |
 | `review.archives@1`                   | Deterministic raw archive work                                             |
 | `files.extract@1`                     | Extracted document text or unsupported                                     |
 | `files.parsers@1`                     | Parser versions, supported formats and input limits shared with the UI     |
@@ -124,17 +124,17 @@ The bundled contract audit checks every declared setting/enum, static UI RPC met
 
 MCP is an authenticated loopback `/mcp` facade over the same operations. The frontend controls exported permissions; defaults are read only. Tools use their ordinary names with dots converted to underscores, without a PW prefix. A plugin does not need its own HTTP/MCP service. Same-process work uses typed async function calls, not internal HTTP ports.
 
-Under **Extensions → External MCP**, add a Streamable HTTP URL or a trusted local stdio command. Save the connection, discover its tools, then grant individual tools under **Character features > Plugin tool access**. HTTP bearer tokens and stdio environment variables are kept in Echo's credential store. Third-party tools use the role's change-capable tool mode because their behavior is defined by the external server. The public loopback MCP endpoint does not re-export these tools.
+Under **Extensions → External MCP**, add a Streamable HTTP URL or a trusted local stdio command. Save the connection, discover its tools, then grant individual tools under **Companion features > Plugin tool access**. HTTP bearer tokens and stdio environment variables are kept in Echo's credential store. Third-party tools use the companion's change-capable tool mode because their behavior is defined by the external server. The public loopback MCP endpoint does not re-export these tools.
 
-The included **DeepSeek Web Search** template starts without a key. Enter your own DeepSeek API key to make its Search and Fetch tools available to authorized characters. Search returns links and excerpts. Fetch reads a selected public page. Discovery verifies the local tool catalog without making a billed request or validating the key with DeepSeek.
+The included **DeepSeek Web Search** template starts without a key. Enter your own DeepSeek API key to make its Search and Fetch tools available to authorized companions. Search returns links and excerpts. Fetch reads a selected public page. Discovery verifies the local tool catalog without making a billed request or validating the key with DeepSeek.
 
 Approving an action requires the frontend caller and a frozen, current request. Exposing a proposal tool to MCP does not expose the approval decision. Avatar, QQ or another notification channel does not become an approval authority merely by displaying a message.
 
-Review also defines `review.targets@1` (describe an optional non-core target, then apply stable proposals after full reading) and `review.reports@1` (idempotent program notices). Current Concerns contributes `reflections.state`; it never edits Review itself or gains access to core memories. Target selection is explicit. Frozen jobs keep their original context and target descriptions; an unavailable selected target leaves application pending instead of silently discarding proposals.
+Review also defines `review.targets@1` (describe an optional non-core target, then apply stable proposals after full reading) and `review.reports@1` (idempotent program notices). Current Concerns contributes `reflections.state`; it never edits Review itself or gains access to core memories. Targets can also contribute `review.action-schemas@1` under the same provider ID. Each operation declares JSON Schema for its recipient, version and attributes. Review includes that contract alongside companion preferences and validates proposals before staging. Providers recheck versions and authority when applying changes. Target selection is explicit. Frozen jobs keep their original context and target descriptions; an unavailable selected target leaves application pending instead of silently discarding proposals.
 
 The Review editor derives source and target guidance fields from the active providers. A policy stores the user's instructions by provider ID. Echo conversation material uses `core.conversation`. Frozen packets record the source IDs they contain, and Review attaches the matching instructions to each model request. Disabling a provider hides its fields from the editor and preserves its saved instructions for re-enabling later.
 
-Review can include every observation task for the selected character or an explicit subset. A newly selected task resumes from its own cursor. Unscoped sources such as mail remain checkboxes. Raw observation archiving retains the character's original records independently of which ones were sent to Review.
+Review can include every observation task for the selected companion or an explicit subset. A newly selected task resumes from its own cursor. Unscoped sources such as mail remain checkboxes. Raw observation archiving retains the companion's original records independently of which ones were sent to Review.
 
 Channels defines `channels.send@1` and `channels.inspect@1`. Avatar and QQ contribute at the same presentation layer. A source binding maps an adapter/peer to one canonical conversation; unrelated web input does not fan out. `notifications.publish@1` publishes idempotent inbox/conversation notices. These are distinct contracts even though the extension mechanism is shared. See [Channels](CHANNELS.md).
 

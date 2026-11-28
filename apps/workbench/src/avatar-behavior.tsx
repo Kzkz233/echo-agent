@@ -41,7 +41,7 @@ export function AvatarBehavior({ personaId, config, providers, onChange }: any) 
   return (
     <>
       <label className="field">
-        <span>{t('Character renderer')}</span>
+        <span>{t('Companion renderer')}</span>
         <select
           value={config.renderer ?? 'frames'}
           onChange={(event) => onChange({ renderer: event.target.value })}

@@ -59,15 +59,15 @@ test('multiple characters retain independent avatar settings and native lifecycl
 });
 
 test('every advertised starter animation frame contains visible artwork', async () => {
-  for (const name of ['hina', 'miyu']) {
+  for (const name of ['aria', 'coda']) {
     const root = join(project, 'apps/workbench/public/assets/starter-characters', name);
     const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
     const { data, info } = await sharp(join(root, manifest.image))
       .ensureAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true });
-    assert.equal(manifest.clips.idle.frames.length, 7);
-    assert.equal(manifest.clips.waving.frames.length, 4);
+    assert.equal(manifest.clips.idle.frames.length, 1);
+    assert.equal(manifest.facing, 'fixed');
     for (const [clip, value] of Object.entries<any>(manifest.clips))
       for (const [index, frame] of value.frames.entries()) {
         let alpha = 0;

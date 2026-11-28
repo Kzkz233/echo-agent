@@ -188,6 +188,7 @@ async function run() {
       image: 'atlas.png',
       clips,
       ...(groundY !== undefined ? { groundY } : {}),
+      ...(input.facing === 'fixed' ? {facing:'fixed'} : {}),
       author: String(input.author ?? '').slice(0, 200),
       license: String(input.license ?? '').slice(0, 200),
       source: String(input.source ?? '').slice(0, 2000),

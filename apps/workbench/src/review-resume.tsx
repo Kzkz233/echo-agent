@@ -7,11 +7,11 @@ import { inferenceTasks } from '../../../packages/contracts/inference.ts';
 import type { TaskModelReceipt } from '../../../packages/contracts/task-model.ts';
 
 export function ReviewResume({ run, act }: {
-  run: { id: string; personaId: string; runtimeVersion?: number; agentFinished?: boolean; resumeModel?: TaskModelReceipt };
+  run: { id: string; personaId: string; runtimeVersion?: number; agentFinished?: boolean; mayRepairActions?: boolean; resumeModel?: TaskModelReceipt };
   act: (run: () => Promise<unknown>, message?: string) => unknown;
 }) {
   const [profileId, setProfileId] = useState('');
-  if (run.runtimeVersion === 2 && run.agentFinished)
+  if (run.runtimeVersion === 2 && run.agentFinished && !run.mayRepairActions)
     return <Button secondary onClick={() => act(
       () => rpc('review.resume', { id: run.id, confirmed: true }),
       t('已请求续跑'),

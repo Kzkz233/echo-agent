@@ -254,17 +254,20 @@ export class QQ {
     });
     return work;
   }
+  private sendBlock(isReply: boolean) {
+    const cfg = this.config();
+    if (!cfg.enabled || !this.agent || !this.life || this.life.signal.aborted) return 'QQ_DISABLED';
+    if (!isReply && !cfg.allowProactive) return 'PASSIVE_REPLY_ID_REQUIRED';
+  }
   async send(
     input: { peer: string; text: string; replyTo?: string; idempotencyKey: string; image?: string; textMode?: ChannelTextMode; parts?: string[] },
     signal: AbortSignal,
   ) {
     const cfg = this.config();
-    if (!cfg.enabled || !this.agent || !this.life)
-      return { state: 'failed', receipt: { code: 'QQ_DISABLED' } };
+    const block = this.sendBlock(Boolean(input.replyTo));
+    if (block || !this.life) return { state: 'failed', receipt: { code: block ?? 'QQ_DISABLED' } };
     const match = /^(c2c|group):([\w-]+)$/.exec(input.peer);
     invariant(match, 'qq_peer', 'QQ peer must be c2c:openid or group:openid');
-    if (!input.replyTo && !cfg.allowProactive)
-      return { state: 'failed', receipt: { code: 'PASSIVE_REPLY_ID_REQUIRED' } };
     // Existing receipts already freeze the message parts and sequence numbers.
     const { textMode, ...content } = input;
     const key = hash(input.idempotencyKey),
@@ -398,6 +401,12 @@ export class QQ {
           await this.stop();
         });
         ctx.capabilities.provide('channels.send@1', 'qq.bot', 'QQ bot', (v, s) => this.send(v, s));
+        ctx.capabilities.provide('channels.availability@1', 'qq.bot', 'QQ bot', input => {
+          const block = this.sendBlock(input.isReply);
+          if (block === 'QQ_DISABLED') return { ready:false, issue:'QQ 发送服务尚未启用或就绪。' };
+          if (block) return { ready:false, issue:'QQ 当前仅允许回复收到的消息。' };
+          return { ready:true };
+        });
         ctx.capabilities.provide('channels.image-adapters@1', 'qq.bot', 'QQ bot', () => ({}));
         ctx.capabilities.provide('channels.inspect@1', 'qq.bot', 'Inspect QQ receipts', (v) => {
           const row = this.store.document<Progress>('qq-deliveries', hash(v.idempotencyKey));

@@ -1,18 +1,10 @@
+import { AppTime } from './message-time.tsx';
 import { CredentialInput } from './credential-input.tsx';
-import { t, locale, statusText } from './i18n.ts';
+import { t, statusText } from './i18n.ts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { rpc } from './client.ts';
 import { mailProviders } from '../../../plugins/mail/providers.ts';
 import { Button, EmptyState, Icon, sameData, requestNavigation, useUnsavedChanges } from './ui.tsx';
-const date = (value: string) =>
-  Number.isNaN(Date.parse(value))
-    ? value
-    : new Date(value).toLocaleString(locale(), {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
 export function MailView({ data, act, setPage }: any) {
   const [tab, setTab] = useState('inbox'),
     [rows, setRows] = useState<any>({ accounts: [], messages: [], drafts: [] }),
@@ -346,7 +338,7 @@ export function MailView({ data, act, setPage }: any) {
                   >
                     <div className="row between">
                       <strong>{mail.from.replace(/<.*>/, '').trim() || mail.from}</strong>
-                      <time>{date(mail.date)}</time>
+                      <AppTime at={mail.date}/>
                     </div>
                     <b>{mail.subject || t('（无主题）')}</b>
                     <small>
@@ -417,7 +409,7 @@ export function MailView({ data, act, setPage }: any) {
                         {selected.to}
                       </p>
                     )}
-                    <p>{date(selected.date)}</p>
+                    <p><AppTime at={selected.date}/></p>
                   </div>
                   {reading ? (
                     <div className="chat-loading">
@@ -465,7 +457,7 @@ export function MailView({ data, act, setPage }: any) {
                     </small>
                     <small>
                       {a.status ? statusText(a.status.state) : t('尚未同步')}
-                      {a.status?.finishedAt ? ' · ' + date(a.status.finishedAt) : ''}
+                      {a.status?.finishedAt ? <> · <AppTime at={a.status.finishedAt}/></> : ''}
                     </small>
                     {a.status?.message && <span className="warning">{t(a.status.message)}</span>}
                   </span>

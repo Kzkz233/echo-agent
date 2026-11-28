@@ -28,6 +28,6 @@ export function requireMailbox(store: Store, caller: Caller, accountId?: string)
   invariant(
     mailCallerAccounts(store, caller).some((account) => account.id === accountId),
     'mail_scope',
-    '此角色未获得该邮箱的访问授权。',
+    '此伙伴未获得该邮箱的访问授权。',
   );
 }

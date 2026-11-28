@@ -1,0 +1,22 @@
+{
+  "format": "frame-atlas-v1",
+  "image": "atlas.png",
+  "facing": "fixed",
+  "clips": {
+    "idle": {
+      "fps": 1,
+      "frames": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 140,
+          "h": 154
+        }
+      ]
+    }
+  },
+  "author": "Echo",
+  "license": "Apache-2.0",
+  "licenseUrl": "https://www.apache.org/licenses/LICENSE-2.0",
+  "source": "Echo original companion artwork"
+}

@@ -2,10 +2,8 @@ import { isDeepStrictEqual } from 'node:util';
 import { invariant } from '../../packages/contracts/index.ts';
 import type { CharacterDraft } from '../../plugins/persona/character-contracts.ts';
 import { starterCharacters, starterSourcePrompts, starterStudio } from './starter-content.ts';
-import {
-  starterCharacters as legacyCharacters,
-  starterSourcePrompts as legacySourcePrompts,
-} from './starter-content-v2.ts';
+import legacy from './starter-legacy.json' with { type: 'json' };
+import { hash } from './starter-art.ts';
 
 type Example = (typeof starterCharacters)[number];
 type Content = { [K in Exclude<keyof Example, 'expression'>]: string } & {
@@ -72,11 +70,17 @@ function merge(base: unknown, local: any, remote: any): any {
   return local;
 }
 
+function recognized(digest: unknown, value: any): any {
+  if(typeof digest==='string') return typeof value==='string' && hash(value)===digest ? value : null;
+  if(!digest || typeof digest!=='object')return undefined;
+  return Object.fromEntries(Object.entries(digest).map(([k,v])=>[k,recognized(v,value?.[k])]));
+}
+
 export function refreshStarterDraft(current: CharacterDraft, example: Example, version: string) {
   invariant(
-    current.package?.id === 'echo-starter-' + example.id,
+    current.package?.id === 'echo-starter-' + example.id || current.package?.id === 'echo-starter-' + legacy[example.id].legacyId,
     'example_conflict',
-    '示例角色包不匹配。',
+    '示例伙伴包不匹配。',
   );
   const draft = structuredClone(current);
   // Catalog settings also contain editor aliases. Keep only the canonical maps,
@@ -89,14 +93,8 @@ export function refreshStarterDraft(current: CharacterDraft, example: Example, v
   const stored = baseline.starterDefaults as Defaults | undefined;
   // Version 2 saved only persona.prompt. Other exact, publicly shipped defaults
   // are recoverable; unknown versions must never be guessed or overwritten.
-  const old =
-    stored ??
-    (current.package!.version.startsWith('2.')
-      ? starterDefaults(
-          legacyCharacters.find((row) => row.id === example.id)! as Content,
-          legacySourcePrompts,
-        )
-      : {});
+  const old:Defaults = { ...stored };
+  const hashes: Record<string,unknown> = legacy[example.id].v2;
   if (!stored && typeof (baseline.persona as any)?.prompt === 'string')
     old['persona.prompt'] = (baseline.persona as any).prompt;
   const next = starterDefaults(example);
@@ -127,7 +125,8 @@ export function refreshStarterDraft(current: CharacterDraft, example: Example, v
     }
     // Unknown older defaults are kept, including deliberately missing values.
     if (!stored && !current.package!.version.startsWith('2.') && !(path in old)) continue;
-    const value = merge(old[path], holder[key], remote);
+    const base = !stored && current.package!.version.startsWith('2.') && !(path in old) ? recognized(hashes[path], holder[key]) : old[path];
+    const value = merge(base, holder[key], remote);
     if (!isDeepStrictEqual(holder[key], value)) {
       holder[key] = value;
       updated++;
@@ -135,9 +134,12 @@ export function refreshStarterDraft(current: CharacterDraft, example: Example, v
   }
   draft.package = {
     ...current.package!,
+    id:'echo-starter-'+example.id,
     version,
     baseline: {
       ...baseline,
+      id:'echo-starter-'+example.id,
+      name:example.name,
       version,
       persona: { name: example.name, prompt: example.prompt },
       starterDefaults: next,

@@ -2,12 +2,12 @@
 
 ## Conversation controls
 
-Role-managed main conversations use the built-in Pi agent loop; the composer shows the
+Companion-managed main conversations use the built-in Pi agent loop; the composer shows the
 selected language model rather than an engine switcher. Configure the main model, project
-directories and permissions in Edit Character. Each subtask has its own execution snapshot,
-and group members inherit the character configuration. The public conversation operation cannot bypass this
+directories and permissions in Edit Companion. Each subtask has its own execution snapshot,
+and group members inherit the companion configuration. The public conversation operation cannot bypass this
 ownership. Reconnecting the same configured binding and per-chat reasoning controls remain
-available. Independent core conversations without a managed character retain their own
+available. Independent core conversations without a managed companion retain their own
 configuration so the kernel can run without Persona.
 
 The inference interface exposes an optional session capability descriptor and structured
@@ -54,13 +54,13 @@ across hosts. Echo does not replicate every proprietary desktop feature or nativ
 
 ## Subtask authorization and acceptance
 
-Delegation is a core role capability. A role grants additional execution models, directory
+Delegation is a core companion capability. A companion grants additional execution models, directory
 read/write scope, application tools, approval policy, optional terminal access, maximum
 duration and concurrency. The main model is always available. The main agent chooses a
 subset of these grants for each new subtask, together with its goal, acceptance criteria
 and instructions. Manual delegation uses the same admission path. There is no reusable
 Worker profile to create first. Each task freezes its own execution snapshot; continuation
-revalidates it against the current role grants. A role sets main-conversation tools and
+revalidates it against the current companion grants. A companion sets main-conversation tools and
 delegable tools separately. Each child receives only its selected tools that are still
 delegable and available from active plugins. An empty selection grants no tools.
 Upgrading preserves effective grants for existing conversations and subtasks.
@@ -79,7 +79,7 @@ existence, size and SHA-256 for files up to 8 MiB. This proves file identity, no
 of the worker's explanation or success of arbitrary claimed tests. Worker-reported checks
 remain distinguishable from program evidence.
 
-Successful execution becomes **completed / awaiting review**. Only the originating role
+Successful execution becomes **completed / awaiting review**. Only the originating companion
 or the user can mark that attempt accepted or needing revision. Missing/out-of-root artifacts
 block acceptance. Workers cannot accept themselves. Accepted attempts are optional Review
 materials. Continuation validates current policy; changed privileges require a new task.
@@ -87,7 +87,7 @@ materials. Continuation validates current policy; changed privileges require a n
 When configured, settlement schedules one application-origin handoff into the originating
 conversation. Related concurrent tasks are collected after they settle. Durable outbox and
 submission IDs suppress repeat handoffs; unknown execution blocks automatic continuation.
-The role can inspect and accept results during that handoff but cannot recursively start
+The companion can inspect and accept results during that handoff but cannot recursively start
 more workers from it. There is no periodic model call to ask whether a task has finished.
 If the parent is a plain API, it can summarize while acceptance remains available in the UI.
 
@@ -107,7 +107,7 @@ The member's own answers are not sent back as newly received messages. This is b
 incremental delivery, not an additional model-generated summary or automatic compaction.
 
 The cursor captures the input snapshot before generation and advances only after a confirmed
-result. Messages that arrive while a role speaks remain unread for its next turn. Native
+result. Messages that arrive while a companion speaks remain unread for its next turn. Native
 success recovered after a crash restores the reply and cursor without another model call.
 Members selected for a turn speak once in the chosen order, with a bounded participant list;
 there is no unbounded autonomous chat or extra LLM selecting every speaker.

@@ -75,13 +75,13 @@ export function ChatStickView({ personaId, embedded = false }: { personaId: stri
           onChange={(event) => setFile(event.target.files?.[0])} />
       </label>
       <label className="inline-toggle"><input type="checkbox" checked={draft.enabled}
-        onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />{t('允许角色使用')}</label>
+        onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />{t('允许伙伴使用')}</label>
       <div className="row wrap">
         <Button type="submit" disabled={pending}>{t('保存')}</Button>
         <Button secondary onClick={() => setDraft(null)}>{t('取消')}</Button>
       </div>
     </form>}
-    {!items.length && !draft && <p className="card">{t('这个角色还没有聊天表情。')}</p>}
+    {!items.length && !draft && <p className="card">{t('这个伙伴还没有聊天表情。')}</p>}
     {items.map((item) => <article className="card chatstick-entry" key={item.key}>
       <ReplyImageView image={item.image} />
       <div><h3>{item.label}</h3><p>{item.meaning}</p><small>{item.key} · {t(item.enabled ? '已启用' : '已停用')}</small></div>

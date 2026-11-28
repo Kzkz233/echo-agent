@@ -414,7 +414,8 @@ h2 {
 }
 .character-navigation .nav-item:has(.role-initial) {
   border: 1px solid transparent;
-  padding: 8px;
+  padding: 5px 8px;
+  gap: 10px;
 }
 .character-navigation .nav-item.selected:has(.role-initial) {
   background: var(--panel);
@@ -427,8 +428,9 @@ h2 {
   bottom: 14px;
 }
 .role-initial {
-  width: 34px;
-  height: 34px;
+  width: var(--nav-portrait-size, 48px);
+  height: var(--nav-portrait-size, 48px);
+  flex-shrink: 0;
   border-radius: var(--radius-panel);
   background: var(--surface-soft);
   color: var(--text);
@@ -838,6 +840,7 @@ h2 {
 }
 @media (max-width: 780px) {
   .sidebar {
+    --nav-portrait-size: 40px;
     width: 62px;
     padding: 0 7px 12px;
   }
@@ -856,6 +859,9 @@ h2 {
     margin: 10px 0 4px;
   }
   .sidebar .character-navigation .nav-group-label > :not(.icon-button) { display: none; }
+  .character-navigation .nav-item:has(.role-initial) {
+    padding: 5px 2px;
+  }
   .sidebar .character-navigation .nav-item > .unread-dot {
     position: absolute;
     top: 4px;
@@ -1105,9 +1111,6 @@ h2 {
   }
   .topbar > .topbar-actions {
     margin-left: auto;
-  }
-  .character-navigation .nav-item:has(.role-initial) {
-    padding: 6px 4px;
   }
 }
 @media (max-width: 540px) {

@@ -1,3 +1,4 @@
+import { AppTime } from './message-time.tsx';
 import { KnowledgeQuery, searchKnowledge } from './knowledge-query.tsx';
 import type { ParserDescriptor } from '../../../packages/contracts/parsing.ts';
 import { libraryLabel } from './library-label.ts';
@@ -284,9 +285,9 @@ export function KnowledgeView({
     return parts
       .map((part, n) => {
         if (parts[0] === 'Personas') {
-          if (n === 0) return t('角色档案');
-          if (n === 1) return data.personas.find((p: any) => p.id === part)?.name ?? t('角色');
-          if (part === 'Memory') return t('角色记忆');
+          if (n === 0) return t('伙伴档案');
+          if (n === 1) return data.personas.find((p: any) => p.id === part)?.name ?? t('伙伴');
+          if (part === 'Memory') return t('伙伴记忆');
           if (part === 'Reviews') return t('记忆整理报告');
         }
         return part;
@@ -894,7 +895,7 @@ export function KnowledgeView({
             {revisions.map((r) => (
               <div className="row between" key={r.revision}>
                 <span>
-                  v{r.revision} · {new Date(r.updatedAt).toLocaleString(locale())} ·{' '}
+                  v{r.revision} · <AppTime at={r.updatedAt}/> ·{' '}
                   {r.chars.toLocaleString(locale())} {t('字符')}
                 </span>
                 {editable && r.revision !== selected.revision && !selected.metadata?.producer && (

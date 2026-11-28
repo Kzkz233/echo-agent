@@ -1,0 +1,76 @@
+{
+  "aria": {
+    "legacyId": "hina",
+    "legacyName": "Hina",
+    "portrait": "5dec8a340b8efa69d15b884817cb3ff96b6175fb909f2cb556cbbaf0b4cf0207",
+    "atlas": "9c43dc5bc737a1ab91c35f760a1271c216be4e8b3ceeba31f20b5adf6ac46419",
+    "stickers": {
+      "hello": "dcee87d2aef771443308764e6c22a09bc4c69abd47ad43c9e6f42af55c655e00",
+      "thinking": "7e0b5d3ff251c7aeddd3956d367d7af401a1f3b760455f6f1122ac0ad5a0dec1",
+      "celebrate": "f25e4d59746a457f1850fe80040513d95ebaea3b1a182cc9042afc4eb1b2d5e2"
+    },
+    "v2": {
+      "persona.prompt": "6715f0e5a095bff51fc2ad93ccb79207acfd344a55f91d1275bce7db4e72d692",
+      "persona.expression.external": "258c19bec5a3a572551ad2477ca2ca800bfa5cb5fbc4bf78fb985ee470c14170",
+      "persona.expression.bubble": "62885329c7c41a631f3daef275156343dfa10ce59daaa3a9693567d39f51cbbc",
+      "persona.expression.stickers": "24688dd7882db00cc54deb3e7efa042cfc9d677b662e6dceb51bfbaac2422f9c",
+      "configurations.memory.queryPrompt": "90b95aa1f7145bbcc644127cc63f3177d700f5c05ab971367d01ce4b24f3deaa",
+      "configurations.delegation.prompt": "08c7d1898023352f407c889ef32dd617eca42c9e1f5a6797e1b81a45ad3fed99",
+      "configurations.delegation.reportPrompt": "2b5dc4a4950a81db2abacf102b4e1b28a6d83502f3ecb699c2bc0edfd965b329",
+      "review.policies:prompt": "43c8b3eea8083ebae7e9b3ecd79fd7d4b9b41a47303e70b83ec7f5290d15a9c2",
+      "review.policies:memoryPrompt": "98647e3a275d76b2ddb63e723bf078bbd7838c3f5ffcdcd6a874e4be690107fa",
+      "review.policies:corePrompt": "8dc70e24757d55f2bbede0b34dd7c1e6dabbd56767f73f5f12315dce99637c76",
+      "review.policies:reportPrompt": "109c74bd4bb18172bee06dcf04ccee5e816b8fca1e23bd1e7a14c9ebfe973204",
+      "review.policies:sourcePrompts": {
+        "core.conversation": "214724651be87aa214da880fcb008cfb28488c8131af703ba356bba491bec92d",
+        "observation.source": "81b9ce46f82e1586c23a7c0aa5a2e7e16cfd39eea4b9fe854aba1a298c0770ed",
+        "mail.source": "54ed65ea60bd52ee409ae245906fb9a0c738c4de4ec8ce9166dea84e2ec47181",
+        "agenda.source": "cb13026f2efa581213ba5be862d8072a6978f3ddedbee0fd6e4bfb1b8ce473c4"
+      },
+      "review.policies:targetPrompts": {
+        "reflections.state": "8b03ec1f9038a9aee00044f521c9ef94584b280da23380408f7cce70c429ceaa"
+      },
+      "care.rules:prompt": "078bac9a1a3c43105bb2cce8aab22aa9af05bd90a771ba5ef4921ecc022daae4",
+      "observation.tasks:interactionPrompt": "4211f6b298b40976365d05298df5a1d339ae4d942fdc1809304ac27805253998",
+      "observation.tasks:observationPrompt": "75bf6bc2ab602d477e28b419b750a89490c96d24cf1012e11e4f376caaf5e3f7",
+      "mail-triggers.rules:prompt": "2a4213531983f3dc31421b9117fdfed3b1873f7e43c1d2b92ae119c103a38de2"
+    }
+  },
+  "coda": {
+    "legacyId": "miyu",
+    "legacyName": "Miyu",
+    "portrait": "92ab8a330d22989ede3a10821044fa8693d597b37ca440dd504e7321311358c9",
+    "atlas": "3358a5ead27aa564d43e2e3d5b04737d870556482f9c868f8b0b8ffb0e0f6f8d",
+    "stickers": {
+      "hello": "9fefac857ffa07192f5f0be32e4b73c2d8101864a39bb5be9570bdb8b61fef7c",
+      "thinking": "4071d5ad42ea4bc70d4ff8d8db3e6ce94bc96dbbc965a3dedf619f7c8868a1fc",
+      "celebrate": "ea5b9aa0590dd5dd7f695ba459f00225301a97fdecbe5e84589577af41fdc39f"
+    },
+    "v2": {
+      "persona.prompt": "8fc7e4f20cd27af86a2bb40181cb6ca8ab9bdae0b8ededcdec9b9f5109066b4d",
+      "persona.expression.external": "4bc7e6c07fecdfe3fd4d0264c168c307c79223b3fd1e19f0082b48c86b0d0502",
+      "persona.expression.bubble": "d2d78ec4066649878dc094242b1528feaaf80066415b18f2800607a2990f4e13",
+      "persona.expression.stickers": "66985322cdeb2d0fc1035e4586ee008986312f290973bcf2ea74d8bd8ec94331",
+      "configurations.memory.queryPrompt": "4be651af621f1ee5269b1d1c958d1d25da7dc2c70048e97e862b1a5f1f5e3a08",
+      "configurations.delegation.prompt": "ed24a1b484d4cd446ae975cfa4617dc46ac9c34ced4e51a98d0836dfef055e41",
+      "configurations.delegation.reportPrompt": "eddd0cbe4df63c6e66ec8a64ee7825898166a1eea642613a9e75b266af4682ea",
+      "review.policies:prompt": "f2a63d62b1319ee21252ec3cdec495aab915c867ee5a7feca044b082106ede04",
+      "review.policies:memoryPrompt": "ec7dbdd26fa0e7804a49b3f6102461c93be1d3dbc198cc598bbe4fc71d3e4248",
+      "review.policies:corePrompt": "7dafe466a158498d3383682ab9c279bc26a27c6fec54cd3af778d068c81fabcf",
+      "review.policies:reportPrompt": "7f739dea82ce3e1e14878a34029f744a2b6e41753dff6fab11dc5ab4d515b16a",
+      "review.policies:sourcePrompts": {
+        "core.conversation": "214724651be87aa214da880fcb008cfb28488c8131af703ba356bba491bec92d",
+        "observation.source": "81b9ce46f82e1586c23a7c0aa5a2e7e16cfd39eea4b9fe854aba1a298c0770ed",
+        "mail.source": "54ed65ea60bd52ee409ae245906fb9a0c738c4de4ec8ce9166dea84e2ec47181",
+        "agenda.source": "cb13026f2efa581213ba5be862d8072a6978f3ddedbee0fd6e4bfb1b8ce473c4"
+      },
+      "review.policies:targetPrompts": {
+        "reflections.state": "3f414898cf9f99d3a203511c8c49113c3a043527cb7b7fc210e3f489d58f8f1b"
+      },
+      "care.rules:prompt": "ed0a9800c4a36b367c6e6c55831cf94ddb3ca63abe3de8c6d1178068d9671858",
+      "observation.tasks:interactionPrompt": "29fc375c3126af04170635be66da09096983effab97755d68722db9b6d8733a0",
+      "observation.tasks:observationPrompt": "f603f5a5a40831878f563283c2828c09725e6b37e36913148da759ac96ba1eb6",
+      "mail-triggers.rules:prompt": "eb57ffa23229829aa212effc43e2e13cf1b554b05203548d24c6b99177bf3633"
+    }
+  }
+}

@@ -716,7 +716,7 @@ export class Mailbox {
         this.materials.register(
           {
             id: 'mail',
-            label: '已同步邮件（按角色）',
+            label: '已同步邮件（按伙伴）',
             streams: () =>
               this.store
                 .documents<{ id: string }>('personas')

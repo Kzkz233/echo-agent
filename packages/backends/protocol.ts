@@ -2,13 +2,32 @@ import type { Model, ProviderStreams, SimpleStreamOptions } from '@earendil-work
 import { invariant, type GenerationProtocol, type Profile } from '../contracts/index.ts';
 import { effectiveReasoning, selectedReasoning } from './model-metadata.ts';
 
-/** Pi includes response-only empty citation metadata when replaying assistant
- * text. Compatible Responses servers may reject it as an unknown input member.
- * Remove only empty metadata on text parts, never tool arguments or citations. */
+/** Normalize replay artifacts on the Responses wire without editing the durable transcript. */
 export function responsesInputPayload(payload: unknown): unknown {
   const body = payload as { input?: unknown } | null;
   if (!body || !Array.isArray(body.input)) return payload;
-  return { ...body, input: body.input.map((item: any) => {
+  // Some gateways emit a standalone newline after a function call. On replay
+  // Responses reads it as an intervening assistant message before the output.
+  const pending = new Set<string>();
+  let blanks: number[] = [];
+  const redundant = new Set<number>();
+  for (const [index, item] of (body.input as any[]).entries()) {
+    if (pending.size && item?.type === 'message' && item.role === 'assistant' &&
+        Array.isArray(item.content) && item.content.length && item.content.every((part: any) =>
+          part?.type === 'output_text' && typeof part.text === 'string' && !part.text.trim() &&
+          !part.annotations?.length && Object.keys(part).every(k => ['type','text','annotations'].includes(k)))) {
+      blanks.push(index);
+      continue;
+    }
+    const call = item?.type === 'function_call' || item?.type === 'custom_tool_call';
+    const output = item?.type === 'function_call_output' || item?.type === 'custom_tool_call_output';
+    if (output && pending.delete(item.call_id)) {
+      for (const blank of blanks) redundant.add(blank);
+      blanks = [];
+    } else if (!call) { blanks = []; pending.clear(); }
+    if (call && typeof item.call_id === 'string') pending.add(item.call_id);
+  }
+  return { ...body, input: body.input.filter((_, i) => !redundant.has(i)).map((item: any) => {
     if (item?.type !== 'message' || !Array.isArray(item.content)) return item;
     return { ...item, content: item.content.map((part: any) => {
       if (part?.type !== 'output_text' || !Array.isArray(part.annotations) || part.annotations.length) return part;

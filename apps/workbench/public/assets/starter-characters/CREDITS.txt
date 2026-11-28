@@ -1,7 +1,4 @@
-Hina Codex Pet by Ryu JaeHyun. Visual artwork: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
-Source: https://github.com/springtiger07/codex-chibi-girl-pets/tree/6e8ca988a6b3db007cc74e5f0ab62aca5a801131/Hina
-Echo adaptation: lossless PNG conversion, named animation mapping, idle-frame preview and cropped/resized portrait. Original artwork and character names retained. No endorsement implied.
-
-Miyu Codex Pet by Ryu JaeHyun. Visual artwork: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
-Source: https://github.com/springtiger07/codex-chibi-girl-pets/tree/6e8ca988a6b3db007cc74e5f0ab62aca5a801131/Miyu
-Echo adaptation: lossless PNG conversion, named animation mapping, idle-frame preview and cropped/resized portrait. Original artwork and character names retained. No endorsement implied.
+Aria and Coda — Echo starter companions
+Original character designs and AI-assisted illustrations created for the Echo project.
+Portraits are derived from the approved full-length artwork. The messaging stickers and forward-facing single-frame desktop sprites are separately illustrated.
+Distributed with Echo under the Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0

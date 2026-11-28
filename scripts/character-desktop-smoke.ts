@@ -132,7 +132,7 @@ try {
     .locator('aside')
     .getByRole('button', { name: /Native Fixture/ })
     .click();
-  await main.getByRole('button', { name: '配置角色', exact: true }).waitFor();
+  await main.getByRole('button', { name: '配置伙伴', exact: true }).waitFor();
   await main.getByRole('button', { name: '设置', exact: true }).click();
   let settings;
   for (let i = 0; i < 80; i++) {

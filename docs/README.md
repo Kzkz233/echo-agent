@@ -4,7 +4,7 @@
 
 ## 开始使用
 
-- [快速开始](GETTING-STARTED.md) — 安装、连接模型、创建角色。
+- [快速开始](GETTING-STARTED.md) — 安装、连接模型、添加伙伴。
 - [使用指南](FEATURES.md) — 对话、任务、知识库和日常使用。
 - [更新与恢复](UPDATES.md) — 应用内更新、命令行更新和回滚。
 
@@ -12,7 +12,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
-| [角色与群聊](CHARACTERS.md) | 人设、记忆、授权、角色包和群聊 |
+| [伙伴与群聊](CHARACTERS.md) | 人设、记忆、授权、伙伴包和群聊 |
 | [模型服务](INFERENCE.md) | 在线连接、本地模型和任务模型选择 |
 | [渠道与表达](CHANNELS.md) | 聊天、QQ、桌宠、通知和投递记录 |
 | [命令行](CLI.md) | 会话、任务、知识库、诊断与更新命令 |
@@ -33,7 +33,7 @@
 | 自动化 | [任务接口与生命周期](TASKS-AND-ACTIVITY.md) · [邮件任务范围](MAIL-SCOPES.md) |
 | 知识系统 | [检索与存储接口](RETRIEVAL-AND-STORAGE.md) · [解析、索引与迁移](knowledge-parsing.md) |
 | 前端 | [设计系统](DESIGN-SYSTEM.md) · [页面与导航](WORKBENCH-ARCHITECTURE.md) · [原生顶栏](WINDOW-CHROME.md) |
-| 品牌与示例 | [品牌资源](BRAND.md) · [示例角色](starter-characters.md) |
+| 品牌与示例 | [品牌资源](BRAND.md) · [示例伙伴](starter-characters.md) |
 
 ## 项目维护
 

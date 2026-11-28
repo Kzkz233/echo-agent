@@ -10,37 +10,37 @@ Echo separates three records.
 | --- | --- |
 | Connection | Adapter, endpoint or command, credential reference and service settings |
 | Model | Connection reference, model name or artifacts, modalities, reasoning and output settings |
-| Task route | The model selected for a registered application or character task |
+| Task route | The model selected for a registered application or companion task |
 
-Configure reusable services in **Settings → Model Services**. Worker connections belong to their Codex or DeepSeek Harness extension. A service can expose several models while sharing credentials. Credentials remain protected references and are not copied into character packages.
+Configure reusable services in **Settings → Model Services**. Worker connections belong to their Codex or DeepSeek Harness extension. A service can expose several models while sharing credentials. Credentials remain protected references and are not copied into companion packages.
 
 Connection classification comes from the registered adapter. Legacy API connections marked as external workers are displayed as API services; their endpoints and credential references remain unchanged.
 
 Main conversations run through Pi. Selecting a language model changes its model binding. Codex and DSH are optional worker executors with separate native sessions and isolated application-owned homes. A local OpenAI-compatible endpoint uses an API adapter. An Echo-managed local runtime additionally owns model loading and process shutdown.
 
-Character tasks inherit the main model unless an explicit compatible model is selected. Shared tasks, including embedding and knowledge query services, use application settings. Eligibility is the intersection of task requirements, declared model capabilities and adapter support. Removing a provider makes its selections unavailable without redirecting work to another service.
+Companion tasks inherit the main model unless an explicit compatible model is selected. Shared tasks, including embedding and knowledge query services, use application settings. Eligibility is the intersection of task requirements, declared model capabilities and adapter support. Removing a provider makes its selections unavailable without redirecting work to another service.
 
 [First connection](GETTING-STARTED.md#连接模型) · [Configuration ownership](PRODUCT-CONFIGURATION.md) · [Worker execution](BACKENDS.md)
 
 ## Output and reasoning
 
-New models automatically use the output capacity declared by their model catalog. A custom endpoint without capacity metadata uses a 65,536-token fallback. Leave the output field blank for automatic selection; manual output limits and the input character budget are available under **Advanced generation limits**. Existing saved limits remain unchanged.
+New models automatically use the output capacity declared by their model catalog. A custom endpoint without capacity metadata uses a 65,536-token fallback. Leave the output field blank for automatic selection; manual output limits and the input companion budget are available under **Advanced generation limits**. Existing saved limits remain unchanged.
 
 The output limit applies to one model response, including replies and context summaries. It is not a cumulative task budget: an Agent can make multiple model calls and execute tools throughout a task. Conversation and task overrides take precedence over the model setting while still respecting declared model capacity and available context. There is no fixed 128K configuration ceiling. Summary prompts request concise text within the context budget; there is no separate fixed token allowance for summaries. Failed history compression stops preparation of the next run and preserves the original history.
 
-The input character budget and the model's total token capacity are separate settings. An unknown token capacity does not reduce the configured output allowance. Agent and auxiliary API requests use the same output parameter format. Explicit model capacity still constrains generation.
+The input companion budget and the model's total token capacity are separate settings. An unknown token capacity does not reduce the configured output allowance. Agent and auxiliary API requests use the same output parameter format. Explicit model capacity still constrains generation.
 
 Generation settings can be saved while an existing run awaits reconciliation and apply to the next request. Changing the model identity or connection remains blocked until its outstanding execution is resolved.
 
 Adapters declare mutable request options through `mutableModelOptions`. Built-in API adapters include context capacity and output parameter format. Extensions keep model identity and artifact options protected unless they explicitly declare an option mutable.
 
-Automatic reasoning discovery reads explicit provider metadata or a documented adapter. A model listing that contains only IDs does not declare reasoning support. Explicit effort settings still use the selected protocol's native parameters; missing metadata does not silently disable them. Select a parameter format and supported levels from the provider's documentation for custom APIs. Roles and tasks can override the model's default effort. Draft forms and execution use the same declarations.
+Automatic reasoning discovery reads explicit provider metadata or a documented adapter. A model listing that contains only IDs does not declare reasoning support. Explicit effort settings still use the selected protocol's native parameters; missing metadata does not silently disable them. Select a parameter format and supported levels from the provider's documentation for custom APIs. Companions and tasks can override the model's default effort. Draft forms and execution use the same declarations.
 
 If a metadata refresh fails, the settings page retains previously retrieved capabilities for the same connection and reports the failure. An endpoint change invalidates that cache. Manual declarations remain available without a successful directory request.
 
 Search expansion, language reranking and context summaries inherit the selected model's reasoning setting unless their task or conversation supplies an override. Delegated approval uses the main conversation's model and reasoning through the shared inference path; its existing authorization checks still apply.
 
-Agent execution uses inactivity timers to detect missing progress. New delegated work, prompt automations and Review tasks have no total execution deadline by default. An explicit task deadline is enforced by the shared work-session lifecycle; backends do not impose another fixed ceiling. Set the duration to `0` for unlimited execution. Existing saved durations remain in effect, and a finite role limit cannot be bypassed by requesting `0`. There is no fixed two-hour configuration maximum. Pending human decisions pause the inactivity timer. Individual API requests retain the model's request timeout.
+Agent execution uses inactivity timers to detect missing progress. New delegated work, prompt automations and Review tasks have no total execution deadline by default. An explicit task deadline is enforced by the shared work-session lifecycle; backends do not impose another fixed ceiling. Set the duration to `0` for unlimited execution. Existing saved durations remain in effect, and a finite companion limit cannot be bypassed by requesting `0`. There is no fixed two-hour configuration maximum. Pending human decisions pause the inactivity timer. Individual API requests retain the model's request timeout.
 
 Context summaries allow at least ten minutes for a quiet request, or the model's
 configured timeout when longer. This applies to history preparation and compression
@@ -67,10 +67,10 @@ Built-in streaming adapters retain streaming callbacks. A contributed stateless 
 
 | Task | Scope |
 | --- | --- |
-| `core.chat` | Character |
-| `observation.vision` | Character |
-| `memory.query` | Character |
-| `review.generate` | Character |
+| `core.chat` | Companion |
+| `observation.vision` | Companion |
+| `memory.query` | Companion |
+| `review.generate` | Companion |
 | `semantic.query` | Application |
 | `embeddings.encode` | Application |
 

@@ -4,16 +4,16 @@ import { createAssistantMessageEventStream, type AssistantMessageEventStream } f
 import { isRetryableAssistantError, retryDelayMs } from '@earendil-works/pi-ai/utils/retry';
 import type { GenerateRequest } from '../contracts/index.ts';
 
-const retries = 5;
+export const maxModelRetries = 5;
 const transientStatus = new Set([408, 429, 500, 502, 503, 504, 520, 522, 524, 529]);
 
 /** One budget per inference step, including failures reported inside a successful HTTP stream. */
 export class ModelStepRetry {
-  private count = 0;
   private status?: number;
   private minimumDelay = 0;
   private transport = '';
-  constructor(readonly signal: AbortSignal, private onItem: GenerateRequest['onItem'], private step: number) {}
+  constructor(readonly signal: AbortSignal, private onItem: GenerateRequest['onItem'], private step: number,
+    private budget = { used: 0 }) {}
 
   async fetch(fetcher: typeof fetch, input: Parameters<typeof fetch>[0], init?: RequestInit) {
     this.status = undefined;
@@ -33,17 +33,17 @@ export class ModelStepRetry {
   }
 
   async again(message: string) {
-    if (this.count >= retries || this.signal.aborted || this.minimumDelay > 30000) return false;
+    if (this.budget.used >= maxModelRetries || this.signal.aborted || this.minimumDelay > 30000) return false;
     if (this.status && this.status >= 400 && !transientStatus.has(this.status)) return false;
     const detail = [this.status, this.transport, message].join(' ');
     if (/cert(?:ificate|_)|ERR_TLS|ERR_INVALID_URL|redirect count|insufficient.balance|credits? exhausted|content_filter|invalid_api_key/i.test(detail)) return false;
     // The upstream classifier only inspects these two fields. Preserve its billing/limit exclusions.
     const hint = this.status && transientStatus.has(this.status) ? ' server_busy' : '';
     if (!isRetryableAssistantError({ stopReason: 'error', errorMessage: detail + hint } as AssistantMessage)) return false;
-    const attempt = ++this.count;
+    const attempt = ++this.budget.used;
     const delay = Math.max(this.minimumDelay, retryDelayMs({ baseDelayMs: 800 }, attempt) + Math.floor(Math.random() * 200));
     this.onItem?.({ id: `model-retry-${this.step}-${attempt}`, kind: 'status', state: 'completed',
-      title: '模型连接重试', text: `第 ${attempt}/${retries} 次重试，等待 ${(delay / 1000).toFixed(1)} 秒。` });
+      title: '模型连接重试', text: `第 ${attempt}/${maxModelRetries} 次重试，等待 ${(delay / 1000).toFixed(1)} 秒。` });
     await sleep(delay, undefined, { signal: this.signal });
     return true;
   }

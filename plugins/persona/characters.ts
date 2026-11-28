@@ -31,14 +31,14 @@ function portableConfiguration(fields: any[], value: Record<string, any>): Recor
       )
       .map((field) => {
         if (field.type !== 'records') return [field.key, value[field.key]];
-        invariant(Array.isArray(value[field.key]), 'package_configuration', '角色包列表配置无效。');
+        invariant(Array.isArray(value[field.key]), 'package_configuration', '伙伴包列表配置无效。');
         return [
           field.key,
           value[field.key].map((row: any) => {
             invariant(
               row && typeof row === 'object' && !Array.isArray(row),
               'package_configuration',
-              '角色包条目无效。',
+              '伙伴包条目无效。',
             );
             return {
               ...(typeof row.id === 'string' ? { id: row.id } : {}),
@@ -60,7 +60,7 @@ export class Characters {
   ) {}
   private ctx?: PluginContext;
   private scope() {
-    invariant(this.ctx, 'plugin_disabled', '角色能力尚未启用。');
+    invariant(this.ctx, 'plugin_disabled', '伙伴能力尚未启用。');
     return this.ctx;
   }
   private conversationPersona(value: unknown) {
@@ -129,7 +129,7 @@ export class Characters {
     personaId: string, suppliedCatalog?: Awaited<ReturnType<Characters['catalog']>>,
   ): Promise<CharacterDraft & { mainConversationId: string; state: string; issue?: string; activity: { enabled: boolean; revision: number } }> {
     const persona = this.store.document<Persona>('personas', personaId);
-    invariant(persona, 'persona_missing', '角色不存在。');
+    invariant(persona, 'persona_missing', '伙伴不存在。');
     const catalog = suppliedCatalog ?? await this.catalog();
     const role = this.record(
       personaId,
@@ -201,10 +201,10 @@ export class Characters {
       invariant(receipt.hash === hash, 'idempotency_conflict', '此保存编号对应的配置已变化。');
       if (receipt.state === 'completed') return edit ? {persona:this.store.document<Persona>('personas',roleId)!} : this.read(roleId);
     }
-    invariant(!this.pending.has(roleId), 'character_busy', '角色正在保存。');
+    invariant(!this.pending.has(roleId), 'character_busy', '伙伴正在保存。');
     this.pending.add(roleId);
     try {
-      invariant(!createOnly || receipt || !this.store.document('personas',roleId), 'revision_conflict', '此角色已存在，请从角色编辑页打开。');
+      invariant(!createOnly || receipt || !this.store.document('personas',roleId), 'revision_conflict', '此伙伴已存在，请从伙伴编辑页打开。');
       const removed = new Set(edit?.changes.tasks.flatMap(e => e.action === 'remove' ? [taskKey(e.task)] : []));
       const changed = (name: string) => !edit || edit.changes.fields.some(f => f.path[0] === name);
       const featureChanged = (name: string) => !edit || edit.changes.fields.some(f =>
@@ -213,7 +213,7 @@ export class Characters {
         edit.changes.tasks.some(e => taskKey(e.action === 'edit' ? e : e.task) === taskKey(task));
       if (edit && !edit.changes.tasks.length && edit.changes.fields.every(f => f.path[0] === 'persona')) {
         const current = this.store.document<Persona>('personas',roleId);
-        invariant(current,'persona_missing','角色不存在。');
+        invariant(current,'persona_missing','伙伴不存在。');
         const draft = mergeCharacter(characterDraft.parse({ persona:current }),edit.changes);
         const persona = personaSchema.parse(draft.persona);
         if (!isDeepStrictEqual(persona,current)) {
@@ -279,7 +279,7 @@ export class Characters {
           !this.router.isBusy(previous.mainConversationId) &&
             !this.store.unresolved(previous.mainConversationId).length,
           'character_busy',
-          '请先结束或核对角色主会话的当前运行，再保存角色配置。',
+          '请先结束或核对伙伴主会话的当前运行，再保存伙伴配置。',
         );
       }
       if (draft.permissions.projectDirectory)
@@ -297,7 +297,7 @@ export class Characters {
       invariant(
         previous.revision === (receipt ? receipt.revision : draft.revision),
         'revision_conflict',
-        '角色配置已在其他窗口修改。',
+        '伙伴配置已在其他窗口修改。',
       );
       const normalized: Record<string, any> = {};
       for (const feature of draft.features) {
@@ -306,7 +306,7 @@ export class Characters {
         invariant(
           catalog.features.some((f) => f.id === feature),
           'feature_missing',
-          '请先安装并启用角色能力：' + feature,
+          '请先安装并启用伙伴能力：' + feature,
         );
         if (featureChanged(feature) || changed('features') && !previous.features.includes(feature)) normalized[feature] = (
           await this.feature(feature, 'validate', roleId, draft.configurations[feature] ?? {})
@@ -324,7 +324,7 @@ export class Characters {
         const declared = (await this.router.inference.tasks()).find((row) => row.id === task);
         if (!declared && previous.routes?.[task] === model) continue;
         invariant(declared, 'route_missing', '推理用途尚未注册。');
-        invariant(declared.scope === 'character', 'route_scope', '共享推理任务不能绑定到角色。');
+        invariant(declared.scope === 'character', 'route_scope', '共享推理任务不能绑定到伙伴。');
         const profile = this.router.profile(model);
         invariant(
           this.router.inference.compatible(
@@ -356,7 +356,7 @@ export class Characters {
                   draft.features.includes(feature.id) && feature.taskTypes?.includes(task.type),
               )),
           'task_feature',
-          '任务对应的角色能力尚未启用。',
+          '任务对应的伙伴能力尚未启用。',
         );
         const owner = catalog.taskTypes
           .flatMap((t) => (t.items ?? []).map((item: any) => ({ type: t.id, ...item })))
@@ -367,7 +367,7 @@ export class Characters {
             this.conversationPersona(owner.settings?.conversationId) === roleId ||
             previous.taskIds.some((t) => t.id === task.id && t.type === task.type),
           'task_owner',
-          '任务属于另一个角色。',
+          '任务属于另一个伙伴。',
         );
       }
       for (const command of edit?.changes.tasks ?? []) {
@@ -376,7 +376,7 @@ export class Characters {
         invariant(type?.canRemove,'automation_unsupported','此任务类型当前无法移除。');
         const item = type.items.find(t => t.id === command.task.id);
         invariant(!item || item.settings?.personaId === roleId || this.conversationPersona(item.settings?.conversationId) === roleId ||
-          previous.taskIds.some(t => taskKey(t) === taskKey(command.task)), 'task_owner','任务属于另一个角色。');
+          previous.taskIds.some(t => taskKey(t) === taskKey(command.task)), 'task_owner','任务属于另一个伙伴。');
       }
       const oldMain = this.store.binding(previous.mainConversationId)?.profileId;
       const nextMain = draft.profileId || oldMain;
@@ -477,7 +477,7 @@ export class Characters {
           'revision_conflict','任务配置已变化，请重新打开后确认移除。');
         invariant(type.canRemove && (item.settings?.personaId === roleId ||
           this.conversationPersona(item.settings?.conversationId) === roleId ||
-          previous.taskIds.some(t => taskKey(t) === taskKey(command.task))), 'task_owner', '不可移除此角色之外的任务。');
+          previous.taskIds.some(t => taskKey(t) === taskKey(command.task))), 'task_owner', '不可移除此伙伴之外的任务。');
         await this.scope().capabilities.invoke('core.automation.types@1', type.id, { action:'remove', id:item.id });
       }
       if (changed('profileId') && draft.profileId) {
@@ -485,7 +485,7 @@ export class Characters {
         invariant(
           !binding || binding.state === 'active',
           'binding_not_ready',
-          '请先核对未完成的会话连接。角色配置已保存。',
+          '请先核对未完成的会话连接。伙伴配置已保存。',
         );
         await this.router.bind(conversationId, draft.profileId, signal);
       }
@@ -537,7 +537,7 @@ export class Characters {
       await Promise.all(
         draft.features.map(async (id) => {
           const spec = catalog.features.find((f) => f.id === id);
-          invariant(spec, 'package_plugin', '请先启用角色所用的插件再导出角色包：' + id);
+          invariant(spec, 'package_plugin', '请先启用伙伴所用的插件再导出伙伴包：' + id);
           const assets = (await this.feature(id, 'pack', personaId)).assets;
           return {
             id,
@@ -606,7 +606,7 @@ export class Characters {
               configuration,
             ),
             'package_resource',
-            '角色包包含需要在本机绑定的资源配置，请先移除这些字段。',
+            '伙伴包包含需要在本机绑定的资源配置，请先移除这些字段。',
           );
           return [f.id, { ...configuration, ...assetConfigurations[f.id] }];
         }),
@@ -649,7 +649,7 @@ export class Characters {
     invariant(
       current.package?.id === next.draft.package?.id,
       'package_identity',
-      '请选择此角色已安装的角色包。',
+      '请选择此伙伴已安装的伙伴包。',
     );
     const old = characterPackage.parse(current.package!.baseline);
     const parsedIncoming = characterPackage.parse(raw);
@@ -741,11 +741,11 @@ export class Characters {
         mcp: false,
         run: (v, _c, signal) => run(v, signal),
       });
-    op('character.catalog', '读取角色创建与编辑能力', z.object({}), () => this.catalog(true));
-    op('character.read', '读取角色完整配置', z.object({ id }), (v) => this.read(v.id));
+    op('character.catalog', '读取伙伴创建与编辑能力', z.object({}), () => this.catalog(true));
+    op('character.read', '读取伙伴完整配置', z.object({ id }), (v) => this.read(v.id));
     op(
       'character.workspace',
-      '校验工作目录或创建角色的默认工作目录',
+      '校验工作目录或添加伙伴的默认工作目录',
       z.object({ id, path: z.string().min(1).max(4096).optional() }),
       async (v) => ({
         path: v.path
@@ -753,33 +753,33 @@ export class Characters {
           : await ensureCharacterWorkspace(dirname(this.store.path), v.id),
       }),
     );
-    op('character.draft', '保存角色创建草稿', characterDraft.extend({ edits: characterEdits.optional() }), v => {
+    op('character.draft', '保存伙伴创建草稿', characterDraft.extend({ edits: characterEdits.optional() }), v => {
       this.store.put('character-drafts', v.persona.id, v);
       return v;
     });
-    op('character.patch', '保存已修改的角色配置', z.object({ id, changes: characterEdits, requestId:id }),
+    op('character.patch', '保存已修改的伙伴配置', z.object({ id, changes: characterEdits, requestId:id }),
       (v,s) => this.commit(undefined,v.requestId,s,{ id:v.id, changes:v.changes }));
-    op('character.drafts', '读取角色创建草稿', z.object({}), () =>
+    op('character.drafts', '读取伙伴创建草稿', z.object({}), () =>
       this.store.documents('character-drafts'),
     );
     op(
       'character.commit',
-      '创建或更新角色及其绑定任务',
+      '创建或更新伙伴及其绑定任务',
       z.object({ draft: characterDraft, requestId: id, createOnly:z.boolean().optional() }),
       (v, s) => this.commit(v.draft, v.requestId, s, undefined, v.createOnly),
     );
     op(
       'package.export',
-      '导出可分享的角色包',
+      '导出可分享的伙伴包',
       z.object({ personaId: id, packageId: id, version: z.string() }),
       (v) => this.exportPackage(v.personaId, v.packageId, v.version),
     );
-    op('package.import', '预览角色包并创建待配置草稿', characterPackage, (v) =>
+    op('package.import', '预览伙伴包并创建待配置草稿', characterPackage, (v) =>
       this.importPackage(v),
     );
     op(
       'package.update',
-      '预览角色包更新并保留本地覆盖',
+      '预览伙伴包更新并保留本地覆盖',
       z.object({ personaId: id, package: characterPackage }),
       (v) => this.updatePackage(v.personaId, v.package),
     );

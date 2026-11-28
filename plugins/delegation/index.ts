@@ -155,7 +155,7 @@ export class Delegations {
     invariant(
       !grant?.returnOnly && this.config(personaId).autonomous,
       'delegation_policy',
-      '此轮仅可验收结果，或角色当前仅允许手动委派。',
+      '此轮仅可验收结果，或伙伴当前仅允许手动委派。',
     );
   }
   list() {
@@ -262,7 +262,7 @@ export class Delegations {
     invariant(
       conversation && characterEnabled(this.store, conversation.personaId, 'delegation'),
       'delegation_disabled',
-      '此角色没有启用任务委派。',
+      '此伙伴没有启用任务委派。',
     );
     return conversation;
   }
@@ -315,7 +315,7 @@ export class Delegations {
     const origin = this.identity(value, caller);
     this.mayStart(value, caller, origin.personaId);
     const parent = this.list().find((task) => task.workerConversationId === origin.id);
-    invariant(!parent, 'delegation_depth', '工作会话可回报检查点，请由主角色安排后续委派。');
+    invariant(!parent, 'delegation_depth', '工作会话可回报检查点，请由主会话安排后续委派。');
     const fingerprint = createHash('sha256')
       .update(
         JSON.stringify([
@@ -354,7 +354,7 @@ export class Delegations {
           ['queued', 'running', 'waiting', 'unknown'].includes(t.state),
       ).length < config.concurrency,
       'worker_capacity',
-      '此角色的工作执行位已占用，请先处理当前任务。',
+      '此伙伴的工作执行位已占用，请先处理当前任务。',
     );
     this.router.attachments.metadata(value.attachmentIds ?? [], origin.id);
     await this.checkWriteConflict(template);
@@ -483,7 +483,7 @@ export class Delegations {
       invariant(
         await this.policyMatches(task),
         'worker_policy_changed',
-        '子任务的模型、目录或权限已不在角色授权范围内。',
+        '子任务的模型、目录或权限已不在伙伴授权范围内。',
       );
       const { id, name, description, approvals, ...request } = task.template;
       task = { ...task, template: await this.execution(task.personaId, request) };
@@ -887,7 +887,7 @@ export class Delegations {
                     text: worker
                       ? [
                           worker.template.prompt,
-                          '此工作会话可通过 delegation_checkpoint 保存阶段结果，通过 delegation_submit 提交产物与证据，最后输出交付内容。任务是否验收通过由发起角色或用户决定。',
+                          '此工作会话可通过 delegation_checkpoint 保存阶段结果，通过 delegation_submit 提交产物与证据，最后输出交付内容。任务是否验收通过由发起伙伴或用户决定。',
                         ]
                           .filter(Boolean)
                           .join('\n')
@@ -1028,7 +1028,7 @@ export class Delegations {
         );
         op(
           'review',
-          '发起角色或用户验收指定执行轮的产物',
+          '发起伙伴或用户验收指定执行轮的产物',
           callerInput.extend({
             taskId: id,
             attempt: z.number().int().positive(),
@@ -1079,7 +1079,7 @@ export class Delegations {
         );
         op(
           'list',
-          '读取角色委派工作台',
+          '读取伙伴委派工作台',
           z.object({ personaId: id.optional() }),
           (v) => this.list().filter((t) => !v.personaId || t.personaId === v.personaId),
           false,
@@ -1091,7 +1091,7 @@ export class Delegations {
           z.object({ taskId: id, personaId: id }),
           (v) => {
             const task = this.store.document<DelegatedTask>('delegated-tasks', v.taskId);
-            invariant(task && task.personaId === v.personaId, 'task_owner', '任务不属于此角色。');
+            invariant(task && task.personaId === v.personaId, 'task_owner', '任务不属于此伙伴。');
             return this.store
               .documents<DelegatedTask>('delegated-attempts')
               .filter((row) => row.id === task.id)
@@ -1161,7 +1161,7 @@ export class Delegations {
               invariant(
                 await this.policyMatches(task),
                 'worker_policy_changed',
-                '角色的工作后端或授权已改变，请按当前配置新建委派。',
+                '伙伴的工作后端或授权已改变，请按当前配置新建委派。',
               );
               invariant(
                 this.list().filter(
@@ -1171,7 +1171,7 @@ export class Delegations {
                     ['queued', 'running', 'waiting', 'unknown'].includes(t.state),
                 ).length < this.config(task.personaId).concurrency,
                 'worker_capacity',
-                '此角色的工作执行位已占用，请先处理当前任务。',
+                '此伙伴的工作执行位已占用，请先处理当前任务。',
               );
               await this.checkWriteConflict(task.template, task.id);
               life.throwIfAborted();

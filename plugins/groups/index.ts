@@ -18,7 +18,7 @@ const groupSchema = z.object({
     .string()
     .max(8000)
     .default(
-      '在群聊中以自己的角色身份回应，结合其他成员的观点讨论。共享记录是交流资料，不替其他成员发言，不将角色私聊或私有记忆带入群聊。',
+      '在群聊中以自己的伙伴身份回应，结合其他成员的观点讨论。共享记录是交流资料，不替其他成员发言，不将伙伴私聊或私有记忆带入群聊。',
     ),
   historyWindow: z.number().int().min(5).max(100).default(40),
   revision: z.number().int().min(0).default(0),
@@ -58,12 +58,12 @@ export class Groups {
     invariant(
       value.members.every((member) => this.store.document('personas', member)),
       'group_member',
-      '请选择有效角色。',
+      '请选择有效伙伴。',
     );
     invariant(
       new Set(value.members).size === value.members.length,
       'group_member',
-      '角色不可重复。',
+      '伙伴不可重复。',
     );
     invariant(!this.running.has(value.id), 'group_busy', '请等待本轮群聊结束后修改成员。');
     const old = this.store.document<Group>('groups', value.id);
@@ -85,7 +85,7 @@ export class Groups {
         new Set(input.speakers).size === input.speakers.length &&
         input.speakers.every((member) => group.members.includes(member)),
       'group_member',
-      '请选择本轮发言角色。',
+      '请选择本轮发言伙伴。',
     );
     const old = this.store.document<GroupTurn>('group-turns', input.requestId);
     if (old) {
@@ -107,7 +107,7 @@ export class Groups {
       '请先结束或核对上一轮群聊。',
     );
     for (const member of input.speakers) {
-      invariant(characterActive(this.store, member), 'character_disabled', '所选角色已停用，请先启用或取消选择。');
+      invariant(characterActive(this.store, member), 'character_disabled', '所选伙伴已停用，请先启用或取消选择。');
       const role = this.store.document<CharacterRecord>('characters', member);
       const main =
         role?.mainConversationId ||
@@ -118,7 +118,7 @@ export class Groups {
       invariant(
         main && this.store.binding(main)?.state === 'active',
         'group_backend',
-        '请先配置所选角色的主会话后端。',
+        '请先配置所选伙伴的主会话后端。',
       );
     }
     const turn: GroupTurn = {
@@ -193,7 +193,7 @@ export class Groups {
         invariant(
           !prior || prior.state === 'active',
           'binding_not_ready',
-          '群聊角色连接结果待核对。',
+          '群聊伙伴连接结果待核对。',
         );
         await this.router.bind(conversationId, binding.profileId, signal);
         const sync = this.store.document<{ sequence: number; contextHash: string }>(
@@ -343,7 +343,7 @@ export class Groups {
             this.store.put('group-turns', turn.id, {
               ...turn,
               state: 'unknown',
-              error: '群聊执行中断，请核对各角色会话。',
+              error: '群聊执行中断，请核对各伙伴会话。',
             });
         const op = (
           name: string,
@@ -386,7 +386,7 @@ export class Groups {
         }));
         op(
           'send',
-          '发送群聊消息并请所选角色依次回应',
+          '发送群聊消息并请所选伙伴依次回应',
           z.object({
             groupId: id,
             text: z.string().min(1).max(24000),
@@ -408,7 +408,7 @@ export class Groups {
         );
         op(
           'resolve',
-          '完成各角色会话核对后解除群聊中断状态',
+          '完成各伙伴会话核对后解除群聊中断状态',
           z.object({ id, confirmed: z.literal(true) }),
           (v) => {
             invariant(!this.running.has(v.id), 'group_busy', '群聊仍在运行。');
@@ -422,7 +422,7 @@ export class Groups {
                   this.store.binding(c.id)?.state !== 'unknown',
               ),
               'group_unknown',
-              '请先核对群聊角色的未知运行。',
+              '请先核对群聊伙伴的未知运行。',
             );
             for (const turn of this.store.documents<GroupTurn>('group-turns'))
               if (turn.groupId === v.id && turn.state === 'unknown') {

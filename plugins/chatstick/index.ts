@@ -37,17 +37,17 @@ export function chatStickPlugin(store: Store, files: Files, router: Router): Plu
     character: characterFeature(store, 'chatstick', settings, []),
     activate: (ctx) => {
       const op = operations(ctx, 'chatstick');
-      op('list', '列出角色聊天表情', z.object({ personaId: id }), 'chatstick.read',
+      op('list', '列出伙伴聊天表情', z.object({ personaId: id }), 'chatstick.read',
         (v) => entries(v.personaId), false);
-      op('save', '导入或保存角色聊天表情', catalog.extend({
+      op('save', '导入或保存伙伴聊天表情', catalog.extend({
         data: z.string().max(11184812).optional(),
         replace: z.boolean().default(false),
       }), 'chatstick.write', async ({ data, replace, ...value }, signal) => {
-          invariant(store.document('personas', value.personaId), 'persona_missing', '角色不存在。');
+          invariant(store.document('personas', value.personaId), 'persona_missing', '伙伴不存在。');
           const key = rowId(value.personaId, value.key);
           const previous = store.document<Entry>('chatstick', key);
           invariant(!previous || replace, 'chatstick_exists', '此表情编号已存在，请编辑原条目。');
-          invariant(previous || entries(value.personaId).length < 32, 'chatstick_limit', '每个角色最多配置 32 张聊天表情。');
+          invariant(previous || entries(value.personaId).length < 32, 'chatstick_limit', '每个伙伴最多配置 32 张聊天表情。');
           let image = previous?.image;
           if (data !== undefined) {
             const raw = Buffer.from(data, 'base64');
@@ -70,7 +70,7 @@ export function chatStickPlugin(store: Store, files: Files, router: Router): Plu
           store.put('chatstick', key, entry);
           return entry;
         }, false);
-      op('remove', '从角色表情清单移除', catalog.pick({ personaId: true, key: true }), 'chatstick.write',
+      op('remove', '从伙伴表情清单移除', catalog.pick({ personaId: true, key: true }), 'chatstick.write',
         (v) => { store.remove('chatstick', rowId(v.personaId, v.key)); return { removed: true }; }, false);
       router.context({
         id: 'chatstick',

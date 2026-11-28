@@ -99,7 +99,7 @@ export const settings = z.preprocess((raw) => {
 }, policySchema);
 export type DelegationPolicy = z.infer<typeof settings>;
 export const characterFields: Field[] = [
-  { key: 'autonomous', label: '允许主角色委派子任务', type: 'boolean' },
+  { key: 'autonomous', label: '允许主会话委派子任务', type: 'boolean' },
   {
     key: 'allowedProfileIds',
     label: '子任务执行器',
@@ -115,7 +115,7 @@ export const characterFields: Field[] = [
     max: 100,
     addLabel: '添加目录',
     removeLabel: '移除目录',
-    description: '主角色可在这些目录内为每个子任务选择工作位置；勾选写入才允许修改。',
+    description: '主会话可在这些目录内为每个子任务选择工作位置；勾选写入才允许修改。',
     rowFields: [
       { key: 'path', label: '目录', type: 'path', pathMode: 'directory' },
       { key: 'write', label: '允许写入', type: 'boolean' },
@@ -127,7 +127,7 @@ export const characterFields: Field[] = [
     label: '子任务可用的应用工具',
     type: 'multi',
     resource: 'permission',
-    description: '每个子任务只取得本次请求的工具权限，不能超出角色和应用的授权。',
+    description: '每个子任务只取得本次请求的工具权限，不能超出伙伴和应用的授权。',
   },
   {
     key: 'approvals',
@@ -154,7 +154,7 @@ export const characterFields: Field[] = [
   { key: 'concurrency', advanced: true, label: '同时执行上限', type: 'number', min: 1, max: 4 },
   { key: 'timeoutMinutes', advanced: true, label: '单轮执行时限上限（分钟）', type: 'number', min: 0,
     description: '0 表示不限时。' },
-  { key: 'prompt', advanced: true, label: '主角色委派指引', type: 'textarea' },
-  { key: 'reportOnCompletion', label: '子任务结束后由主角色接棒', type: 'boolean' },
+  { key: 'prompt', advanced: true, label: '主会话委派指引', type: 'textarea' },
+  { key: 'reportOnCompletion', label: '子任务结束后由主会话接棒', type: 'boolean' },
   { key: 'reportPrompt', advanced: true, label: '接棒与验收指引', type: 'textarea' },
 ];

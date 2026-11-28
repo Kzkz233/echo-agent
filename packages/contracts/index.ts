@@ -184,6 +184,8 @@ export type GenerateRequest = {
   permissions?: Conversation['permissions'];
   principal?: AgentPrincipal;
   toolPolicy?: 'none' | 'scoped';
+  /** Transient retry budget shared across the attempts of one summary step. */
+  modelRetryBudget?: { used: number };
   compaction?: import('./compaction.ts').ContextCompaction;
   onInteraction?: (request: HostInteraction, signal: AbortSignal) => Promise<HostAnswer>;
   signal: AbortSignal;

@@ -149,7 +149,7 @@ export function ExternalMcpView({
         {draft.kind === 'deepseek' ? (
           <p className="muted">
             {t(
-              '使用 DeepSeek 官方 Search 和 Fetch API。调用计入你的 DeepSeek 账户，工具在角色权限中单独授权。',
+              '使用 DeepSeek 官方 Search 和 Fetch API。调用计入你的 DeepSeek 账户，工具在伙伴权限中单独授权。',
             )}
           </p>
         ) : (
@@ -283,7 +283,7 @@ export function ExternalMcpView({
                 if (
                   await confirm({
                     title: t('移除 MCP 服务器？'),
-                    description: t('该服务器的工具将从角色的可用工具中移除。'),
+                    description: t('该服务器的工具将从伙伴的可用工具中移除。'),
                     confirmLabel: t('移除'),
                   })
                 ) {
@@ -308,7 +308,7 @@ export function ExternalMcpView({
               {t(
                 draft.kind === 'deepseek'
                   ? '读取工具列表不验证 API Key，也不发起搜索。'
-                  : '在「角色功能」的「插件工具授权」中选择可用工具。外部工具可能执行写入操作。',
+                  : '在「伙伴功能」的「插件工具授权」中选择可用工具。外部工具可能执行写入操作。',
               )}
             </p>
             {server.tools.map((tool) => (

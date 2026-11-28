@@ -329,7 +329,7 @@ export class ExternalMcp {
             invariant(
               this.authorize(caller, permission),
               'permission_denied',
-              'The role has not been granted this external MCP tool.',
+              'This companion has not been granted this external MCP tool.',
             );
             const session = this.session(connection);
             try {
@@ -339,7 +339,7 @@ export class ExternalMcp {
               invariant(
                 this.authorize(caller, permission),
                 'permission_denied',
-                'The role has not been granted this external MCP tool.',
+                'This companion has not been granted this external MCP tool.',
               );
               const result = CallToolResultSchema.parse(
                 await client.callTool({ name: tool.name, arguments: args }, CallToolResultSchema, {

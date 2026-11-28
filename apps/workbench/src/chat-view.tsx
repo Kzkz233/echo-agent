@@ -371,7 +371,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
               “{c.title}
               {t('”的聊天记录将从 Echo 删除，已绑定的宿主会话会归档。')}
             </p>
-            <p>{t('角色、已保存的记忆和知识档案会保留。此操作无法撤销。')}</p>
+            <p>{t('伙伴、已保存的记忆和知识档案会保留。此操作无法撤销。')}</p>
           </>
         ),
       }))
@@ -481,7 +481,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
             <Icon name="search" size={15} />
             <input
               aria-label={t('搜索会话')}
-              placeholder={t('搜索对话或角色')}
+              placeholder={t('搜索对话或伙伴')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -666,7 +666,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
               </div>
               <h3>{conversation.title}</h3>
               <dl className="context-facts">
-                <dt>{t('角色')}</dt>
+                <dt>{t('伙伴')}</dt>
                 <dd>{persona?.name ?? 'Echo'}</dd>
                 <dt>{t('语言模型')}</dt>
                 <dd>{backend?.name ?? t('未选择')}</dd>
@@ -989,7 +989,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
               <ConversationInteractions key={selected} id={selected} act={act} openSession={dialogue ? openSession : undefined} />
               {!backend ? (
                 <div className="composer-warning">
-                  {t('请在角色配置中选择语言模型。')}
+                  {t('请在伙伴配置中选择语言模型。')}
                   <button
                     className="text-button"
                     onClick={() =>
@@ -1134,7 +1134,7 @@ export function ChatView({ data, act, setPage, openTask, fixedConversationId, ed
                       void send();
                     }
                   }}
-                  placeholder={inactive ? t('启用角色后继续交流') : t('对 {name} 说点什么…', { name: persona?.name ?? 'Echo' })}
+                  placeholder={inactive ? t('启用伙伴后继续交流') : t('对 {name} 说点什么…', { name: persona?.name ?? 'Echo' })}
                   rows={dialogue ? 1 : 2}
                 />
                 <span className="visually-hidden" id={'composer-help-' + selected}>

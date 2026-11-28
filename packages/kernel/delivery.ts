@@ -6,6 +6,7 @@ import {
   deliveryRequest,
   deliveryResult,
   deliveryPlan,
+  deliveryIdentity,
   outputEnvelope,
   outputTarget,
   type DeliveryPlan,
@@ -19,6 +20,8 @@ import type { Events } from './events.ts';
 import { characterActive } from './characters.ts';
 
 type Scope = ReturnType<Capabilities['forOwner']>;
+type TargetIdentity = Pick<DeliveryPlan['targets'][number], 'id' | 'owner' | 'provider' | 'revision'>;
+type RecipientDirectory = { personaId: string; targets: TargetIdentity[] };
 type Receipt = {
   id: string;
   outputId: string;
@@ -31,6 +34,7 @@ type Receipt = {
   retryAt?: string;
   receipt?: unknown;
 };
+const isLocalTarget = (id:string) => id === 'core.chat' || id === 'avatar.bubble';
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) {
@@ -130,6 +134,7 @@ export class Deliveries {
     });
     router.planLocalReply = (conversationId, bubble, signal) =>
       this.plan(conversationId, 'human', [bubble ? 'avatar.bubble' : 'core.chat'], {}, signal);
+    router.resolveDelivery = (id, plan, signal, localOnly) => this.resolvePlan(id, plan, signal, localOnly);
     this.dispose.push(
       router.registerDeliveryStage((message) => this.stageMessage(message)),
     );
@@ -138,11 +143,13 @@ export class Deliveries {
       this.save({ ...row, state: 'unknown', reason: '发送时应用中断，请核对结果。' });
     this.dispose.push(
       events.subscribe((event) => {
+        if (event.type === 'conversation.deleted' && typeof event.data.conversationId === 'string')
+          this.store.remove('output-recipients', event.data.conversationId);
         if (event.type === 'character.activity.changed' && !event.data.enabled) {
           for (const row of this.states(['pending'])) {
             const envelope = this.store.document<OutputEnvelope>('outputs', row.outputId);
             if (envelope?.personaId === event.data.personaId && row.state === 'pending')
-              this.save({ ...row, state: 'skipped', reason: '角色已停用。' });
+              this.save({ ...row, state: 'skipped', reason: '伙伴已停用。' });
           }
         }
         if (['run.completed', 'message.posted', 'output.staged'].includes(event.type)) this.flush();
@@ -150,13 +157,14 @@ export class Deliveries {
       }),
     );
   }
-  async catalog(conversationId: string, signal = this.life.signal, draftPersonaId?: string) {
+  async catalog(conversationId: string, signal = this.life.signal, draftPersonaId?: string,
+    options: { isReply?: boolean; providers?: Set<string> } = {}) {
     const conversation = this.store.conversation(conversationId);
     invariant(conversation || draftPersonaId, 'missing_conversation', '会话不存在。');
     const result = await Promise.allSettled(
       this.scope
         .list(deliveryPoint)
-        .filter((p) => p.state === 'active')
+        .filter(p => p.state === 'active' && (!options.providers || options.providers.has(p.id)))
         .map(async (provider) => {
           const bounded = AbortSignal.any([signal, AbortSignal.timeout(5000)]);
           const value = (await abortable(
@@ -165,6 +173,7 @@ export class Deliveries {
               provider.id,
               {
                 action: 'list',
+                isReply: options.isReply ?? false,
                 conversationId,
                 personaId: conversation?.personaId ?? draftPersonaId!,
               },
@@ -182,7 +191,22 @@ export class Deliveries {
         }),
     );
     signal.throwIfAborted();
-    return result.flatMap((item) => (item.status === 'fulfilled' ? item.value : []));
+    const targets = result.flatMap((item) => (item.status === 'fulfilled' ? item.value : []));
+    if (conversation && !options.providers && this.store.conversation(conversationId)?.personaId === conversation.personaId) {
+      // A task may start before a selected provider registers after restart. Remember
+      // only recipient identity; permission and readiness always come from a live provider.
+      const previous = this.store.document<RecipientDirectory>('output-recipients', conversationId);
+      const known = new Map((previous?.personaId === conversation.personaId ? previous.targets : []).map(t => [t.id, t]));
+      let changed = false;
+      for (const { id, owner, provider, revision } of targets) {
+        const last = known.get(id);
+        if (last && last.owner === owner && last.provider === provider && last.revision === revision) continue;
+        known.set(id, { id, owner, provider, revision });
+        changed = true;
+      }
+      if (changed) this.store.put('output-recipients', conversationId, { personaId: conversation.personaId, targets: [...known.values()] });
+    }
+    return targets;
   }
   async plan(
     conversationId: string,
@@ -190,13 +214,18 @@ export class Deliveries {
     selected?: string[],
     options: {
       bubble?: boolean;
+      replyTo?: string;
       localOnly?: boolean;
       legacySources?: string[];
       task?: { type: string; id: string };
     } = {},
     signal = this.life.signal,
   ): Promise<DeliveryPlan> {
-    const available = await this.catalog(conversationId, signal);
+    const conversation = this.store.conversation(conversationId);
+    invariant(conversation, 'missing_conversation', '会话不存在。');
+    const available = await this.catalog(conversationId, signal, undefined, {isReply:Boolean(options.replyTo)});
+    const directory = this.store.document<RecipientDirectory>('output-recipients', conversationId);
+    const known = directory?.personaId === conversation.personaId ? directory.targets : [];
     const ids =
       selected ??
       available
@@ -212,9 +241,11 @@ export class Deliveries {
         .map((t) => t.id);
     return deliveryPlan.parse({
       source,
+      audience: { conversationId, personaId: conversation.personaId },
+      replyTo: options.replyTo,
       task: options.task,
       targets: ids
-        .filter((id) => !options.localOnly || ['core.chat', 'avatar.bubble'].includes(id))
+        .filter((id) => !options.localOnly || isLocalTarget(id))
         .map(
           (id) =>
             available.find((t) => t.id === id) ?? {
@@ -223,11 +254,34 @@ export class Deliveries {
               provider: 'core.unavailable',
               owner: id.split('.')[0],
               revision: 'unavailable',
+              ...known.find(t => t.id === id),
               ready: false,
               issue: '输出插件或目标当前不可用。',
             },
         ),
     });
+  }
+  private async resolvePlan(conversationId: string, plan: DeliveryPlan, signal: AbortSignal, localOnly = false): Promise<DeliveryPlan> {
+    const intended = plan.audience;
+    const allowed = () => {
+      const role = this.store.conversation(conversationId)?.personaId;
+      return role && characterActive(this.store, role) && !this.router.isDeleting(conversationId) &&
+        (!intended || intended.conversationId === conversationId && intended.personaId === role);
+    };
+    const available = plan.targets.length && allowed()
+      ? await this.catalog(conversationId, signal, undefined, {
+          providers: new Set(plan.targets.map(t => t.provider)), isReply: Boolean(plan.replyTo),
+        })
+      : [];
+    const authorized = allowed();
+    return { ...plan, targets: plan.targets.map(selected => {
+      const current = available.find(t => t.id === selected.id && t.owner === selected.owner && t.provider === selected.provider);
+      if (localOnly && !isLocalTarget(selected.id)) return { ...selected, ready:false, issue:'本次任务只允许本机投递。' };
+      if (!authorized) return { ...selected, ready:false, issue:'伙伴或会话当前不可投递。' };
+      if (!current) return { ...selected, ready:false, issue:'输出插件或原目标当前不可用。' };
+      if (current.revision !== selected.revision) return { ...selected, ready:false, issue:'原有投递绑定已改变。' };
+      return current;
+    }) };
   }
   private save(row: Receipt) {
     this.store.put('output-deliveries', row.id, { ...row, updatedAt: new Date().toISOString() });
@@ -264,6 +318,7 @@ export class Deliveries {
     if (old) return old;
     const commit = () => {
       this.store.put('outputs', envelope.id, envelope);
+      const active = characterActive(this.store, envelope.personaId);
       for (const target of envelope.plan.targets) {
         const id = 'output-' + hash([envelope.id, target.id]);
         this.save({
@@ -271,8 +326,8 @@ export class Deliveries {
           outputId: envelope.id,
           targetId: target.id,
           provider: target.provider,
-          state: characterActive(this.store, envelope.personaId) && target.ready ? 'pending' : 'skipped',
-          ...(target.ready ? {} : { reason: target.issue ?? '输出目标当前不可用。' }),
+          state: active ? 'pending' : 'skipped',
+          ...(!active && { reason:'伙伴已停用。' }),
           createdAt: new Date().toISOString(),
         });
       }
@@ -292,10 +347,8 @@ export class Deliveries {
       e.text,
       e.title,
       e.parts,
-      e.plan.source,
-      e.plan.task,
-      e.plan.replyTo,
-      e.plan.targets.map((t) => t.id).sort(),
+      e.attachmentIds,
+      deliveryIdentity(e.plan, { conversationId: e.conversationId, personaId: e.personaId }),
     ];
     invariant(
       !old || hash(identity(old)) === hash(identity(envelope)),
@@ -402,22 +455,21 @@ export class Deliveries {
           AbortSignal.timeout(30000),
         ]);
         if (signal.aborted) {
-          this.save({ ...row, state: 'skipped', reason: '角色或应用已停止。' });
+          this.save({ ...row, state: 'skipped', reason: '伙伴或应用已停止。' });
           return;
         }
         const target = envelope.plan.targets.find((t) => t.id === row.targetId)!;
-        const current = (await this.catalog(envelope.conversationId, signal)).find(
-          (t) => t.id === target.id && t.provider === target.provider,
-        );
-        if (this.router.isDeleting(envelope.conversationId) || !this.store.conversation(envelope.conversationId)) {
+        const checked = await this.resolvePlan(envelope.conversationId, { ...envelope.plan, targets:[target] }, signal);
+        const current = checked.targets[0];
+        if (this.router.isDeleting(envelope.conversationId) || this.store.conversation(envelope.conversationId)?.personaId !== envelope.personaId) {
           this.save({ ...row, state: 'skipped', reason: '会话已删除或正在删除。' });
           return;
         }
-        if (!current || current.revision !== target.revision || !current.ready) {
+        if (!current.ready || (envelope.attachmentIds?.length && !current.supportsFiles)) {
           this.save({
             ...row,
             state: 'skipped',
-            reason: current?.issue ?? '输出目标已变更或不可用。',
+            reason: !current.ready ? current.issue ?? '输出目标当前不可用。' : '输出目标当前不支持文件。',
           });
           return;
         }

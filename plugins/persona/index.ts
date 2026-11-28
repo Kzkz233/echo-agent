@@ -22,7 +22,7 @@ export class Personas {
   }
   async save(persona: Persona) {
     const vault = this.files.available
-      ? await this.files.managed('persona', 'Persona Library')
+      ? await this.files.managed('persona', 'Companion Library')
       : undefined;
     if (vault)
       await this.files.entries.save(
@@ -52,23 +52,16 @@ export class Personas {
         this.store
           .documents<{ mainConversationId: string }>('characters')
           .filter((role) => role.mainConversationId === id)
-          .map(() => ({ label: '角色主会话', page: 'character', role: 'channel' })),
+          .map(() => ({ label: '伙伴主会话', page: 'character', role: 'channel' })),
       activate: async (ctx) => {
         const { registry, capabilities } = ctx;
         const characters = new Characters(this.store, this.router, this.router.events, value => this.save(value));
         characters.activate(ctx);
         installRolePreferences(ctx, characters, this.deliveries);
-        if (!this.store.documents('personas').length)
-          await this.save({
-            id: 'companion',
-            name: 'Echo',
-            prompt:
-              '你是一位友善、坦诚、有自己看法的陪伴者。自然交流，结合已经知道的事实；不知道时直接说明。',
-          });
         this.router.context(
           {
             id: 'persona',
-            blocks: [{ id: 'persona.profile', layer: 'stable', label: '角色人设', worker: 'default' }],
+            blocks: [{ id: 'persona.profile', layer: 'stable', label: '伙伴人设', worker: 'default' }],
             prepare: ({ conversation }) => ({
               'persona.profile': [{ text: this.get(conversation.personaId)?.prompt ?? '' }],
             }),
@@ -77,7 +70,7 @@ export class Personas {
         );
         registry.register({
           name: 'persona.list',
-          description: '列出角色',
+          description: '列出伙伴',
           owner: 'persona',
           permission: 'persona.read',
           mcp: true,
@@ -91,7 +84,7 @@ export class Personas {
         });
         registry.register({
           name: 'persona.save',
-          description: '保存角色设定',
+          description: '保存伙伴设定',
           owner: 'persona',
           permission: 'persona.write',
           mcp: false,
@@ -101,7 +94,7 @@ export class Personas {
         });
         registry.register({
           name: 'persona.portrait.prepare',
-          description: '将本地头像规范为便携的角色图片',
+          description: '将本地头像规范为便携的伙伴图片',
           owner: 'persona',
           permission: 'persona.write',
           mcp: false,

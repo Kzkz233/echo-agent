@@ -21,12 +21,12 @@ export async function authorizeExecution(
   const fixed = policy.selectionMode === 'fixed';
   const fixedId = policy.fixedProfileId || mainProfileId;
   invariant(!fixed || !request.profileId || request.profileId === fixedId,
-    'worker_executor_fixed', '此角色已指定子任务执行器，请使用指定配置。');
+    'worker_executor_fixed', '此伙伴已指定子任务执行器，请使用指定配置。');
   const profileId = (fixed ? fixedId : request.profileId) || mainProfileId || policy.allowedProfileIds[0];
   invariant(
     profileId && (profileId === mainProfileId || policy.allowedProfileIds.includes(profileId)),
     'worker_model_grant',
-    '所选执行模型未获角色授权。',
+    '所选执行模型未获伙伴授权。',
   );
   const scope = await Promise.all(
     policy.workspaces.map(async (root) => ({
@@ -39,11 +39,11 @@ export async function authorizeExecution(
     invariant(
       request.fullAccess || scope.some((root) => within(root.path, canonical) && (!write || root.write)),
       'worker_workspace_grant',
-      '子任务请求的目录或写入权限超出角色授权。',
+      '子任务请求的目录或写入权限超出伙伴授权。',
     );
     return canonical;
   };
-  invariant(!request.fullAccess || policy.allowFullAccess, 'worker_full_access', '角色未授权委派本机完全访问。');
+  invariant(!request.fullAccess || policy.allowFullAccess, 'worker_full_access', '伙伴未授权委派本机完全访问。');
   const write = request.fullAccess || (request.write ?? false);
   const selected =
     request.projectDirectory ?? scope.find((root) => !write || root.write)?.path ?? '';
@@ -63,12 +63,12 @@ export async function authorizeExecution(
   invariant(
     !request.terminal || (policy.terminal && write && policy.approvals === 'ask'),
     'worker_terminal_grant',
-    '此角色未允许所请求的终端执行。',
+    '此伙伴未允许所请求的终端执行。',
   );
   invariant(
     !write || policy.approvals === 'ask',
     'worker_approval_grant',
-    '角色不允许审批执行，不能创建写入任务。',
+    '伙伴不允许审批执行，不能创建写入任务。',
   );
   const role = store.document<RoleToolGrants>('characters', personaId);
   const parentPermissions = roleToolGrants(store, role);
@@ -79,13 +79,13 @@ export async function authorizeExecution(
   invariant(
     toolPermissions.every((p) => ceiling.has(p)),
     'worker_tool_grant',
-    '子任务请求的工具权限超出角色授权。',
+    '子任务请求的工具权限超出伙伴授权。',
   );
   const timeoutMinutes = request.timeoutMinutes ?? policy.timeoutMinutes;
   invariant(
     policy.timeoutMinutes === 0 || timeoutMinutes > 0 && timeoutMinutes <= policy.timeoutMinutes,
     'worker_timeout_grant',
-    '子任务时限超过角色授权上限。',
+    '子任务时限超过伙伴授权上限。',
   );
   return workerTemplate.parse({
     id: 'task',

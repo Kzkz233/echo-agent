@@ -597,7 +597,7 @@ export class PluginManager {
                 value: await feature.unpack(input.assets ?? {}, signal),
               };
             }
-            invariant(input.personaId, 'character_missing', '请选择角色。');
+            invariant(input.personaId, 'character_missing', '请选择伙伴。');
             if (input.action === 'pack')
               return {
                 version: feature.version,

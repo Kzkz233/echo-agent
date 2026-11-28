@@ -72,9 +72,9 @@ const errors: string[] = [];
 page.on('pageerror', (e) => errors.push(e.message));
 try {
   await page.goto('http://127.0.0.1:' + http.port + '/#token=' + http.token);
-  await page.getByRole('button', { name: '创建角色', exact: true }).click();
-  await page.getByLabel('角色名称', { exact: true }).fill('Mira');
-  await page.getByLabel('角色人设', { exact: true }).fill('A fictional character for isolated acceptance.');
+  await page.getByRole('button', { name: '添加伙伴', exact: true }).click();
+  await page.getByLabel('伙伴名称', { exact: true }).fill('Mira');
+  await page.getByLabel('伙伴人设', { exact: true }).fill('A fictional character for isolated acceptance.');
   await page.getByRole('button', { name: '下一步', exact: true }).click();
   await page.getByRole('checkbox', { name: /聊天表情/ }).check();
   await page.locator('.setup-capability summary').filter({ hasText: /^聊天表情$/ }).click();
@@ -84,17 +84,17 @@ try {
   assert(!mainModels.some((text) => text.includes('Fixture codex') || text.includes('Fixture dsh') || / · Pi$/.test(text)));
   await page.getByLabel('主会话模型', { exact: true }).selectOption('fixture');
   await page.getByRole('button', { name: '下一步', exact: true }).click();
-  await page.getByRole('button', { name: '创建角色', exact: true }).last().click();
+  await page.getByRole('button', { name: '添加伙伴', exact: true }).last().click();
   await page.getByRole('tab', { name: '聊天', exact: true }).waitFor();
-  const roleTabs = page.getByRole('tablist', { name: '角色能力', exact: true });
-  assert.deepEqual((await roleTabs.getByRole('tab').allTextContents()).slice(0, 4), ['聊天', '后台工作会话', '角色资料', '任务']);
+  const roleTabs = page.getByRole('tablist', { name: '伙伴能力', exact: true });
+  assert.deepEqual((await roleTabs.getByRole('tab').allTextContents()).slice(0, 4), ['聊天', '后台工作会话', '伙伴资料', '任务']);
   const role = app.store.documents<any>('personas').find((p) => p.name === 'Mira');
   const created = app.store.document<any>('characters', role.id);
   assert(created.mainConversationId && created.state === 'ready');
-  await page.getByRole('button', { name: '配置角色', exact: true }).click();
-  await page.getByRole('button', { name: '角色资料', exact: true }).click();
-  assert.equal(await page.getByLabel('角色名称', { exact: true }).inputValue(), 'Mira');
-  await page.getByLabel('角色名称', { exact: true }).fill('Mira Updated');
+  await page.getByRole('button', { name: '配置伙伴', exact: true }).click();
+  await page.getByRole('button', { name: '伙伴资料', exact: true }).click();
+  assert.equal(await page.getByLabel('伙伴名称', { exact: true }).inputValue(), 'Mira');
+  await page.getByLabel('伙伴名称', { exact: true }).fill('Mira Updated');
   await page.getByRole('button', { name: '通道与表达', exact: true }).click();
   const chatStyle = await page.getByLabel('应用对话风格', { exact: true }).inputValue();
   assert(chatStyle.includes('复杂问题'));
@@ -110,7 +110,7 @@ try {
   const stickerChannels = page.getByRole('group', { name: '表情投递渠道', exact: true });
   assert.equal(await stickerChannels.getByRole('checkbox', { name: '通知收件箱', exact: true }).isDisabled(), true);
   await stickerChannels.getByRole('checkbox', { name: '桌宠气泡', exact: true }).uncheck();
-  await page.getByRole('button', { name: '角色功能', exact: true }).click();
+  await page.getByRole('button', { name: '伙伴功能', exact: true }).click();
   const stickerFeature = page.getByRole('checkbox', { name: /聊天表情/ });
   await stickerFeature.uncheck();
   assert.equal(await page.getByRole('button', { name: '聊天表情', exact: true }).count(), 0);
@@ -122,7 +122,7 @@ try {
   await page.getByText('工作目录与文件权限', { exact: true }).click();
   await page.getByLabel('主会话文件访问范围', { exact: true }).waitFor();
   await page.getByRole('button', { name: '配置概览', exact: true }).click();
-  await page.getByRole('button', { name: '保存角色', exact: true }).click();
+  await page.getByRole('button', { name: '保存伙伴', exact: true }).click();
   await page
     .locator('.character-home-heading')
     .getByRole('heading', { name: 'Mira Updated', exact: true })
@@ -151,20 +151,20 @@ try {
   const imported = await app.registry.call('persona.package.import', pack, ui);
   assert.deepEqual(imported.draft.persona.expression, expression);
   assert.equal(await page.getByRole('tab', { name: '桌宠展示', exact: true }).count(), 0);
-  await page.getByRole('button', { name: '配置角色', exact: true }).click();
+  await page.getByRole('button', { name: '配置伙伴', exact: true }).click();
   await page.getByRole('button', { name: '外观与桌宠', exact: true }).click();
   await page.locator('label.field').filter({ has: page.getByText('停靠位置', { exact: true }) }).locator('select').selectOption('left');
   await page.getByLabel('桌宠大小', { exact: true }).fill('1.2');
   await page.getByLabel('气泡停留时间（秒）', { exact: true }).fill('18');
   await page.getByLabel('桌宠帧率', { exact: true }).fill('12');
-  await page.getByRole('button', { name: '保存角色', exact: true }).click();
+  await page.getByRole('button', { name: '保存伙伴', exact: true }).click();
   await page.getByRole('tab', { name: '聊天', exact: true }).waitFor();
   const avatar = app.store.document<any>('avatar-profiles', role.id);
   assert.equal(avatar.corner, 'left');
   assert.equal(avatar.scale, 1.2);
   assert.equal(avatar.bubbleSeconds, 18);
   assert.equal(avatar.fps, 12);
-  await page.getByRole('button', { name: '配置角色', exact: true }).click();
+  await page.getByRole('button', { name: '配置伙伴', exact: true }).click();
   await page.getByRole('button', { name: '聊天表情', exact: true }).click();
   assert.equal(await page.getByLabel('表情使用偏好', { exact: true }).inputValue(), expression.stickers);
   await page.getByRole('button', { name: '添加聊天表情', exact: true }).click();

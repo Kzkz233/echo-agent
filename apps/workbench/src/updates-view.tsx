@@ -1,8 +1,9 @@
+import { AppTime } from './message-time.tsx';
 import { useEffect, useState } from 'react';
 import { buildInfo, type BuildInfo } from '../../../packages/contracts/build.ts';
 import { rpc } from './client.ts';
 import { Button, PathInput, useConfirm } from './ui.tsx';
-import { locale, t } from './i18n.ts';
+import { t } from './i18n.ts';
 import './updates-style.css';
 
 export async function confirmDesktopReady() {
@@ -19,7 +20,7 @@ function BuildCard({ label, value }: { label: string; value?: BuildInfo }) {
       <strong>{value?.version ?? '—'}</strong>
       {value ? (
         <>
-          <time>{new Date(value.builtAt).toLocaleString(locale())}</time>
+          <AppTime at={value.builtAt}/>
           <code title={value.buildId}>{value.buildId.slice(0, 8)}</code>
         </>
       ) : (
@@ -244,7 +245,7 @@ export function UpdatesView() {
           </div>
         )}
         <p className="muted">
-          {t('回滚恢复程序版本。角色、会话和资料保留当前数据，更新前数据库快照单独保存。')}
+          {t('回滚恢复程序版本。伙伴、会话和资料保留当前数据，更新前数据库快照单独保存。')}
         </p>
       </section>
       {(issue || status?.issue) && (

@@ -1,4 +1,4 @@
-import { MessageTime, useMessageNow } from './message-time.tsx';
+import { AppTime, MessageTime, useMessageNow } from './message-time.tsx';
 import { lazy, useEffect, useState } from 'react';
 import { rpc } from './client.ts';
 import { statusText, t } from './i18n.ts';
@@ -58,8 +58,8 @@ export function CharacterHome({
       });
       if (
         !(await confirm({
-          title: t('核对角色包'),
-          confirmLabel: t('导出角色包'),
+          title: t('核对伙伴包'),
+          confirmLabel: t('导出伙伴包'),
           description: (
             <>
               <p>
@@ -82,9 +82,9 @@ export function CharacterHome({
                 ).toFixed(0)}{' '}
                 KB
               </p>
-              <p>{t('包含角色设定、任务提示词及所选素材。请确认这些内容适合分享。')}</p>
+              <p>{t('包含伙伴设定、任务提示词及所选素材。请确认这些内容适合分享。')}</p>
               <details>
-                <summary>{t('角色人设')}</summary>
+                <summary>{t('伙伴人设')}</summary>
                 <div className="readable-pre">{pack.persona.prompt}</div>
               </details>
               {pack.tasks.map((task: any) => (
@@ -122,7 +122,7 @@ export function CharacterHome({
         >
           <div>
             <h1>{role.name}</h1>
-            {!activity.enabled && <span className="state-pill">{t('角色已停用')}</span>}
+            {!activity.enabled && <span className="state-pill">{t('伙伴已停用')}</span>}
             <span>{character?.state === 'needs-attention' ? character.issue : ''}</span>
           </div>
           <div className="row">
@@ -139,7 +139,7 @@ export function CharacterHome({
                   )
                 }
               >
-                {t(activity.enabled ? '停用角色' : '启用角色')}
+                {t(activity.enabled ? '停用伙伴' : '启用伙伴')}
               </Button>
             )}
             {backstage &&
@@ -162,7 +162,7 @@ export function CharacterHome({
               )}
             {backstage && (
               <Button secondary onClick={exportRole}>
-                {t('导出角色包')}
+                {t('导出伙伴包')}
               </Button>
             )}
           </div>
@@ -180,7 +180,7 @@ export function CharacterHome({
           openSession={() => setPage('character-session')}
         />
       ) : (
-        <EmptyState title={t(character ? '完成角色配置后开始交流' : '正在打开…')} />
+        <EmptyState title={t(character ? '完成伙伴配置后开始交流' : '正在打开…')} />
       )}
     </div>
   );
@@ -728,7 +728,7 @@ export function DelegationView({
                     #{attempt.attempt} · {t(states[attempt.state])}
                   </strong>
                   <p className="muted">
-                    {attempt.finishedAt && new Date(attempt.finishedAt).toLocaleString()}
+                    {attempt.finishedAt && <AppTime at={attempt.finishedAt}/>}
                   </p>
                   <pre className="readable-pre">
                     {attempt.report?.summary ?? attempt.result ?? attempt.error}

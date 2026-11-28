@@ -10,7 +10,7 @@ const task = z.object({ type: id, id });
 const submission = z.object({ requestId: id });
 const target = z.object({ role: id.optional(), conversationId: id.optional() }).refine(
   ({ role, conversationId }) => Boolean(role) !== Boolean(conversationId),
-  'Specify exactly one role or conversation.',
+  'Specify exactly one companion or conversation.',
 );
 const principal = { kind: 'cli' as const, permissions: new Set([
   'automation.read', 'automation.write', 'conversation.write',
@@ -92,7 +92,7 @@ export async function cliRequest(app: Application, method: string, params: unkno
       const selected = conversationId ?? roles().find((item) => item.id === role)?.conversationId;
       const conversation = selected ? app.store.conversation(selected) : undefined;
       invariant(conversation && !['worker', 'group-member'].includes(conversation.kind ?? ''),
-        'conversation_missing', 'Choose an existing role or ordinary conversation.');
+        'conversation_missing', 'Choose an existing companion or ordinary conversation.');
       const attachmentIds: string[] = [];
       for (const file of value.attachments) attachmentIds.push((await app.router.attachments.add(conversation.id, file.name, file.mediaType, file.data)).id);
       const receipt = await app.registry.call('conversations.send', {

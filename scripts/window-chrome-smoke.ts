@@ -25,7 +25,7 @@ await setup.registry.call(
   {
     requestId: 'chrome-fixture',
     draft: characterDraft.parse({
-      persona: { id: 'chrome-fixture', name: '示例角色', prompt: '隔离界面测试。' },
+      persona: { id: 'chrome-fixture', name: '示例伙伴', prompt: '隔离界面测试。' },
       features: ['memory', 'delegation'],
       configurations: {},
       tasks: [],
@@ -88,7 +88,7 @@ try {
   await main.locator('.workbench').waitFor();
   await main
     .locator('.character-navigation')
-    .getByRole('button', { name: /示例角色/ })
+    .getByRole('button', { name: /示例伙伴/ })
     .click();
   await main.locator('.role-topbar').waitFor();
   await invoke(main, 'open_settings', { page: 'appearance' });
@@ -234,7 +234,7 @@ try {
       }),
     );
   const before = await positions();
-  for (const name of ['后台工作会话', '角色资料', '任务', '聊天']) {
+  for (const name of ['后台工作会话', '伙伴资料', '任务', '聊天']) {
     await tabs.getByRole('tab', { name, exact: true }).click();
     await tabs.getByRole('tab', { name, exact: true, selected: true }).waitFor();
     assert.deepEqual(await positions(), before, 'Parent navigation moved on child selection');
@@ -252,7 +252,7 @@ try {
   assert(gap >= 0 && gap <= 16, 'Tabs and configuration must stay adjacent');
   const mainLabel = await invoke(main, 'plugin:window|is_maximized', { label: 'main' });
   assert.equal(mainLabel, false);
-  await main.locator('.role-topbar').getByRole('button', { name: '配置角色', exact: true }).click();
+  await main.locator('.role-topbar').getByRole('button', { name: '配置伙伴', exact: true }).click();
   const field = main.locator('.character-wizard input:visible').first();
   await field.fill('尚未保存的隔离编辑');
   await main.locator('.window-close').click();

@@ -92,7 +92,7 @@ export default function AvatarAssets({ data, act, builtin, personaId, onSelect }
       <label className="field">
         <span>{custom ? t(custom.label) : t('帧动画素材')}</span>
         <select value={selected} onChange={(e) => setSelected(e.target.value)}>
-          <option value="">{custom ? t(custom.builtinLabel) : t('Cute Girl · 内置帧动画')}</option>
+          <option value="">{custom ? t(custom.builtinLabel) : t('Aria · 内置静态桌宠')}</option>
           {assets.map((a) => (
             <option value={a.id} key={a.id}>
               {a.name}
@@ -106,7 +106,7 @@ export default function AvatarAssets({ data, act, builtin, personaId, onSelect }
           ? `${details.frames ? details.frames + ' ' + t('帧') + ' · ' : ''}${details.fps} FPS${details.author ? ' · ' + details.author : ''}${details.license ? ' · ' + details.license : ''}`
           : selected === 'external'
             ? ''
-            : t('pzUH · CC0-1.0')}
+            : 'Echo · Apache-2.0'}
       </p>
       <div className="row wrap">
         <Button

@@ -1,3 +1,5 @@
+import { clockValue, followAppTimezone } from '../../../packages/contracts/daily-time.ts';
+import { AppTime, useAppTimezone } from './message-time.tsx';
 import { SettingsFields } from './settings-fields.tsx';
 import { useTaskCatalog } from './use-task-catalog.ts';
 import { TaskCheckpoints } from './task-failure.tsx';
@@ -10,7 +12,7 @@ import type {
   AutomationType,
 } from '../../../packages/kernel/automation.ts';
 import { rpc } from './client.ts';
-import { locale, t } from './i18n.ts';
+import { t } from './i18n.ts';
 import { ReasoningSelect } from './reasoning-select.tsx';
 import { ModelChoice } from './model-choice.tsx';
 import { taskModelChoice } from '../../../packages/contracts/task-model.ts';
@@ -61,7 +63,8 @@ export function TaskField({
   workPolicy?: any;
   features?: string[];
 }) {
-  const value = draft.settings[field.key];
+  const appTimezone = useAppTimezone();
+  const value = draft.settings[field.key] ?? (field.kind === 'time' && field.key === 'dailyTime' ? clockValue(draft.settings) : undefined);
   const [openRow, setOpenRow] = useState<number>();
   const optionLabel = (option: { label: string; owner?: string }) =>
     t(option.label) +
@@ -74,16 +77,21 @@ export function TaskField({
     .join(' · ');
   for (const condition of field.when ? [field.when].flat() : []) {
     const controlling = draft.settings[condition.key] ?? (condition.value === false ? false : undefined);
-    if (
-      Array.isArray(controlling)
-        ? !controlling.includes(condition.value)
-        : controlling !== condition.value
-    )
-      return null;
+    const allowed = [condition.value].flat();
+    if (!allowed.some(option => Array.isArray(controlling) ? controlling.includes(option) : controlling === option)) return null;
   }
   const options = (field.options ?? []).filter(
     (o) => !field.filterBy || o.scope === draft.settings[field.filterBy],
   );
+  if (field.kind === 'timezone') {
+    const current = String(value || followAppTimezone);
+    const zones = Intl.supportedValuesOf('timeZone');
+    const choices = Array.from(new Set(['UTC', ...(current !== followAppTimezone ? [current] : []), ...zones]));
+    return <label className="field"><span>{label}</span><select aria-label={label} value={current} onChange={e => onChange(field.key, e.target.value)}>
+      <option value={followAppTimezone}>{t('跟随应用时区')} · {appTimezone}</option>
+      {choices.map(zone => <option key={zone} value={zone}>{zone}</option>)}
+    </select></label>;
+  }
   if (field.kind === 'execution') return <WorkExecutionSettings personaId={String(draft.settings.personaId ?? '') || undefined}
     initialPolicy={workPolicy} mainProfileId={profileId} features={features}
     value={value} onChange={next => onChange(field.key, next)} />;
@@ -270,7 +278,7 @@ export function TaskField({
           ) : (
             <input
               aria-label={label}
-              type={field.kind === 'number' ? 'number' : field.kind === 'datetime' ? 'datetime-local' : 'text'}
+              type={field.kind === 'number' ? 'number' : field.kind === 'datetime' ? 'datetime-local' : field.kind === 'time' ? 'time' : 'text'}
               min={field.min}
               max={field.max}
               value={text}
@@ -436,7 +444,7 @@ export function AutomationView({
               </p>
             </div>
             <span className={'state-pill ' + (activityItem.state === 'running' ? 'on' : '')}>
-              {t(activityItem.suspendedByCharacter ? '角色已停用' : stateLabels[activityItem.state])}
+              {t(activityItem.suspendedByCharacter ? '伙伴已停用' : stateLabels[activityItem.state])}
             </span>
           </div>
           {activityType.failuresOperation && <TaskCheckpoints key={activityType.id + ':' + activityItem.id}
@@ -452,7 +460,7 @@ export function AutomationView({
               <dt>{t('最近执行')}</dt>
               <dd>
                 {activityItem.lastAt
-                  ? new Date(activityItem.lastAt).toLocaleString(locale())
+                  ? <AppTime at={activityItem.lastAt}/>
                   : t('暂无记录')}
               </dd>
             </div>
@@ -460,7 +468,7 @@ export function AutomationView({
               <dt>{t('下次执行')}</dt>
               <dd>
                 {activityItem.nextAt
-                  ? new Date(activityItem.nextAt).toLocaleString(locale())
+                  ? <AppTime at={activityItem.nextAt}/>
                   : t('未安排')}
               </dd>
             </div>
@@ -636,13 +644,13 @@ export function AutomationView({
                       </small>
                     </span>
                     <span className={'state-pill ' + (item.state === 'running' ? 'on' : '')}>
-                      {t(item.suspendedByCharacter ? '角色已停用' : stateLabels[item.state])}
+                      {t(item.suspendedByCharacter ? '伙伴已停用' : stateLabels[item.state])}
                     </span>
                     <small>
                       {item.nextAt
-                        ? t('下次执行') + ' ' + new Date(item.nextAt).toLocaleString(locale())
+                        ? <>{t('下次执行')} <AppTime at={item.nextAt}/></>
                         : item.lastAt
-                          ? t('最近执行') + ' ' + new Date(item.lastAt).toLocaleString(locale())
+                          ? <>{t('最近执行')} <AppTime at={item.lastAt}/></>
                           : ''}
                     </small>
                   </button>

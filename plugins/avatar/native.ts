@@ -119,7 +119,7 @@ export class NativeAvatar {
           !shown.enabled ||
           this.store.conversation(p.conversationId)?.personaId !== shown.personaId
         )
-          throw Error('回复会话不属于当前桌宠角色');
+          throw Error('回复会话不属于当前桌宠伙伴');
         return this.router.enqueue({ ...p, bubble: true });
       });
       this.client = client;
@@ -138,13 +138,14 @@ export class NativeAvatar {
           });
         }
         if (method === 'avatar.dismissed') void this.pump().catch(() => {});
+        if (method === 'avatar.resized') this.events.emit('avatar.resized', { personaId: this.personaId });
       });
     }
     let directory = cfg.assetDirectory?.trim()
       ? resolve(cfg.assetDirectory)
-      : existsSync(join(this.project, 'dist/web/assets/cute-girl/manifest.json'))
-        ? join(this.project, 'dist/web/assets/cute-girl')
-        : join(this.project, 'apps/workbench/public/assets/cute-girl');
+      : existsSync(join(this.project, 'dist/web/assets/starter-characters/aria/manifest.json'))
+        ? join(this.project, 'dist/web/assets/starter-characters/aria')
+        : join(this.project, 'apps/workbench/public/assets/starter-characters/aria');
     if (this.closed || !this.client) return;
     if (selected) directory = selected.directory;
     const target =

@@ -50,7 +50,7 @@ export function CharacterLibrary({ personaId, plugins }: any) {
               </small>
             </button>
           ))}
-        {!entries.length && <EmptyState title={t('暂无角色档案')} />}
+        {!entries.length && <EmptyState title={t('暂无伙伴档案')} />}
       </div>
       <div className="card">
         {selected ? (

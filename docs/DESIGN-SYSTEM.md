@@ -1,12 +1,12 @@
 # Workbench appearance
 
-Echo uses neutral surfaces and graphite primary actions. Character artwork keeps
+Echo uses neutral surfaces and graphite primary actions. Companion artwork keeps
 its original colors. Accent colors identify links and small interactive marks;
 selected entries also use an underline, edge marker, check, or heavier text.
 Statuses retain visible labels and icons alongside their semantic colors.
 
 `packages/contracts/appearance.ts` owns the versioned appearance snapshot, color
-roles, contrast adjustment, and extension base controls. Feature styles reference
+companions, contrast adjustment, and extension base controls. Feature styles reference
 semantic variables rather than defining a separate palette. `design-system.css`
 owns shared product geometry; individual views retain their layouts.
 
@@ -15,7 +15,7 @@ interface and chat font sizes, stronger borders, and reduced motion. The default
 scale is 14 px body/controls, 15 px chat, 12 px supporting text, and 22 px page
 titles. Increasing interface size scales the shared hierarchy, including extension
 pages, rather than enlarging only isolated labels. Older language/accent
-preferences remain valid. Appearance changes do not migrate or rewrite roles,
+preferences remain valid. Appearance changes do not migrate or rewrite companions,
 conversations, tasks, permissions, library content, or indexes.
 
 ## Extension pages

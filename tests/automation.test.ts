@@ -206,7 +206,7 @@ test('automation exposes optional types and keeps settings and frozen Review mat
   });
   const second = app.reviews.policy('other');
   await save(second.id, { ...second, sourceIds: [], prompt: 'Other instructions' });
-  await assert.rejects(save(second.id, { ...second, reportConversationId: first.id }), /所选角色/);
+  await assert.rejects(save(second.id, { ...second, reportConversationId: first.id }), /所选伙伴/);
   app.store.append(first.id, 'user', 'human', 'First material');
   app.store.append(other.id, 'user', 'human', 'Other material');
   const backend = new FakeBackend();

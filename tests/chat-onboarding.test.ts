@@ -11,13 +11,13 @@ test('creating an individual companion is repeatable and does not create the stu
   const memory = catalog.features.find((feature: any) => feature.id === 'memory');
   assert.equal(memory.fields.find((field: any) => field.key === 'historyWindow').advanced, true);
   const create = (requestId: string, characterId?: string) => app.registry.call('characters.examples.create', { profileId: 'test', requestId, characterId }, internal);
-  const first = await create('individual-first', 'miyu');
-  assert.deepEqual(first.roles, ['example-miyu']);
-  assert.deepEqual((await create('individual-retry','miyu')).roles, first.roles);
+  const first = await create('individual-first', 'coda');
+  assert.deepEqual(first.roles, ['example-coda']);
+  assert.deepEqual((await create('individual-retry','coda')).roles, first.roles);
   assert.equal(app.store.documents('groups').length, 0);
-  assert.equal(app.store.document('personas','example-hina'), undefined);
+  assert.equal(app.store.document('personas','example-aria'), undefined);
   assert.deepEqual([...app.plugins.active.keys()].sort(), active);
-  assert.deepEqual((await create('intentional-studio')).roles.sort(), ['example-hina','example-miyu']);
+  assert.deepEqual((await create('intentional-studio')).roles.sort(), ['example-aria','example-coda']);
 });
 
 test('local chat setup requires confirmation, a completed download and tool support from the local runtime', async t => {

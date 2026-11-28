@@ -1,10 +1,12 @@
+import { dailyTimeCodec } from '../packages/contracts/daily-time.ts';
+import { portableTaskSettings } from '../packages/contracts/portable-settings.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { deliveryPoint } from '../packages/contracts/delivery.ts';
 import { internal } from '../packages/kernel/registry.ts';
 import { decideOccurrence, latestDaily, occurrenceHistory } from '../packages/kernel/schedule-policy.ts';
 import { conversation, FakeBackend, setup, until } from './helpers.ts';
-import { localDay } from '../packages/kernel/time.ts';
+import { localDay, localTime, nextDaily } from '../packages/kernel/time.ts';
 
 test('missed schedules use the most recent local deadline, grace and business expiry', () => {
   const now = Date.parse('2026-11-22T06:50:00+08:00');
@@ -36,7 +38,32 @@ test('daily Review reopened before the next deadline consumes outstanding materi
   assert.equal(history.length,1);
   assert.equal(history[0].scheduled,slot);
   assert.equal(history[0].outcome,'catchup');
+  assert.equal(history[0].runKey, app.reviews.jobs()[0].key);
+  await until(() => app.store.documents('review-reports').length > 0);
+  const details = await app.registry.call('automation.history',{type:'review.policies',id:policy.id,personaId:chat.personaId},internal);
+  assert.equal(details.results[0]?.runKey, history[0].runKey);
+  assert.equal(details.results[0]?.executionState, 'succeeded');
   assert.equal(app.reviews.jobs().length,1);
+  assert.equal(backend.calls.length,1);
+  // Simulate an earlier release's occurrence and receipt. Re-enabling the provider may
+  // decorate that history, but must not publish again or wake a model.
+  const oldOccurrence = app.store.db.prepare("SELECT id FROM documents WHERE namespace='schedule-occurrences'").get() as {id:string};
+  const oldSlot = {...history[0]};
+  delete oldSlot.runKey;
+  app.store.put('schedule-occurrences',oldOccurrence.id,oldSlot);
+  const receiptKey = 'task-result.' + details.results[0].id;
+  const originalReceipt = app.store.receipt(receiptKey)!;
+  const oldContext = {...originalReceipt.context};
+  delete oldContext.runKey;
+  delete oldContext.executionState;
+  app.store.saveReceipt(receiptKey,{...originalReceipt,context:oldContext});
+  app.store.set('review.historyLinks.v1',false);
+  await app.plugins.disable('review');
+  await app.plugins.enable('review');
+  const restored = await app.registry.call('automation.history',{type:'review.policies',id:policy.id,personaId:chat.personaId},internal);
+  assert.equal(restored.results.length,1);
+  assert.equal(restored.results[0].runKey,restored.occurrences[0].runKey);
+  assert.equal(restored.results[0].executionState,'succeeded');
   assert.equal(backend.calls.length,1);
 });
 
@@ -111,4 +138,50 @@ test('calendar reminders inherit role targets, support record-only overrides and
   assert.equal(current.find((row:any) => row.itemId === sent.id).state,'delivered');
   assert.equal(calls,1);
   dispose();
+});
+
+
+test('daily clocks round-trip through role export, legacy clients and optimistic edits', async t => {
+  assert.deepEqual(dailyTimeCodec.changes({dailyTime:'00:00'}), {hour:0,minute:0});
+  for (const time of ['24:00', '07:5', '', '23:60']) assert.throws(() => dailyTimeCodec.changes({dailyTime:time}));
+  assert.deepEqual(portableTaskSettings([{key:'dailyTime',kind:'time',portability:'value'}], {hour:0,minute:9}), {dailyTime:'00:09'});
+  const app = await setup(t);
+  app.clock.pause();
+  await app.plugins.enable('scheduler');
+  const signal = new AbortController().signal;
+  const type = 'scheduler.timed', id = 'fixture-clock';
+  const catalog = await app.automation.catalog(signal, 'definition', type);
+  const definition = catalog.types[0];
+  assert.deepEqual(definition.fields.filter(f => f.kind === 'time').map(f => f.key), ['dailyTime']);
+  assert.equal(definition.defaults.dailyTime, '07:00');
+  assert.equal(definition.defaults.timezone, 'app');
+  const settings = {...definition.defaults, name:'Fixture', mode:'daily', provider:'fixture.provider', dailyTime:'23:59'};
+  await app.automation.mutate(type, {action:'save',id,settings}, signal);
+  const read = () => app.scheduler.jobs().find(j => j.id === id)!;
+  assert.equal(read().hour,23);
+  assert.equal(read().minute,59);
+  const patch = (settings:any, expected:any) => app.automation.mutate(type,{action:'save',id,patch:true,settings,expected},signal);
+  await patch({ dailyTime:'00:09' }, { dailyTime:'23:59' });
+  await assert.rejects(patch({dailyTime:'22:00'}, {dailyTime:'23:59'}));
+  const current = (await app.automation.catalog(signal,'instances',type)).types[0].items[0];
+  await app.automation.mutate(type,{action:'save',id,settings:{...current.settings,hour:6,minute:30}},signal);
+  assert.equal(read().hour,6);
+  assert.equal(read().minute,30);
+  const explicit = app.scheduler.save({...read(),id:'fixed',timezone:'Asia/Shanghai'});
+  const interval = app.scheduler.save({...read(),id:'interval',mode:'interval',minutes:13});
+  app.store.set('clock.config',{timezone:'Pacific/Honolulu'});
+  app.events.emit('settings.changed',{pluginId:'clock'});
+  assert.equal(read().nextAt,nextDaily(new Date(),6,30,'Pacific/Honolulu'));
+  assert.equal(app.scheduler.jobs().find(j => j.id === 'fixed')?.nextAt,explicit.nextAt);
+  assert.equal(app.scheduler.jobs().find(j => j.id === 'interval')?.nextAt,interval.nextAt);
+});
+
+test('forward and backward DST transitions use identical slots in next-run and recovery calculations', () => {
+  const zone = 'America/New_York';
+  assert.equal(localTime('2026-03-08',2,30,zone), Date.parse('2026-03-08T07:30:00Z'));
+  const repeated = localTime('2026-11-01',1,30,zone);
+  assert.equal(repeated,Date.parse('2026-11-01T05:30:00Z'));
+  const between = new Date('2026-11-01T06:00:00Z');
+  assert.equal(latestDaily(+between,1,30,zone),repeated);
+  assert.equal(nextDaily(between,1,30,zone),Date.parse('2026-11-02T06:30:00Z'));
 });

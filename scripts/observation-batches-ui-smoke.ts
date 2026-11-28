@@ -41,10 +41,10 @@ page.on('pageerror', (e) => errors.push(e.message));
 page.setDefaultTimeout(15000);
 await mkdir(join(project, 'test-results'), { recursive: true });
 try {
-  await page.goto(`http://127.0.0.1:${http.port}/?persona=example-hina#token=${http.token}`);
+  await page.goto(`http://127.0.0.1:${http.port}/?persona=example-aria#token=${http.token}`);
   const open = async () => {
-    await page.getByRole('button', { name: '配置角色', exact: true }).click();
-    await page.getByLabel('角色人设', { exact: true }).waitFor();
+    await page.getByRole('button', { name: '配置伙伴', exact: true }).click();
+    await page.getByLabel('伙伴人设', { exact: true }).waitFor();
     await page.getByRole('button', { name: '自动化任务', exact: true }).last().click();
     await page.locator('.task-tabs').getByRole('button', { name: '一起看', exact: true }).click();
   };
@@ -59,9 +59,9 @@ try {
     await field.selectOption(String(count));
     await page.getByLabel('组图超时（秒）', { exact: true }).fill(String(timeout));
     assert.equal(await page.getByLabel('单帧宽度（像素）', { exact: true }).inputValue(), '840');
-    await page.getByRole('button', { name: '保存角色', exact: true }).click();
-    await page.getByRole('button', { name: '配置角色', exact: true }).waitFor();
-    const saved = app.observations.config('example-hina-observe');
+    await page.getByRole('button', { name: '保存伙伴', exact: true }).click();
+    await page.getByRole('button', { name: '配置伙伴', exact: true }).waitFor();
+    const saved = app.observations.config('example-aria-observe');
     assert.equal(saved.frameCount, count);
     assert.equal(saved.batchTimeoutSeconds, timeout);
   }

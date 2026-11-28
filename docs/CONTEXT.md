@@ -21,7 +21,7 @@ Message body
 
 Field names are fixed English. `channel` and `task` are optional, independent
 labels; an observation event has a task, not an invented inbound chat channel.
-Headers are context, never permissions or a replacement for native message roles.
+Headers are context, never permissions or a replacement for native message companions.
 One message time is exposed: a validated platform send time when supplied, otherwise
 the application's acceptance time. Queued inputs keep that acceptance time rather
 than acquiring a new timestamp when execution starts. Domain times (capture windows,
@@ -55,7 +55,7 @@ mutate the original input. All first-party API, Pi, Codex and DSH adapters use i
 Echo assembles conversational model input in four sections:
 
 1. Stable context, in one leading `system` message.
-2. Conversation history, in chronological order and within the remaining character budget.
+2. Conversation history, in chronological order and within the remaining companion budget.
 3. Turn context, in separate `system` messages with `context: 'turn'`.
 4. The current request, retaining its human or application authorship.
 
@@ -78,16 +78,16 @@ Providers receive `phase: stable | turn` and should avoid work for the other lay
 
 | Layer | Order | Block | Included when |
 | --- | --- | --- | --- |
-| Stable | 1 | `persona.profile` | Persona injection is enabled for the conversation and character |
-| Stable | 2 | `memory.core` | Memory is enabled and the character has core memories |
+| Stable | 1 | `persona.profile` | Persona injection is enabled for the conversation and companion |
+| Stable | 2 | `memory.core` | Memory is enabled and the companion has core memories |
 | Stable | 3 | `delegation.guide` | A human, group, delegation or handoff turn with configured workers; or a worker turn |
-| Stable | 4 | `chatstick.catalog` | Human or Care turn, with the character's ChatStick feature enabled and available stickers |
+| Stable | 4 | `chatstick.catalog` | Human or Care turn, with the companion's ChatStick feature enabled and available stickers |
 | Turn | 1 | `memory.recall` | Relevant memory versions are not already present in effective Echo history |
 | Turn | 2 | `reflections.current` | Current Concerns injection is enabled; excluded from Care because Care selects its own sources |
 | Turn | 3 | `delegation.turn` | Delegation is available for this turn; contains temporary authority and worker task identity |
 | Turn | 4 | `core.presentation` | Human channel reply, or human/Care avatar bubble reply |
 
-Absent or empty blocks are skipped. Conversation and character feature selections
+Absent or empty blocks are skipped. Conversation and companion feature selections
 filter providers before assembly. Workers use a provider allowlist containing only
 Delegation: their stable block is the selected worker template and submission guide,
 with no automatic parent Persona, Memory, Current Concerns or ChatStick injection.
@@ -101,8 +101,8 @@ current request. It assumes the named optional features are enabled and applicab
 | Scenario | Stable context | Turn context | Current request |
 | --- | --- | --- | --- |
 | Workbench chat | Persona → core memories → delegation guide → ChatStick | Fresh recall → current concerns → delegation authority | Original human input |
-| QQ human reply | Same as workbench | Same, then the character's external channel style | Original human input with channel origin recorded separately |
-| Avatar human reply | Same as workbench | Same, then the character's bubble style | Original human input |
+| QQ human reply | Same as workbench | Same, then the companion's external channel style | Original human input with channel origin recorded separately |
+| Avatar human reply | Same as workbench | Same, then the companion's bubble style | Original human input |
 | Care | Persona → core memories → ChatStick | Fresh recall → bubble style | Application opportunity: task prompt → selected Care sources in configured order → silence option |
 | Observe | Persona → core memories | Fresh recall → current concerns | Application observation: task-specific guidance and observation evidence; reasoning off, text-only, no QQ delivery |
 | Worker | Worker template → checkpoint/submission guide | Delegation authority → task ID | Delegated goal, acceptance criteria and necessary task background |
@@ -114,11 +114,11 @@ including configured search strategies and semantic search, remain available.
 
 Memory Review is a separate processing task, not an ordinary conversational turn.
 It does not run this conversation injection chain. Its `system` message contains
-the Review rules, task/report instructions, source-specific guidance, frozen role
+the Review rules, task/report instructions, source-specific guidance, frozen companion
 background and existing memories, and the selected plugin targets. Its following
 `user` message carries packet progress, continuation notes and attributed source
-records; that role labels task data, not a claim that the user spoke those records.
-Observe's visual interpretation call is likewise separate from the role's subsequent
+records; that companion labels task data, not a claim that the user spoke those records.
+Observe's visual interpretation call is likewise separate from the companion's subsequent
 conversational turn.
 
 ## Persistence, adapters and caching
@@ -146,4 +146,4 @@ does not erase anything previously delivered into an existing native harness ses
 Keeping changing references out of the leading system prefix makes that prefix
 more stable. Actual cache hits depend on the provider and native harness; Echo
 does not guarantee or measure provider cache savings from this ordering alone.
-The configured context budget is measured in characters, not exact model tokens.
+The configured context budget is measured in companions, not exact model tokens.

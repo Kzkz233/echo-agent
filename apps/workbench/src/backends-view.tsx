@@ -968,7 +968,7 @@ function BackendServices({
                                   )}
                                   <small>
                                     {t(
-                                      '仅在上游未提供元数据时，按接口文档填写。角色与任务分别选择实际使用的强度。',
+                                      '仅在上游未提供元数据时，按接口文档填写。伙伴与任务分别选择实际使用的强度。',
                                     )}
                                   </small>
                                 </fieldset>
@@ -982,7 +982,7 @@ function BackendServices({
                                 reasoningLevels={model.reasoningLevels}
                                 onChange={(reasoning) => setModel({ ...model, reasoning: reasoning as any })}
                               />
-                              <p className="muted">{t('自动适配只读取接口声明的能力；上游未提供时，请按接口文档选择参数格式。角色与任务可覆盖默认强度。')}</p>
+                              <p className="muted">{t('自动适配只读取接口声明的能力；上游未提供时，请按接口文档选择参数格式。伙伴与任务可覆盖默认强度。')}</p>
                               <details>
                                 <summary>{t('高级生成限制')}</summary>
                               {modelAdapter.engine !== 'codex' && (
@@ -1182,7 +1182,7 @@ function BackendServices({
                                 if (
                                   await confirm({
                                     title: t('删除此模型配置？'),
-                                    description: t('请先解除角色、会话和任务对此模型的引用。'),
+                                    description: t('请先解除伙伴、会话和任务对此模型的引用。'),
                                     danger: true,
                                     confirmLabel: t('删除模型'),
                                   })

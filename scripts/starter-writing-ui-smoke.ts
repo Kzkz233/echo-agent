@@ -45,10 +45,10 @@ try {
   for (const role of starterCharacters)
     await page.getByText(role.description, { exact: true }).waitFor();
   await page.getByLabel('语言与视觉模型', { exact: true }).selectOption('demo-model');
-  await page.getByRole('button', { name: '创建两个角色及群聊', exact: true }).click();
-  await page.getByRole('button', { name: '配置角色', exact: true }).click();
+  await page.getByRole('button', { name: '创建两个伙伴及群聊', exact: true }).click();
+  await page.getByRole('button', { name: '配置伙伴', exact: true }).click();
   assert.equal(
-    await page.getByLabel('角色人设', { exact: true }).inputValue(),
+    await page.getByLabel('伙伴人设', { exact: true }).inputValue(),
     starterCharacters[0].prompt,
   );
   await page.getByRole('button', { name: '通道与表达', exact: true }).click();
@@ -72,7 +72,7 @@ try {
     ...app.store.get<any>('starter.studio.v1', {}),
     version: '2.0.1',
   });
-  const role = app.store.document<any>('personas', 'example-hina')!;
+  const role = app.store.document<any>('personas', 'example-aria')!;
   app.store.put('personas', role.id, { ...role, prompt: 'Synthetic retained custom persona' });
   await page.goto(url);
   await page.reload();
@@ -85,7 +85,7 @@ try {
     .waitFor({ state: 'detached' });
   const saved = (await app.registry.call(
     'persona.character.read',
-    { id: 'example-hina' },
+    { id: 'example-aria' },
     internal,
   )) as any;
   assert.equal(saved.persona.prompt, 'Synthetic retained custom persona');

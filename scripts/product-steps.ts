@@ -162,7 +162,7 @@ export async function productWorkflows(page: Page, app: Application) {
         'workbench',
         'public',
         'assets',
-        'cute-girl',
+        'starter-characters', 'aria',
         'atlas.png',
       ),
     );

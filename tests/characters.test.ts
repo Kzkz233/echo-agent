@@ -43,7 +43,7 @@ test('application schedules stay outside character tasks and survive role edits 
     ...draft, tasks: [{ id: 'sync-fixture', type: 'scheduler.mail', settings: {
       name: 'Incorrect role sync', enabled: false, accountId: 'fixture-account', mode: 'interval', minutes: 15,
     } }],
-  } }), /角色能力/);
+  } }), /伙伴能力/);
   await call('persona.character.commit', {
     requestId: 'edit-scheduled-role',
     draft: { ...draft, persona: { ...draft.persona, prompt: 'Revised persona' } },
@@ -78,7 +78,7 @@ test('managed chats change backend and permissions through character configurati
   });
   await assert.rejects(
     call('conversations.bind', { id: role.mainConversationId, profileId: 'alternate' }),
-    /编辑角色/,
+    /编辑伙伴/,
   );
   await assert.rejects(
     app.registry.call(
@@ -89,11 +89,11 @@ test('managed chats change backend and permissions through character configurati
       },
       { kind: 'ui', permissions: new Set(['conversation.write']) },
     ),
-    /编辑角色/,
+    /编辑伙伴/,
   );
   await assert.rejects(
     call('conversations.update', { id: role.mainConversationId, personaId: 'companion' }),
-    /更换角色/,
+    /更换伙伴/,
   );
   await call('conversations.bind', { id: role.mainConversationId, profileId: 'test' });
   const updated = await call('persona.character.commit', {
@@ -106,7 +106,7 @@ test('managed chats change backend and permissions through character configurati
     const chat = conversation(app, { kind, personaId: 'owner' });
     await assert.rejects(
       call('conversations.bind', { id: chat.id, profileId: 'alternate' }),
-      /编辑角色/,
+      /编辑伙伴/,
     );
   }
   const independent = conversation(app);
@@ -220,7 +220,7 @@ test('character packages carry validated frame assets and upgrades retain local 
     features: ['memory', 'avatar'],
     configurations: {
       memory: { planner: false, limit: 2 },
-      avatar: { assetDirectory: app.project + '/apps/workbench/public/assets/cute-girl' },
+      avatar: { assetDirectory: app.project + '/apps/workbench/public/assets/starter-characters/aria' },
     },
   });
   await call('persona.character.commit', { draft, requestId: 'sprite-role' });

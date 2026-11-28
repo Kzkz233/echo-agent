@@ -40,7 +40,7 @@ test('local plugins register pages, sheets and role forms without rebuilding the
   await app.frontend.invoke('workbenchdemo.character', 'workbenchdemo.save', { message: 'Role data' }, 'role-one');
   assert.equal((await app.frontend.invoke('workbenchdemo.character', 'workbenchdemo.read', {}, 'role-one')).message, 'Role data');
   assert.equal((await app.frontend.invoke('workbenchdemo.notes', 'workbenchdemo.read', {})).message, 'Workspace data');
-  await assert.rejects(app.frontend.invoke('workbenchdemo.character', 'workbenchdemo.read', {}), /选择角色/);
+  await assert.rejects(app.frontend.invoke('workbenchdemo.character', 'workbenchdemo.read', {}), /选择伙伴/);
   const bootstrap = await app.registry.call('system.bootstrap', {}, internal);
   assert.equal(bootstrap.frontend.pages.length, 3);
   await app.plugins.disable('workbenchdemo');

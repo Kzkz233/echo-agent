@@ -16,7 +16,7 @@ export const characterDraft = z.object({
   features: z
     .array(id)
     .max(50)
-    .refine((values) => new Set(values).size === values.length, '角色能力不可重复')
+    .refine((values) => new Set(values).size === values.length, '伙伴能力不可重复')
     .default([]),
   configurations: z.record(id, z.record(z.string(), z.unknown())).default({}),
   profileId: z.string().default(''),
@@ -31,7 +31,7 @@ export const characterDraft = z.object({
     .max(50)
     .refine(
       (values) => new Set(values.map((task) => task.type + ':' + task.id)).size === values.length,
-      '角色任务不可重复',
+      '伙伴任务不可重复',
     )
     .default([]),
   package: z

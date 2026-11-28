@@ -69,13 +69,13 @@ export function roleAvatar(store: Store, personaId: string): AvatarConfig {
 }
 
 export function saveRoleAvatar(store: Store, personaId: string, patch: Partial<AvatarConfig>) {
-  invariant(store.document('personas', personaId), 'persona_missing', '请选择有效角色。');
+  invariant(store.document('personas', personaId), 'persona_missing', '请选择有效伙伴。');
   const active = configuredAvatar(store);
   const next = avatarConfigSchema.parse({ ...roleAvatar(store, personaId), ...patch, personaId });
   invariant(
     !patch.conversationId || store.conversation(patch.conversationId)?.personaId === personaId,
     'avatar_conversation',
-    '桌宠回复会话必须属于当前角色。',
+    '桌宠回复会话必须属于当前伙伴。',
   );
   store.transaction(() => {
     if (active.personaId === personaId || !store.get<any>('avatar.config', {}).personaId) {

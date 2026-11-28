@@ -100,7 +100,7 @@ test('memory changes check versions and scope, preserve revisions and enforce co
     'New name',
   );
   await assert.rejects(app.memories.change('companion', change, 'stale'), /已变化/);
-  await assert.rejects(app.memories.change('other', change, 'cross-role'), /当前角色/);
+  await assert.rejects(app.memories.change('other', change, 'cross-role'), /当前伙伴/);
   const proposal = memoryChange.parse({
     operation: 'propose-core',
     coreOperation: 'add',

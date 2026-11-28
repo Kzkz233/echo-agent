@@ -53,7 +53,7 @@ app.router.backends.set('api', {
       if (decision?.decision !== 'allow') throw Error('Synthetic approval was not delivered');
       return { text: 'Synthetic approval completed' };
     }
-    return request.messages[0]?.text.includes('角色记忆整理')
+    return request.messages[0]?.text.includes('伙伴记忆整理')
       ? { text: '{"notes":"已完整阅读合成测试对话。","memories":[]}' }
       : { text: '测试回复：我记得你喜欢在傍晚散步。我们可以接着聊聊今天的事。' };
   },
@@ -160,7 +160,7 @@ try {
     if (await tab.count()) await tab.click();
   };
   await go('人格');
-  await page.getByRole('heading', { name: '角色设定', exact: true }).waitFor();
+  await page.getByRole('heading', { name: '伙伴设定', exact: true }).waitFor();
   await go('记忆');
   await page.getByLabel('记忆检索').fill('傍晚散步');
   await page.getByRole('button', { name: '检索预览', exact: true }).click();
@@ -308,9 +308,9 @@ try {
   await page.locator('.role-tile').first().waitFor();
   if (await page.locator('[data-view="memory"]').count())
     throw Error('Memory appeared before opening a character');
-  await page.getByRole('button', { name: '＋ 新角色', exact: true }).click();
+  await page.getByRole('button', { name: '＋ 新伙伴', exact: true }).click();
   await page.getByLabel('名称', { exact: true }).fill('Synthetic second character');
-  await page.getByRole('button', { name: '保存角色', exact: true }).click();
+  await page.getByRole('button', { name: '保存伙伴', exact: true }).click();
   await page.locator('.role-heading').getByText('Synthetic second character').waitFor();
   await page.locator('[data-view="avatar"]').click();
   await page.getByRole('heading', { name: '桌宠展示', exact: true }).waitFor();

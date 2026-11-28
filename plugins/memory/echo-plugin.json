@@ -1,6 +1,6 @@
 {
   "id": "memory",
-  "name": "Persona Memory",
+  "name": "Companion Memory",
   "description": "统一检索词构造、关键词或本地/API 语义检索，按有效上下文去重。",
   "version": "0.12.1",
   "dependencies": [
@@ -42,7 +42,7 @@
   "pages": [
     {
       "id": "memory.library",
-      "title": "角色记忆",
+      "title": "伙伴记忆",
       "placement": "workspace",
       "section": "knowledge",
       "order": 20,
@@ -68,7 +68,7 @@
             "label": "内容"
           }
         ],
-        "scopeLabel": "角色"
+        "scopeLabel": "伙伴"
       }
     }
   ]

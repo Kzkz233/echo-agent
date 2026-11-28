@@ -15,7 +15,6 @@ import { StorageSettings, PluginPackageInstaller } from './core-settings.tsx';
 import { UpdatesView, confirmDesktopReady } from './updates-view.tsx';
 import { type ObservationConfig } from '../../../packages/contracts/index.ts';
 import { statusText } from './i18n.ts';
-import { locale } from './i18n.ts';
 import { t } from './i18n.ts';
 import {
   Fragment,
@@ -29,6 +28,7 @@ import {
   lazy,
   Suspense,
 } from 'react';
+import { AppTimezone, AppTime } from './message-time.tsx';
 import { createRoot } from 'react-dom/client';
 import { connect, setConnection, rpc, events } from './client.ts';
 import { type Persona, type Memory } from '../../../packages/contracts/index.ts';
@@ -99,7 +99,7 @@ const useApp = () => useContext(Context);
 const navigationGroups = [...new Set(navigationSections().map((section) => section.group))];
 const navigationHints: Record<string, string> = {
   chat: '对话 聊天',
-  personas: '人格 角色',
+  personas: '人格 伙伴',
   memory: '记忆 召回',
   observation: '观察 视觉',
   avatar: '桌宠 气泡',
@@ -784,7 +784,7 @@ function App() {
     ...pages.map((entry: any) => entry.id),
   ]);
   return (
-    <UiProvider busy={pending > 0}>
+    <AppTimezone.Provider value={data.clock?.timezone}><UiProvider busy={pending > 0}>
       <Context.Provider
         value={{
           data,
@@ -823,7 +823,7 @@ function App() {
               { label:t('网络代理'), action:() => settingsWindow ? (setPage('general'), requestAnimationFrame(() => revealSetting(t('网络代理')))) : void openSettings('general',undefined,t('网络代理')) },
               ...(role && data.characters.some((c: any) => c.id === role.id) ? [
                 {label:t('压缩触发上限（tokens）'), step:3},
-                {label:t('角色可用工具'), field:t('搜索插件或工具'), step:8},
+                {label:t('伙伴可用工具'), field:t('搜索插件或工具'), step:8},
                 ...((data.plugins.some((p: any) => p.id === 'observation' && p.enabled) ) ? [{label:t('观察白名单'),field:t('允许观察的来源'),step:4}] : []),
               ].map(entry => ({ label:entry.label, action:() => settingsWindow ? void openWorkbench('character-wizard',{roleId:role.id,step:entry.step,field:entry.field ?? entry.label}) : editRole(role,entry.step,undefined,entry.field ?? entry.label) })) : []),
             ].filter(entry => entry.label.toLowerCase().includes(navSearch.trim().toLowerCase())).map(entry => <button className="text-button" key={entry.label} onClick={() => { setNavSearch(''); entry.action(); }}>{entry.label}</button>)}</div>}
@@ -906,14 +906,14 @@ function App() {
                 })}
               </nav>
             ) : (
-              <nav aria-label={t('角色与群聊')} className="character-navigation">
+              <nav aria-label={t('伙伴与群聊')} className="character-navigation">
                 <div className="nav-group-label">
                   <button className="text-button" onClick={() => goPage('personas')}>
-                    {t('角色')}
+                    {t('我的伙伴')}
                   </button>
                   <button
                     className="icon-button"
-                    aria-label={t('创建角色')}
+                    aria-label={t('添加伙伴')}
                     onClick={() => editRole()}
                   >
                     <Icon name="plus" size={16} />
@@ -1055,14 +1055,14 @@ function App() {
               role={!extensionWindow && !settingsWindow && roleSection && !!role}
               scope={
                 !extensionWindow && !settingsWindow && activeLocation.scope === 'role'
-                  ? '角色'
+                  ? '我的伙伴'
                   : (viewSection(page)?.group ?? 'Echo')
               }
               title={
                 activeLocation.presentation === 'editor'
                   ? wizardRole
-                    ? (data.personas.find((p: Persona) => p.id === wizardRole)?.name ?? '角色配置')
-                    : '创建角色'
+                    ? (data.personas.find((p: Persona) => p.id === wizardRole)?.name ?? '伙伴配置')
+                    : '添加伙伴'
                   : settingsWindow || workspaceScope || page === 'personas'
                     ? (viewSection(page)?.text ?? '设置')
                     : page === 'groups'
@@ -1073,14 +1073,14 @@ function App() {
                 <>
                   {!extensionWindow && !settingsWindow && roleSection && role && (
                     <PageTabs
-                      label="角色能力"
+                      label="伙伴能力"
                       prefix="role"
                       controls={'view-' + page}
                       selected={page === 'delegation' ? 'automation' : page}
                       items={[
                         { id: 'character', text: '聊天', owner: 'persona' },
                         { id: 'character-session', text: '后台工作会话', owner: 'persona' },
-                        { id: 'memory', text: '角色资料', owner: 'persona' },
+                        { id: 'memory', text: '伙伴资料', owner: 'persona' },
                         { id: 'automation', text: '任务', owner: 'persona' },
                         ...pages
                           .filter((entry: any) => entry.placement === 'character')
@@ -1258,7 +1258,7 @@ function App() {
                       backstage={page === 'character-session'}
                     />
                   ) : (
-                    <Button onClick={() => editRole()}>{t('创建角色')}</Button>
+                    <Button onClick={() => editRole()}>{t('添加伙伴')}</Button>
                   )
                 ) : page === 'groups' ? (
                   <GroupView
@@ -1370,7 +1370,7 @@ function App() {
           </main>
         </div>
       </Context.Provider>
-    </UiProvider>
+    </UiProvider></AppTimezone.Provider>
   );
 }
 function Title({ title }: any) {
@@ -1390,8 +1390,8 @@ function RoleList({ data, openRole, act, openSettings, openKnowledge }: any) {
   return (
     <>
       <div className="page-title page-title-actions">
-        <h1>{t('角色')}</h1>
-        <Button onClick={() => openRole()}>{t('＋ 新角色')}</Button>
+        <h1>{t('我的伙伴')}</h1>
+        <Button onClick={() => openRole()}>{t('＋ 新伙伴')}</Button>
       </div>
       <StarterCharacters {...{ data, act, openRole, openSettings, openKnowledge }} />
       <div className="role-grid">
@@ -1441,7 +1441,7 @@ function Memories({ initialCategory }: any = {}) {
     );
   const loadVersion = useRef(0),
     baseline = useRef<any>(undefined);
-  useUnsavedChanges(Boolean(editing && !sameData(editing, baseline.current)), '角色记忆');
+  useUnsavedChanges(Boolean(editing && !sameData(editing, baseline.current)), '伙伴记忆');
   const editMemory = (value: any) => {
     baseline.current = value;
     setEditing(value);
@@ -1466,7 +1466,7 @@ function Memories({ initialCategory }: any = {}) {
   const visible = items.filter((m) => m.core === (category === 'core'));
   return (
     <>
-      <Title title={t('角色资料')} />
+      <Title title={t('伙伴资料')} />
       {['core', 'other'].includes(category) && (
         <div className="row wrap toolbar">
           <Button
@@ -1531,7 +1531,7 @@ function Memories({ initialCategory }: any = {}) {
                 : key === 'other'
                   ? '召回记忆'
                   : key === 'concerns'
-                    ? '角色关切'
+                    ? '伙伴关切'
                     : '设定与档案',
             )}{' '}
             {['core', 'other'].includes(key) && (
@@ -1629,7 +1629,7 @@ function Memories({ initialCategory }: any = {}) {
                 <h2>{memory.title}</h2>
                 <p>{memory.text}</p>
                 <div className="row between">
-                  <small>{new Date(memory.updatedAt).toLocaleDateString(locale())}</small>
+                  <small><AppTime at={memory.updatedAt} dateOnly/></small>
                   <button
                     className="text-button danger"
                     onClick={async () => {
@@ -1711,10 +1711,10 @@ function ExtensionSettings() {
           {t('外部 MCP')}
         </button>
       </div>
-      {!!data.characters.length && <div className="row wrap"><label className="field"><span>{t('角色授权')}</span>
-        <select aria-label={t('角色授权')} value={grantRole} onChange={e => setGrantRole(e.target.value)}>
-          <option value="">{t('选择角色')}</option>{data.characters.map((r: any) => <option key={r.id} value={r.id}>{data.personas.find((p: any) => p.id === r.id)?.name ?? r.id}</option>)}</select></label>
-        <Button secondary disabled={!grantRole} onClick={() => requestNavigation(() => openWorkbench('character-wizard', {roleId:grantRole,step:8}))}>{t('为角色授权')}</Button></div>}
+      {!!data.characters.length && <div className="row wrap"><label className="field"><span>{t('伙伴授权')}</span>
+        <select aria-label={t('伙伴授权')} value={grantRole} onChange={e => setGrantRole(e.target.value)}>
+          <option value="">{t('选择伙伴')}</option>{data.characters.map((r: any) => <option key={r.id} value={r.id}>{data.personas.find((p: any) => p.id === r.id)?.name ?? r.id}</option>)}</select></label>
+        <Button secondary disabled={!grantRole} onClick={() => requestNavigation(() => openWorkbench('character-wizard', {roleId:grantRole,step:8}))}>{t('为伙伴授权')}</Button></div>}
       {section === 'plugins' ? (
         <Plugins />
       ) : (
@@ -2058,7 +2058,7 @@ function Plugins() {
                 <p className="muted">
                   {t(
                     plugin.characterConfigurable
-                      ? '在角色的「配置角色」中调整此能力。'
+                      ? '在伙伴的「配置伙伴」中调整此能力。'
                       : '此插件的常用功能位于左侧专用页面。',
                   )}
                 </p>
@@ -2133,7 +2133,7 @@ function Observation() {
     <>
       <div className="page-title page-title-actions">
         <h1>{t('实时观察')}</h1>
-        <span className="muted">{t('任务配置统一在角色配置中管理')}</span>
+        <span className="muted">{t('任务配置统一在伙伴配置中管理')}</span>
       </div>
       <div className="observation-task-list" aria-label={t('观察任务')}>
         {tasks.map((task) => {
@@ -2206,17 +2206,17 @@ function Observation() {
                     {status.interactionOutcome === 'reply'
                       ? t('上次互动已生成回复。')
                       : status.interactionOutcome === 'skip'
-                        ? t('上次互动由角色主动跳过。')
+                        ? t('上次互动由伙伴主动跳过。')
                         : status.interactionOutcome === 'empty'
                           ? t('上次互动的模型返回为空，没有生成气泡。')
                           : status.interactionOutcome === 'recorded'
-                            ? t('上次观察已记录，未唤起角色。')
+                            ? t('上次观察已记录，未唤起伙伴。')
                             : status.interactionOutcome === 'queued'
                               ? t('观察互动已排队。')
                               : status.interactionOutcome === 'expired'
                                 ? t('观察互动排队超时，已保留记录。')
                                 : status.interactionOutcome === 'running'
-                                  ? t('角色正在处理观察结果。')
+                                  ? t('伙伴正在处理观察结果。')
                                   : t('上次互动未完成，请查看运行诊断。')}
                   </p>
                 )}
@@ -2264,7 +2264,7 @@ function Observation() {
                   .reverse()
                   .map((o: any) => (
                     <div className="observation-row" key={o.id}>
-                      <time>{new Date(o.timestamp).toLocaleTimeString(locale())}</time>
+                      <AppTime at={o.timestamp}/>
                       <p>{o.summary}</p>
                       <small>{o.sources.join(' · ')}</small>
                     </div>
@@ -2301,7 +2301,7 @@ function Review() {
         <div className="card" key={job.id}>
           <div className="row between">
             <h2>
-              {new Date(job.createdAt).toLocaleString(locale())} · {job.personaId}
+              <AppTime at={job.createdAt}/> · {job.personaId}
             </h2>
             <span className={'state-pill ' + (job.state === 'completed' ? 'on' : '')}>
               {statusText(job.state)}
@@ -2339,7 +2339,7 @@ function Review() {
                   <strong>{a.title}</strong>
                   <p>{a.text}</p>
                   <small>
-                    {a.target === 'reflections.state' ? t('角色关切') : a.target} ·{' '}
+                    {a.target === 'reflections.state' ? t('伙伴关切') : a.target} ·{' '}
                     {t(
                       (
                         {
@@ -2377,7 +2377,7 @@ function Review() {
         </div>
       ))}
       {!jobs.length && (
-        <Empty>{t('还没有整理记录。请在角色的自动化任务中配置并运行记忆整理。')}</Empty>
+        <Empty>{t('还没有整理记录。请在伙伴的自动化任务中配置并运行记忆整理。')}</Empty>
       )}
     </>
   );
@@ -2453,7 +2453,7 @@ function Diagnostics() {
       </div>
       </details>
       <details className="card"><summary>{t('MCP 对外能力')}</summary>
-        <p>{t('本机其他应用可通过 MCP 调用勾选的读取工具。由角色委派的子任务按任务单独授权。')}</p>
+        <p>{t('本机其他应用可通过 MCP 调用勾选的读取工具。由伙伴委派的子任务按任务单独授权。')}</p>
         <div className="row wrap mcp-permission-options">
           {[...new Set<string>([...(data.mcpAvailablePermissions ?? []), ...permissions])]
             .filter((permission) => permission.endsWith('.read'))
@@ -2515,7 +2515,7 @@ function Diagnostics() {
               <b>
                 {run.source} · {statusText(run.state)}
               </b>
-              <small>{new Date(run.createdAt).toLocaleString(locale())}</small>
+              <small><AppTime at={run.createdAt}/></small>
               {run.error && <p className="warning">{run.error}</p>}
             </div>
             {run.state === 'unknown' && (

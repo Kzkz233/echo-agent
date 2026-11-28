@@ -9,6 +9,7 @@ import { echoToolPermissions } from '../packages/kernel/tool-access.ts';
 import { contextPoint } from '../packages/kernel/context.ts';
 import { deliveryPoint } from '../packages/contracts/delivery.ts';
 import { localDay } from '../packages/kernel/time.ts';
+import { taskHistory } from '../packages/kernel/task-history.ts';
 
 async function role(app: Awaited<ReturnType<typeof setup>>) {
   const result = await app.registry.call('persona.character.commit', { requestId: 'work-role', draft: characterDraft.parse({
@@ -114,6 +115,8 @@ for (const report of [false, true]) test(`failed Review preserves confirmed chan
   const app = await setup(t), parent = await role(app), fake = new FakeBackend();
   await app.plugins.enable('notifications');
   app.router.backends.set('api', fake);
+  // This scenario drives the scheduler explicitly below.
+  app.clock.pause();
   app.store.append(parent.mainConversationId, 'user', 'human', 'A supported new memory.');
   await app.registry.call('automation.save', { type: 'review.policies', id: 'failure-review', settings: {
     name: 'Fixture failed review', personaId: parent.id, enabled: true, mode: 'daily', hour: 0, minute: 0,
@@ -336,7 +339,13 @@ test('new Review freezes destinations before worker execution and does not redir
   };
   const job = await app.reviews.start(parent.id, 'frozen-v2');
   await until(() => app.reviews.jobs().find(row => row.id === job.id)?.state === 'completed');
-  await until(() => app.deliveries.rows().some(row => row.state === 'skipped'));
+  const results = () => taskHistory(app.store, app.deliveries, 'review.policies', 'frozen-review', parent.id);
+  await until(() => results().some(result => result.handoff === 'succeeded'));
+  const [target] = results()[0].expectedTargets;
+  assert.equal(target.id, 'work-output.target');
+  assert.equal(target.ready, false);
+  assert.match(target.issue, /绑定已改变/);
+  assert.equal(fake.calls.at(-1)?.replyTargets?.length ?? 0, 0);
   assert.equal(sends, 0);
 });
 

@@ -3,7 +3,7 @@
   "id": "chatstick",
   "package": "@echo/chatstick",
   "name": "ChatStick",
-  "description": "为角色配置带有语义的聊天表情，可随回复展示或经已绑定渠道投递。",
+  "description": "为伙伴配置带有语义的聊天表情，可随回复展示或经已绑定渠道投递。",
   "version": "0.9.0",
   "dependencies": [
     "files",

@@ -8,7 +8,7 @@ import { ModelChoice } from './model-choice.tsx';
 export function StarterCharacters({ data, act, openRole, openSettings, openKnowledge }: any) {
   const [catalog, setCatalog] = useState<any>();
   const [model, setModel] = useState('');
-  const [choice, setChoice] = useState('hina');
+  const [choice, setChoice] = useState('aria');
   const [connecting, setConnecting] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [requestId] = useState(() => crypto.randomUUID());
@@ -26,10 +26,10 @@ export function StarterCharacters({ data, act, openRole, openSettings, openKnowl
     });
   }, []);
   if (!catalog) return null;
-  const existingRole = data.personas?.find((role: any) => role.id === 'example-' + choice);
+  const existingRole = data.personas?.find((role: any) => role.id === catalog.characters.find((c:any)=>c.id===choice)?.roleId);
   const start = async (profileId: string) => {
-    const result = await act(() => rpc('characters.examples.create', { profileId, requestId, characterId: choice }), '');
-    if (result) openRole({ id: result.roles[0], name: catalog.characters.find((c: any) => c.id === choice)?.name });
+    const result = await act(() => rpc('characters.examples.create', { profileId, requestId, pairOnly:true }), '');
+    if (result) openRole({ id: catalog.characters.find((c:any)=>c.id===choice)?.roleId, name: catalog.characters.find((c: any) => c.id === choice)?.name });
   };
   return (
     <section className="starter-characters card">
@@ -63,7 +63,7 @@ export function StarterCharacters({ data, act, openRole, openSettings, openKnowl
                 <div>
                   <h3>{role.name}</h3>
                   <p>{t(role.description)}</p>
-                  <span className="muted">{t('角色 · 记忆 · 桌宠 · 自动化')}</span>
+                  <span className="muted">{t('伙伴 · 记忆 · 桌宠 · 自动化')}</span>
                 </div>
               </article>
             ))}
@@ -101,13 +101,13 @@ export function StarterCharacters({ data, act, openRole, openSettings, openKnowl
                   setCatalog({ ...catalog, existing: result });
                   const role = data.personas.find((entry: any) => entry.id === result.roles[0]) ?? {
                     id: result.roles[0],
-                    name: 'Hina',
+                    name: catalog.characters[0].name,
                   };
                   openRole(role);
                 })
               }
             >
-              {t(catalog.existing ? '打开示例角色' : '创建两个角色及群聊')}
+              {t(catalog.existing ? '打开示例伙伴' : '创建两个伙伴及群聊')}
             </Button>
             {catalog.existing && catalog.existing.version !== catalog.version && (
               <Button
@@ -140,14 +140,7 @@ export function StarterCharacters({ data, act, openRole, openSettings, openKnowl
             )}
             <span className="muted">
               {catalog.author} ·{' '}
-              <a
-                href="https://creativecommons.org/licenses/by/4.0/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                CC BY 4.0
-              </a>{' '}
-              ·{' '}
+              {catalog.license} ·
               <a href={catalog.source} target="_blank" rel="noreferrer">
                 {t('素材来源')}
               </a>

@@ -47,6 +47,7 @@ async function fixture(t: any) {
   await app.plugins.enable('care');
   let calls = 0,
     revision = '1',
+    ready = true,
     state = 'delivered';
   app.plugins.add({
     manifest: {
@@ -62,7 +63,7 @@ async function fixture(t: any) {
       ctx.capabilities.provide(deliveryPoint, 'fixture.outputs', 'Fixture', (input) => {
         if (input.action === 'list')
           return {
-            targets: [{ id: 'fixture.destination', label: 'Fixture destination', revision }],
+            targets: [{ id: 'fixture.destination', label: 'Fixture destination', revision, ready }],
           };
         if (input.action === 'deliver') {
           calls++;
@@ -78,6 +79,7 @@ async function fixture(t: any) {
     chat,
     backend,
     calls: () => calls,
+    availability: (value: boolean) => { ready = value; },
     setState: (value: string) => {
       state = value;
     },
@@ -211,6 +213,95 @@ test('notice reports preserve one canonical result per task while channel presen
   assert.equal(f.backend.calls[0].messages.filter(message => message.text.includes('PRESENTATION_ONLY_REPORT')).length, 2);
   const materials = await f.app.reviews.collect('companion');
   assert(materials.filter(material => material.text.includes('PRESENTATION_ONLY_REPORT')).length <= 2);
+});
+
+test('a queued handoff resolves the original recipients at execution and preserves its receipt on replay', async t => {
+  const f = await fixture(t);
+  f.availability(false);
+  const task = {type:'fixture.tasks', id:'scheduled'};
+  const frozen = await f.app.deliveries.plan(f.chat.id,'handoff',['core.chat','fixture.destination'],{task});
+  assert.equal(frozen.targets[1].ready,false);
+  const legacy = {...frozen};
+  delete legacy.audience;
+  const submit = {conversationId:f.chat.id, requestId:'queued-report', text:'Synthetic result',
+    source:'handoff' as const, delivery:legacy};
+  f.app.router.enqueue(submit);
+  f.availability(true);
+  await until(() => f.calls() === 1);
+  assert.deepEqual(f.backend.calls[0].replyTargets,['core.chat','fixture.destination']);
+  assert.equal(frozen.targets[1].ready,false);
+  const run = f.app.store.run(submit.requestId)!;
+  assert.equal((run.meta.delivery as typeof frozen).targets[1].ready,true);
+  await f.app.router.send(submit);
+  await f.app.router.send({...submit, delivery: await f.app.deliveries.plan(f.chat.id, frozen.source, ['fixture.destination','core.chat'], {task})});
+  await f.app.router.send({...submit, delivery:run.meta.delivery as typeof frozen});
+  assert.equal(f.calls(),1);
+  assert.equal(f.backend.calls.length,1);
+});
+
+test('a provider registering late must confirm the same previously selected recipient', async t => {
+  const f = await fixture(t);
+  const id = 'fixture.destination';
+  // The user selected this destination in the live catalog before shutdown.
+  await f.app.deliveries.catalog(f.chat.id);
+  await f.app.plugins.disable('fixture');
+  const saved = await f.app.deliveries.plan(f.chat.id, 'handoff', [id, 'fixture.unseen']);
+  assert.equal(saved.targets[0].provider, 'fixture.outputs');
+  assert.equal(saved.targets[0].ready, false);
+  await f.app.plugins.enable('fixture');
+  const publish = (key: string) => f.app.deliveries.publish({id:key, personaId:f.chat.personaId,
+    conversationId:f.chat.id, text:'Fixture', plan:saved});
+  await publish('restored-provider');
+  assert.equal(f.calls(),1);
+  assert.equal(f.app.deliveries.rows('restored-provider').find(r => r.targetId === 'fixture.unseen')?.state, 'skipped');
+  f.revise();
+  await publish('changed-provider-recipient');
+  assert.equal(f.calls(),1);
+});
+
+test('direct reports and model reports honor live eligibility without redirecting or replaying', async t => {
+  const f = await fixture(t);
+  const target = 'fixture.destination';
+  f.availability(false);
+  const plan = await f.app.deliveries.plan(f.chat.id,'review',[target]);
+  const envelope = {id:'direct', conversationId:f.chat.id, personaId:f.chat.personaId, text:'Fixture', plan};
+  f.availability(true);
+  await Promise.all([f.app.deliveries.publish(envelope), f.app.deliveries.publish(envelope)]);
+  assert.equal(f.calls(),1);
+  await f.app.deliveries.publish({...envelope, plan:{...plan,audience:undefined}});
+  assert.equal(f.calls(),1);
+  f.availability(false);
+  await f.app.deliveries.publish({...envelope, id:'denied'});
+  assert.equal(f.app.deliveries.rows('denied')[0].state,'skipped');
+  f.availability(true);
+  await f.app.deliveries.publish({...envelope, id:'denied'});
+  assert.equal(f.calls(),1);
+
+  const other = conversation(f.app, {personaId:'other'});
+  await f.app.deliveries.publish({...envelope, id:'another-role', conversationId:other.id, personaId:other.personaId});
+  assert.equal(f.app.deliveries.rows('another-role')[0].state,'skipped');
+  f.backend.responder = async req => {
+    assert.deepEqual(req.replyTargets,[target]);
+    f.availability(false); // Permission revoked after inference started, before transport.
+    req.respond!({targetId:target,phase:'final',messages:['Synthetic report']});
+    return {text:''};
+  };
+  const run = await f.app.router.send({conversationId:f.chat.id,requestId:'revoked',text:'Fixture',source:'handoff',delivery:plan});
+  assert.equal(run.state,'succeeded');
+  const out = f.app.store.channelFinalsForRun(run)[0];
+  await until(() => f.app.deliveries.rows('message.'+out.id)[0]?.state === 'skipped');
+  assert.equal(f.calls(),1);
+
+  f.revise();
+  f.availability(true);
+  f.backend.responder = async req => {
+    assert.equal(req.replyTargets?.length ?? 0,0);
+    return {text:'Internal result'};
+  };
+  const changed = await f.app.router.send({conversationId:f.chat.id, requestId:'new-recipient', text:'Fixture', delivery:plan});
+  assert.equal((changed.meta.delivery as typeof plan).targets[0].revision,plan.targets[0].revision);
+  assert.equal((changed.meta.delivery as typeof plan).targets[0].ready,false);
+  assert.equal(f.calls(),1);
 });
 
 test('unknown delivery is never retried and changed or missing targets do not redirect an old result', async (t) => {

@@ -1,7 +1,7 @@
 {
   "id": "persona",
-  "name": "Character System",
-  "description": "管理角色身份、人设、权限、主会话与功能配置。",
+  "name": "Companion System",
+  "description": "管理伙伴身份、人设、权限、主会话与功能配置。",
   "version": "0.9.0",
   "dependencies": [],
   "permissions": [

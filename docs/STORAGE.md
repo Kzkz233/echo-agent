@@ -6,7 +6,7 @@ Each registered root is a portable library, separate from Echo's runtime configu
 
 `entries` stores stable ID, title, Markdown body, kind, logical export path, source identity/hash, revision, content version, updated time and plugin metadata. Common fields are columns. Plugin-specific structured metadata is JSON; it does not require adding a core column for every extension. A logical path is a category/export hint, not an editable backing Markdown file.
 
-`files` describes managed originals. `objects` describes immutable content-addressed bytes. `entry_attachments` binds an entry to a particular object hash, name and role. Reimporting an original updates its current file identity and one current knowledge package; it does not create a package per chunk. Old object versions remain available for recorded provenance. The current version is also retained in `entry_revisions`; no background garbage collection deletes original content.
+`files` describes managed originals. `objects` describes immutable content-addressed bytes. `entry_attachments` binds an entry to a particular object hash, name and companion. Reimporting an original updates its current file identity and one current knowledge package; it does not create a package per chunk. Old object versions remain available for recorded provenance. The current version is also retained in `entry_revisions`; no background garbage collection deletes original content.
 
 Bodies and properties are committed in one library transaction. Registry operations validate inputs; explicit revision checks reject stale edits. Changing files manually can still damage a library: object hashes, missing-file checks and verified backups help detect this; a database is not protection against deleting the entire directory.
 
@@ -20,7 +20,7 @@ Markdown refers to a registered attachment as `echo-asset:<SHA-256>`. The workbe
 - Markdown: normal `.md` files with front matter plus relative attachment links, source metadata and a checksum manifest. It can be read outside Echo; it is not a full application restore.
 - Backup: an application snapshot, all registered library snapshots/objects and raw observation text. Restore requires a new empty runtime and disables automatic effects. Credentials are deliberately excluded.
 
-Exports create a new file and do not overwrite an existing destination. Exporting additional kinds can include private character content. Full private preview data lives outside the checkout and is never part of the release builder's source/runtime inputs.
+Exports create a new file and do not overwrite an existing destination. Exporting additional kinds can include private companion content. Full private preview data lives outside the checkout and is never part of the release builder's source/runtime inputs.
 
 Keyword recall works without an embedding provider. Semantic vectors and model caches are derived enhancements, not the only copy of the knowledge or memory text. They are not required to mount a library or read its Markdown.
 

@@ -236,11 +236,11 @@ test('API connections hold multiple models with independent capabilities and rou
   await app.registry.call('routes.save', { [inferenceTasks.embedding]: embed.id }, ui);
   await assert.rejects(
     app.registry.call('routes.save', { [inferenceTasks.chat]: chat.id }, ui),
-    /角色级推理任务/,
+    /伙伴级推理任务/,
   );
   await assert.rejects(
     app.registry.call('routes.save', { [inferenceTasks.vision]: chat.id }, ui),
-    /角色级推理任务/,
+    /伙伴级推理任务/,
   );
   await assert.rejects(
     catalog.saveModel({ ...chat, generation: { enabled: true, inputs: ['text', 'audio'] } }),

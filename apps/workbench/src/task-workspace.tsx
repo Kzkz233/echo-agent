@@ -1,3 +1,4 @@
+import { AppTime } from './message-time.tsx';
 import { useTaskCatalog } from './use-task-catalog.ts';
 import { FailurePanel } from './task-failure.tsx';
 import { RecordedTasks, TaskHistory } from './task-history.tsx';
@@ -272,7 +273,7 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
                       .filter((run) => run.policy?.id === current.id)
                       .map((run) => (
                         <article key={run.id} className="card">
-                          <strong>{new Date(run.createdAt).toLocaleString()}</strong>
+                          <strong><AppTime at={run.createdAt}/></strong>
                           <span> · {t(run.state)}</span>
                           <p>{run.report ?? run.error ?? run.notes}</p>
                           <p>
@@ -348,10 +349,10 @@ export function TaskWorkspace({ data, act, personaId, setPage, openTask, configu
                     </small>
                   </span>
                   <span className="state-pill">
-                    {t(row.item?.suspendedByCharacter ? '角色已停用' : row.label)}
+                    {t(row.item?.suspendedByCharacter ? '伙伴已停用' : row.label)}
                   </span>
                   <small>
-                    {row.item?.nextAt ? new Date(row.item.nextAt).toLocaleString() : ''}
+                    {row.item?.nextAt ? <AppTime at={row.item.nextAt}/> : ''}
                   </small>
                 </button>
               ))}

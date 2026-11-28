@@ -35,11 +35,13 @@ test('CLI uses the shared conversation and task state and cannot call workbench 
   assert((await cli('commands')).some((c: any) => c.id === 'knowledge.pipeline.status'));
   assert(Array.isArray(await cli('jobs', 'list')));
   assert.equal((await cli('roles')).find((item: { id: string }) => item.id === 'cli-role').conversationId, role.mainConversationId);
+  assert.deepEqual(await cli('companions'), await cli('roles'));
   assert(Array.isArray((await cli('tasks')).tasks));
   const reply = await cli('chat', '--role', 'cli-role', '--request-id', 'cli-message', 'Hello');
   assert.equal(reply.state, 'succeeded');
   assert.equal(reply.text, '合成回复');
   assert.equal((await cli('chat-status', 'cli-message')).runId, reply.runId);
+  assert.equal((await cli('chat', '--companion', 'cli-role', '--request-id', 'cli-message', 'Hello')).runId, reply.runId);
   assert.equal(app.store.allMessages(role.mainConversationId).at(-1)?.text, reply.text);
   assert.equal(backend.calls.length, 1);
   const policy = app.reviews.policy('cli-role');

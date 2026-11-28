@@ -1,3 +1,5 @@
+import { clockValue, dailyTimeCodec, followAppTimezone } from '../../../packages/contracts/daily-time.ts';
+import { TaskField } from './automation-view.tsx';
 import { CredentialInput } from './credential-input.tsx';
 import { statusText } from './i18n.ts';
 import { t } from './i18n.ts';
@@ -282,9 +284,12 @@ function UtilityPage({ page, data, act, personaId, setPage, embedded = false }: 
                 </label>
                 {form.mode === 'daily' ? (
                   <>
-                    {text('hour', t('Hour'), 'number')}
-                    {text('minute', t('Minute'), 'number')}
-                    {text('timezone', t('Timezone (default Asia/Shanghai)'))}
+                    <TaskField field={{key:'dailyTime', label:'每日执行时间', kind:'time'}}
+                      draft={{type:'scheduler.timed', id:form.id ?? '', settings:{ ...form, dailyTime:form.dailyTime ?? clockValue(form) ?? '07:00' }}} onChange={set}/>
+                    <details><summary>{t('高级任务设置')}</summary>
+                      <TaskField field={{key:'timezone', label:'时区', kind:'timezone'}}
+                        draft={{type:'scheduler.timed', id:form.id ?? '', settings:form}} onChange={set}/>
+                    </details>
                   </>
                 ) : (
                   text('minutes', t('Interval minutes'), 'number')
@@ -313,9 +318,9 @@ function UtilityPage({ page, data, act, personaId, setPage, embedded = false }: 
                         enabled: form.enabled ?? false,
                         mode: form.mode ?? 'interval',
                         minutes: Number(form.minutes) || 60,
-                        hour: form.hour === undefined || form.hour === '' ? 7 : Number(form.hour),
-                        minute: Number(form.minute) || 0,
-                        timezone: form.timezone || 'Asia/Shanghai',
+                        ...dailyTimeCodec.changes({dailyTime:form.dailyTime ?? clockValue(form) ?? '07:00'}),
+                        timezone: form.timezone || followAppTimezone,
+                        missedPolicy: form.missedPolicy, validMinutes: form.validMinutes,
                       }),
                     )
                   }

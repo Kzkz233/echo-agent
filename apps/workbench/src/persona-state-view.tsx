@@ -1,6 +1,7 @@
+import { AppTime } from './message-time.tsx';
 import { useEffect, useState, useRef } from 'react';
 import { rpc } from './client.ts';
-import { t, locale } from './i18n.ts';
+import { t } from './i18n.ts';
 import {
   Button,
   EmptyState,
@@ -20,7 +21,7 @@ export function ReflectionsView({ personaId, act, embedded = false }: any) {
     baseline = useRef<any>(undefined);
   const confirm = useConfirm(),
     dirty = Boolean(draft && !sameData(draft, baseline.current));
-  useUnsavedChanges(dirty, '角色关切');
+  useUnsavedChanges(dirty, '伙伴关切');
   const load = async () => {
     const version = ++request.current;
     try {
@@ -89,7 +90,7 @@ export function ReflectionsView({ personaId, act, embedded = false }: any) {
   return (
     <div className="state-workspace">
       <div className="page-title page-title-actions">
-        {!embedded && <h1>{t('角色关切')}</h1>}
+        {!embedded && <h1>{t('伙伴关切')}</h1>}
         <Button onClick={() => edit()}>
           <Icon name="plus" size={16} />
           {t('添加关注')}
@@ -124,14 +125,14 @@ export function ReflectionsView({ personaId, act, embedded = false }: any) {
               </div>
             )}
             <footer>
-              <time>{new Date(note.updatedAt).toLocaleDateString(locale())}</time>
+              <AppTime at={note.updatedAt} dateOnly/>
               <button className="text-button" onClick={() => forget(note)}>
                 {t('淡出关注')}
               </button>
             </footer>
           </article>
         ))}
-        {!rows.length && <EmptyState title={t('暂时没有角色关切')} icon="personas" />}
+        {!rows.length && <EmptyState title={t('暂时没有伙伴关切')} icon="personas" />}
       </div>
       <details className="card">
         <summary>{t('预览注入内容')}</summary>

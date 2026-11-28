@@ -48,11 +48,11 @@ const errors: string[] = [];
 page.on('pageerror', error => errors.push(error.message));
 try {
   await page.goto(`http://127.0.0.1:${http.port}/?persona=fixture#token=${http.token}`);
-  await page.getByRole('button', { name: '配置角色', exact: true }).click();
+  await page.getByRole('button', { name: '配置伙伴', exact: true }).click();
   await page.getByRole('button', { name: '模型与权限', exact: true }).click();
   await page.getByText('上下文设置', { exact: true }).click();
-  await page.getByRole('checkbox', { name: '角色人设', exact: true }).waitFor();
-  assert(await page.getByRole('checkbox', { name: '角色人设', exact: true }).isChecked());
+  await page.getByRole('checkbox', { name: '伙伴人设', exact: true }).waitFor();
+  assert(await page.getByRole('checkbox', { name: '伙伴人设', exact: true }).isChecked());
   assert(await page.getByRole('checkbox', { name: '核心记忆', exact: true }).isChecked());
   assert(!await page.getByRole('checkbox', { name: '记忆召回', exact: true }).isChecked());
   await page.locator('.role-editor-nav').getByRole('button', { name: '自动化任务', exact: true }).click();

@@ -241,18 +241,18 @@ export class MailTriggers {
     invariant(
       !rule.enabled || rule.accountIds.every((id) => allowed.some((account) => account.id === id)),
       'mail_scope',
-      '请先在角色配置中授权所选邮箱。',
+      '请先在伙伴配置中授权所选邮箱。',
     );
     const character = this.store.document<{ features: string[] }>('characters', rule.personaId);
     invariant(
       !rule.enabled || !character || character.features.includes('mail-triggers'),
       'trigger_feature',
-      '请先在编辑角色中启用邮件触发提醒。',
+      '请先在编辑伙伴中启用邮件触发提醒。',
     );
     invariant(
       rule.action !== 'conversation' || rule.conversationId,
       'conversation_missing',
-      '角色提醒需要目标会话。',
+      '伙伴提醒需要目标会话。',
     );
     const state = this.state(id),
       batch = state.lastBatch
@@ -689,7 +689,7 @@ export class MailTriggers {
                   kind: 'select',
                   options: [
                     { value: 'notice', label: '程序通知（不调用模型）' },
-                    { value: 'conversation', label: '由角色判断并提醒' },
+                    { value: 'conversation', label: '由伙伴判断并提醒' },
                   ],
                 },
                 {

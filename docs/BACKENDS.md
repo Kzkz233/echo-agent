@@ -21,7 +21,7 @@ Echo embeds `@earendil-works/pi-agent-core` and `pi-ai`, not the coding CLI or i
 Pi Agent Core is the main conversation runtime. Both API and Embedded Pi model
 resources execute main conversations through it. Auxiliary generation calls disable
 tools. The optional `@echo/worker-codex` and `@echo/worker-dsh` plugins register
-Worker-only adapters: they cannot become a role's main model, observation or recall
+Worker-only adapters: they cannot become a companion's main model, observation or recall
 route. They can execute a configured delegation or an explicitly selected Review
 Worker. Review defaults to Pi, including when its model uses an API connection.
 Each external Review packet uses an isolated host session with supplied frozen
@@ -47,7 +47,7 @@ Each connection uses `harnesses/codex/<connection-id>` under Echo's data directo
 
 The adapter uses public thread start/resume/read/archive APIs, native history insertion, turn start/completion, interruption, and native result inspection. Imported assistant records stay assistant records. Application-triggered turns use standalone application tool output rather than pretending to be human speech. Repeated persona/recall context is fenced by persisted context IDs.
 
-Manual conversation turns default to a read-only sandbox and deny requests for additional approval. For role-managed chats, configure the backend and optional project folder/permissions in Edit Character → Runtime → Workspace and permissions. Worker templates own their settings; group members inherit the role. Independent core chats retain Conversation Settings. Tool and approval requests are scoped to their originating turn and still appear in the workbench. The workbench supports one-time command, file and permission decisions and native structured questions. It does not issue durable access grants. Background turns do not wait for workbench input.
+Manual conversation turns default to a read-only sandbox and deny requests for additional approval. For companion-managed chats, configure the backend and optional project folder/permissions in Edit Companion → Runtime → Workspace and permissions. Worker templates own their settings; group members inherit the companion. Independent core chats retain Conversation Settings. Tool and approval requests are scoped to their originating turn and still appear in the workbench. The workbench supports one-time command, file and permission decisions and native structured questions. It does not issue durable access grants. Background turns do not wait for workbench input.
 
 An idle Codex host is released after two minutes and reopened lazily; its managed native session remains resumable. Active requests are reference-counted and cannot be closed by the idle timer. The official interactive login gets a longer grace period. This avoids keeping a full external inference host resident beside the native avatar between interactions.
 
@@ -69,13 +69,13 @@ Custom routes use the official `@deepseek-ai/dsh-llm-pi-ai` plugin, installed th
 
 `deepseek-official` selects the bundled official provider. It uses its Messages API base URL (`https://api.deepseek.com/anthropic`), not the OpenAI-compatible `/v1` path. Echo normalizes the known official host when an old `/v1` value is present and leaves custom endpoints untouched. Keys are supplied only to the SDK child environment. The SDK profile can have different native API wire formats from the direct OpenAI-compatible backend; Echo communicates with DSH through its SDK protocol. `xhigh` maps to DSH's supported `high`; it is not forwarded as an unsupported effort ID.
 
-The SDK accepts prompts and does not expose arbitrary native assistant-history insertion. Echo supplies an attributed history/context capsule while keeping the canonical role/source record in Echo. Native sessions remain in the isolated home when detached. Unknown writes and model failures are not represented as delivered replies.
+The SDK accepts prompts and does not expose arbitrary native assistant-history insertion. Echo supplies an attributed history/context capsule while keeping the canonical companion/source record in Echo. Native sessions remain in the isolated home when detached. Unknown writes and model failures are not represented as delivered replies.
 
 Official protocol source: https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/sdk/protocol
 
 ## Capability boundaries
 
-Echo intersects application-level tool limits with per-character grants before exposing tools to a managed conversation. DSH receives a short-lived, conversation-bound MCP credential. Codex receives the same authorized operations through its app-server `dynamicTools` contract, bound to the thread at creation and dispatched back through the trusted conversation identity. A changed tool grant archives the prior Codex thread and starts a replacement with Echo's saved history. Pi applies the same permission intersection directly to its in-process tool list; read mode exposes only read operations and ask mode requests approval before writes.
+Echo intersects application-level tool limits with per-companion grants before exposing tools to a managed conversation. DSH receives a short-lived, conversation-bound MCP credential. Codex receives the same authorized operations through its app-server `dynamicTools` contract, bound to the thread at creation and dispatched back through the trusted conversation identity. A changed tool grant archives the prior Codex thread and starts a replacement with Echo's saved history. Pi applies the same permission intersection directly to its in-process tool list; read mode exposes only read operations and ask mode requests approval before writes.
 
 The per-conversation project folder is separate from Echo's MCP scopes. Codex and DSH use their own native tools for project work. Embedded Pi can list and read files within that folder. Opting in to edits adds exact text replacements and file creation, each requiring confirmation and using revision checks. A separate terminal opt-in adds the official Pi coding tool, requires interactive approval for each command, and runs with the local user's authority; its working folder is not an OS sandbox.
 
